@@ -1,0 +1,6 @@
+bin/
+obj/
+CLAUDE.md
+GEMINI.md
+.claude
+.vscode

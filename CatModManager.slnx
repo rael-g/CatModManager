@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CatModManager.Core/CatModManager.Core.csproj" />
+    <Project Path="src/CatModManager.PluginSdk/CatModManager.PluginSdk.csproj" />
+    <Project Path="src/CatModManager.Ui/CatModManager.Ui.csproj" />
+    <Project Path="src/CatModManager.VirtualFileSystem/CatModManager.VirtualFileSystem.csproj" />
+    <Project Path="src/CmmPlugin.BethesdaTools/CmmPlugin.BethesdaTools.csproj" />
+    <Project Path="src/CmmPlugin.FomodInstaller/CmmPlugin.FomodInstaller.csproj" />
+    <Project Path="src/CmmPlugin.NexusMods/CmmPlugin.NexusMods.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CatModManager.Tests/CatModManager.Tests.csproj" />
+  </Folder>
+</Solution>
+
+
+
