@@ -1,0 +1,9 @@
+GameId      = "skyrimspecialedition"
+DisplayName = "The Elder Scrolls V: Skyrim Special Edition"
+
+NexusDomain = "skyrimspecialedition"
+SteamAppId  = 489830
+
+RequiredFiles = ["SkyrimSE.exe", "Data"]
+
+DataSubFolder = "Data"

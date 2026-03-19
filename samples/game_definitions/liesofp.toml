@@ -1,0 +1,9 @@
+GameId      = "liesofp"
+DisplayName = "Lies of P"
+
+NexusDomain = "liesofp"
+SteamAppId  = 1627720
+
+RequiredFiles = ["LiesofP.exe", "LiesofP"]
+
+DataSubFolder = "LiesofP\\Content\\Paks\\~mods"

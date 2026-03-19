@@ -1,0 +1,9 @@
+GameId      = "cyberpunk"
+DisplayName = "Cyberpunk 2077"
+
+NexusDomain = "cyberpunk2077"
+SteamAppId  = 1091500
+
+RequiredFiles = ["bin\\x64\\Cyberpunk2077.exe"]
+
+DataSubFolder = "archive\\pc\\mod"
