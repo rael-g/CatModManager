@@ -1,0 +1,187 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CatModManager.Ui.App"
+             xmlns:local="using:CatModManager.Ui"
+             RequestedThemeVariant="Dark">
+
+    <Application.DataTemplates>
+        <local:ViewLocator/>
+    </Application.DataTemplates>
+
+    <Application.Resources>
+        <!-- Discord Dark Palette Colors -->
+        <Color x:Key="AppBackgroundColor">#1E1F22</Color>
+        <Color x:Key="SidebarBgColor">#2B2D31</Color>
+        <Color x:Key="SidebarHeaderBgColor">#232428</Color>
+        <Color x:Key="ContentBgColor">#313338</Color>
+        <Color x:Key="SurfaceBgColor">#383A40</Color>
+        <Color x:Key="SurfaceSelectedColor">#404249</Color>
+
+        <Color x:Key="BorderColorValue">#3F4147</Color>
+        <Color x:Key="BorderSubtleColor">#2E3035</Color>
+
+        <Color x:Key="TextPrimaryColor">#DBDEE1</Color>
+        <Color x:Key="TextMutedColor">#B5BAC1</Color>
+        <Color x:Key="TextSubtleColor">#80848E</Color>
+
+        <Color x:Key="AccentColorValue">#4E7FD5</Color>
+        <Color x:Key="AccentHoverColor">#6895E0</Color>
+
+        <Color x:Key="StatusActiveColor">#3BA55D</Color>
+        <Color x:Key="StatusDangerColor">#ED4245</Color>
+        <Color x:Key="StatusWarningColor">#FAA61A</Color>
+
+        <!-- Brushes -->
+        <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}"/>
+        <SolidColorBrush x:Key="SidebarBg" Color="{StaticResource SidebarBgColor}"/>
+        <SolidColorBrush x:Key="SidebarHeaderBg" Color="{StaticResource SidebarHeaderBgColor}"/>
+        <SolidColorBrush x:Key="ContentBg" Color="{StaticResource ContentBgColor}"/>
+        <SolidColorBrush x:Key="SurfaceBg" Color="{StaticResource SurfaceBgColor}"/>
+        <SolidColorBrush x:Key="SurfaceSelected" Color="{StaticResource SurfaceSelectedColor}"/>
+        
+        <SolidColorBrush x:Key="BorderColor" Color="{StaticResource BorderColorValue}"/>
+        <SolidColorBrush x:Key="BorderSubtle" Color="{StaticResource BorderSubtleColor}"/>
+
+        <SolidColorBrush x:Key="TextPrimary" Color="{StaticResource TextPrimaryColor}"/>
+        <SolidColorBrush x:Key="TextMuted" Color="{StaticResource TextMutedColor}"/>
+        <SolidColorBrush x:Key="TextSubtle" Color="{StaticResource TextSubtleColor}"/>
+
+        <SolidColorBrush x:Key="AccentColor" Color="{StaticResource AccentColorValue}"/>
+        <SolidColorBrush x:Key="AccentHover" Color="{StaticResource AccentHoverColor}"/>
+        
+        <!-- Use direct ARGB for stable alpha in shared resources -->
+        <SolidColorBrush x:Key="AccentTint" Color="#1F4E7FD5"/> 
+
+        <SolidColorBrush x:Key="StatusActive" Color="{StaticResource StatusActiveColor}"/>
+        <SolidColorBrush x:Key="StatusDanger" Color="{StaticResource StatusDangerColor}"/>
+        <SolidColorBrush x:Key="StatusWarning" Color="{StaticResource StatusWarningColor}"/>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        
+        <Style Selector="Button, ComboBox, TextBox">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.12"/>
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <Style Selector="TextBlock.sidebar-section-header">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSubtle}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="12,16,12,4"/>
+        </Style>
+
+        <Style Selector="Button.sidebar-nav-item">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="Margin" Value="4,1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Foreground" Value="#96989D"/>
+        </Style>
+        <Style Selector="Button.sidebar-nav-item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#35373C"/>
+            <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+
+        <Style Selector="TextBox.command-bar-input">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style Selector="Button.launch-btn">
+            <Setter Property="Background" Value="{DynamicResource AccentColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="16,8"/>
+        </Style>
+        <Style Selector="Button.launch-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentHover}"/>
+            <Setter Property="TextBlock.Foreground" Value="White"/>
+        </Style>
+
+        <Style Selector="Button.mount-btn">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,8"/>
+        </Style>
+
+        <Style Selector="Button.danger-btn">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#ED424540"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{DynamicResource StatusDanger}"/>
+        </Style>
+        <Style Selector="Button.danger-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#ED424518"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource StatusDanger}"/>
+            <Setter Property="TextBlock.Foreground" Value="{DynamicResource StatusDanger}"/>
+        </Style>
+
+        <Style Selector="TextBlock.inspector-field-label">
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSubtle}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style Selector="TextBox.path-field">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontFamily" Value="Cascadia Code,Consolas,monospace"/>
+            <Setter Property="Padding" Value="2,4"/>
+        </Style>
+
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+        <Style Selector="TextBlock.col-header">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSubtle}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style Selector="Button.small-icon">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSubtle}"/>
+        </Style>
+        <Style Selector="Button.small-icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextMuted}"/>
+        </Style>
+
+        <Style Selector="MenuFlyoutPresenter">
+            <Setter Property="Background" Value="{DynamicResource SidebarHeaderBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
+            <Setter Property="Padding" Value="4"/>
+        </Style>
+        <Style Selector="MenuItem">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+    </Application.Styles>
+</Application>

@@ -1,0 +1,292 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CatModManager.Ui.ViewModels"
+        xmlns:m="using:CatModManager.Ui.Models"
+        xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+        x:Class="CatModManager.Ui.Views.PluginBrowserWindow"
+        x:DataType="vm:PluginBrowserViewModel"
+        Title="Plugin Browser — Cat Mod Manager"
+        Width="820" Height="640"
+        MinWidth="640" MinHeight="480"
+        Background="{DynamicResource AppBackground}"
+        Foreground="{DynamicResource TextPrimary}"
+        WindowStartupLocation="CenterOwner">
+
+    <TabControl TabStripPlacement="Top" Background="Transparent" Padding="0">
+
+        <!-- ══ SEARCH TAB ═════════════════════════════════════════════════════ -->
+        <TabItem Header="SEARCH">
+            <DockPanel>
+
+                <!-- Search Bar -->
+                <Border DockPanel.Dock="Top"
+                        Background="{DynamicResource SidebarBg}"
+                        BorderBrush="{DynamicResource BorderColor}"
+                        BorderThickness="0,0,0,1"
+                        Padding="16,10">
+                    <Grid ColumnDefinitions="*, Auto, Auto">
+
+                        <Grid Grid.Column="0" ColumnDefinitions="Auto, *">
+                            <TextBlock Grid.Column="0" Text="⌕"
+                                       Foreground="{DynamicResource AccentColor}"
+                                       FontSize="16" VerticalAlignment="Center"
+                                       Margin="0,0,10,0"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding SearchText}"
+                                     Watermark="Search plugins by name…"
+                                     Classes="command-bar-input"
+                                     VerticalAlignment="Center">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}"/>
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                        </Grid>
+
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding SortOptions}"
+                                  SelectedItem="{Binding SelectedSort}"
+                                  Width="160"
+                                  Margin="12,0,0,0"
+                                  Background="{DynamicResource SurfaceBg}"
+                                  BorderThickness="1"
+                                  BorderBrush="{DynamicResource BorderColor}"
+                                  VerticalAlignment="Center"
+                                  FontSize="12"/>
+
+                        <Button Grid.Column="2"
+                                Command="{Binding SearchCommand}"
+                                Margin="8,0,0,0"
+                                Padding="16,6"
+                                Background="{DynamicResource AccentColor}"
+                                Foreground="White"
+                                VerticalAlignment="Center"
+                                FontWeight="Bold"
+                                FontSize="12">
+                            Search
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Status Bar -->
+                <Border DockPanel.Dock="Bottom"
+                        Background="{DynamicResource SidebarHeaderBg}"
+                        BorderBrush="{DynamicResource BorderColor}"
+                        BorderThickness="0,1,0,0"
+                        Padding="16,6">
+                    <Grid ColumnDefinitions="Auto, *">
+                        <ProgressBar Grid.Column="0"
+                                     IsIndeterminate="True"
+                                     IsVisible="{Binding IsLoading}"
+                                     Width="120" Height="4"
+                                     Margin="0,0,12,0"
+                                     VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding StatusMessage}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextMuted}"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Results List -->
+                <ScrollViewer>
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding SearchResults}" Margin="12,8">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="m:NuGetPackageEntry">
+                                    <Border Background="{DynamicResource SurfaceBg}"
+                                            BorderBrush="{DynamicResource BorderColor}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Margin="0,0,0,4"
+                                            Padding="14,12">
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Grid.Column="0" Spacing="4">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding PackageId}"
+                                                               FontWeight="Bold" FontSize="13"
+                                                               Foreground="{DynamicResource TextPrimary}"/>
+                                                    <Border Background="{DynamicResource AccentColor}"
+                                                            CornerRadius="3" Padding="6,1"
+                                                            IsVisible="{Binding IsOfficial}"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="OFFICIAL" FontSize="8" FontWeight="Bold" Foreground="White"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                                    <TextBlock Text="{Binding Authors}"       FontSize="11" Foreground="{DynamicResource TextSubtle}"/>
+                                                    <TextBlock Text="{Binding LatestVersion}" FontSize="11" Foreground="{DynamicResource TextSubtle}"/>
+                                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextSubtle}">
+                                                        <TextBlock.Text>
+                                                            <MultiBinding StringFormat="↓ {0:N0}">
+                                                                <Binding Path="TotalDownloads"/>
+                                                            </MultiBinding>
+                                                        </TextBlock.Text>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Description}"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           TextWrapping="Wrap"
+                                                           MaxWidth="520"/>
+                                                <TextBlock FontSize="10"
+                                                           Foreground="{DynamicResource StatusActive}"
+                                                           IsVisible="{Binding IsInstalled}">
+                                                    <TextBlock.Text>
+                                                        <MultiBinding StringFormat="Installed: {0}">
+                                                            <Binding Path="InstalledVersion"/>
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding $parent[Window].DataContext.ActionCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    VerticalAlignment="Center"
+                                                    Margin="16,0,0,0"
+                                                    Padding="16,6"
+                                                    MinWidth="100"
+                                                    FontWeight="SemiBold"
+                                                    FontSize="12">
+                                                <Button.Styles>
+                                                    <Style Selector="Button">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentColor}"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                    </Style>
+                                                </Button.Styles>
+                                                <TextBlock Text="{Binding ActionLabel}" HorizontalAlignment="Center"/>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Button Command="{Binding LoadMoreCommand}"
+                                IsVisible="{Binding HasMore}"
+                                HorizontalAlignment="Center"
+                                Margin="0,4,0,16"
+                                Padding="24,8"
+                                Background="Transparent"
+                                BorderBrush="{DynamicResource BorderColor}"
+                                BorderThickness="1"
+                                FontSize="12">
+                            Load more…
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+
+            </DockPanel>
+        </TabItem>
+
+        <!-- ══ INSTALLED TAB ══════════════════════════════════════════════════ -->
+        <TabItem Header="INSTALLED">
+            <DockPanel>
+
+                <!-- Header bar -->
+                <Border DockPanel.Dock="Top"
+                        Background="{DynamicResource SidebarBg}"
+                        BorderBrush="{DynamicResource BorderColor}"
+                        BorderThickness="0,0,0,1"
+                        Padding="16,10">
+                    <Grid ColumnDefinitions="*, Auto">
+                        <TextBlock Grid.Column="0"
+                                   Text="Plugins currently loaded by CMM"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextMuted}"
+                                   VerticalAlignment="Center"/>
+                        <Button Grid.Column="1"
+                                Command="{Binding RefreshInstalledPluginsCommand}"
+                                Padding="12,4"
+                                Background="Transparent"
+                                BorderBrush="{DynamicResource BorderColor}"
+                                BorderThickness="1"
+                                FontSize="11">
+                            ↺ Refresh
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Status bar (shared) -->
+                <Border DockPanel.Dock="Bottom"
+                        Background="{DynamicResource SidebarHeaderBg}"
+                        BorderBrush="{DynamicResource BorderColor}"
+                        BorderThickness="0,1,0,0"
+                        Padding="16,6">
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextMuted}"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Installed list -->
+                <ScrollViewer>
+                    <StackPanel Margin="12,8" Spacing="4">
+
+                        <!-- Empty state -->
+                        <TextBlock Text="No plugins installed."
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextSubtle}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,32,0,0"
+                                   IsVisible="{Binding InstalledPlugins.Count, Converter={x:Static conv:ObjectConverters.IsNull}}"/>
+
+                        <ItemsControl ItemsSource="{Binding InstalledPlugins}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="m:InstalledPluginItem">
+                                    <Border Background="{DynamicResource SurfaceBg}"
+                                            BorderBrush="{DynamicResource BorderColor}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="14,10">
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Grid.Column="0" Spacing="3">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="Bold" FontSize="13"
+                                                               Foreground="{DynamicResource TextPrimary}"/>
+                                                    <!-- Built-in badge -->
+                                                    <Border Background="{DynamicResource SidebarHeaderBg}"
+                                                            BorderBrush="{DynamicResource BorderColor}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="3" Padding="6,1"
+                                                            IsVisible="{Binding !CanUninstall}"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="BUILT-IN" FontSize="8" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TextSubtle}"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                                    <TextBlock Text="{Binding Author}"  FontSize="11" Foreground="{DynamicResource TextSubtle}"/>
+                                                    <TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource TextSubtle}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- Uninstall button (NuGet plugins only) -->
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding $parent[Window].DataContext.UninstallInstalledCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    IsVisible="{Binding CanUninstall}"
+                                                    VerticalAlignment="Center"
+                                                    Margin="16,0,0,0"
+                                                    Padding="14,5"
+                                                    FontWeight="SemiBold"
+                                                    FontSize="12"
+                                                    Background="#C0392B"
+                                                    Foreground="White">
+                                                Uninstall
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+            </DockPanel>
+        </TabItem>
+
+    </TabControl>
+</Window>

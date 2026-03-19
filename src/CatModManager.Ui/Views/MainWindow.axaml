@@ -1,0 +1,459 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CatModManager.Ui.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="using:CatModManager.Core.Models"
+        xmlns:services="using:CatModManager.Core.Services"
+        xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+        xmlns:pluginSdk="using:CatModManager.PluginSdk"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="850"
+        x:Class="CatModManager.Ui.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/icon.ico"
+        Title="The Schrödinger Cat Mod Manager"
+        Background="{DynamicResource AppBackground}"
+        Foreground="{DynamicResource TextPrimary}"
+        ExtendClientAreaToDecorationsHint="True"
+        WindowStartupLocation="CenterScreen"
+        MinWidth="1160"
+        MinHeight="580">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid RowDefinitions="32, *, 24">
+        
+        <!-- 1. Custom Title Bar (Drag Zone) -->
+        <Grid Grid.Row="0" Background="{DynamicResource AppBackground}" PointerPressed="TitleBar_PointerPressed">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,140,0" IsHitTestVisible="False">
+                <TextBlock Text="CMM" Foreground="{DynamicResource AccentColor}" FontWeight="Black" FontSize="10" Margin="0,0,8,0"/>
+                <TextBlock Text="THE SCHRÖDINGER CAT MOD MANAGER" FontSize="10" Foreground="{DynamicResource TextSubtle}" FontWeight="SemiBold"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 2. Main Layout (Sidebar + Content + Inspector) -->
+        <Grid Grid.Row="1" ColumnDefinitions="360, *, 380">
+            
+            <!-- Sidebar -->
+            <Border Grid.Column="0" Background="{DynamicResource SidebarBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,1,0">
+                <Grid RowDefinitions="48, *, Auto">
+                    
+                    <!-- Workspace Header (Title) -->
+                    <Border Grid.Row="0" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
+                            <TextBlock Text="≡" Foreground="{DynamicResource AccentColor}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="WORKSPACE" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource TextMuted}" LetterSpacing="1" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Navigation Content -->
+                    <ScrollViewer Grid.Row="1">
+                        <StackPanel>
+                            <!-- Profile Management Section -->
+                            <TextBlock Text="MANAGE PROFILE" Classes="sidebar-section-header"/>
+                            <Button Classes="sidebar-nav-item" Command="{Binding NewProfileCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="+"/>
+                                    <TextBlock Text="New Profile"/>
+                                </StackPanel>
+                            </Button>
+                            <Border Padding="12,4">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="RENAME" FontSize="9" Foreground="{DynamicResource TextSubtle}" FontWeight="SemiBold"/>
+                                    <TextBox Name="RenameTextBox" Text="{Binding ProfileDisplayName, UpdateSourceTrigger=LostFocus}" Watermark="New name..." Classes="path-field">
+                                        <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding RenameProfileCommand}"/></TextBox.KeyBindings>
+                                    </TextBox>
+                                </StackPanel>
+                            </Border>
+                            <Button Classes="sidebar-nav-item" Command="{Binding DeleteProfileCommand}" Foreground="{DynamicResource StatusDanger}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="✕"/>
+                                    <TextBlock Text="Delete Profile"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Configuration Section -->
+                            <TextBlock Text="CONFIGURATION" Classes="sidebar-section-header"/>
+                            <Border Padding="12,8">
+                                <StackPanel Spacing="12">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="MOD INSTALLATION FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                                        <Grid ColumnDefinitions="*, Auto, Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding ModsFolderPath}" IsReadOnly="True" Classes="path-field">
+                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                            </TextBox>
+                                            <Button Grid.Column="1" Command="{Binding OpenModsFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                            <Button Grid.Column="2" Click="SelectFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="DOWNLOADS FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                                        <Grid ColumnDefinitions="*, Auto, Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding DownloadsFolderPath}" IsReadOnly="True" Classes="path-field">
+                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                            </TextBox>
+                                            <Button Grid.Column="1" Command="{Binding OpenDownloadsFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                            <Button Grid.Column="2" Click="SelectDownloadsFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="EXECUTABLE" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding GameExecutablePath}" IsReadOnly="True" Classes="path-field">
+                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                            </TextBox>
+                                            <Button Grid.Column="1" Click="SelectGame_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose executable"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="GAME FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                                        <Grid ColumnDefinitions="*, Auto, Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding BaseFolderPath}" IsReadOnly="True" Classes="path-field">
+                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                            </TextBox>
+                                            <Button Grid.Column="1" Command="{Binding OpenGameFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                            <Button Grid.Column="2" Click="SelectBaseFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="DATA SUBFOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"
+                                                   ToolTip.Tip="Relative path inside the game folder where the VFS mounts (e.g. Data, LiesofP\Content\Paks\~mods)"/>
+                                        <Grid ColumnDefinitions="*, Auto, Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding DataSubFolder}" IsReadOnly="True" Classes="path-field">
+                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                            </TextBox>
+                                            <Button Grid.Column="1" Command="{Binding OpenDataSubFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                            <Button Grid.Column="2" Click="SelectDataSubFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="APP DATA" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding AppDataPath}" IsReadOnly="True" Classes="path-field"/>
+                                            <Button Grid.Column="1" Command="{Binding OpenAppDataFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Sidebar Footer -->
+                    <Border Grid.Row="2" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Padding="12,12">
+                        <StackPanel Spacing="8">
+                            <Button Command="{Binding InstallDriverCommand}" IsVisible="{Binding IsDriverMissing}"
+                                    Classes="danger-btn" HorizontalAlignment="Stretch" Padding="8,4">
+                                <TextBlock Text="INSTALL DRIVER" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            </Button>
+
+                            <!-- Plugin-contributed sidebar actions (e.g. NEXUS MODS) -->
+                            <ItemsControl ItemsSource="{Binding PluginSidebarActions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="pluginSdk:ISidebarAction">
+                                        <Button Command="{Binding $parent[Window].DataContext.ExecuteSidebarActionCommand}"
+                                                CommandParameter="{Binding}"
+                                                HorizontalAlignment="Stretch" Padding="8,4"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource BorderColor}"
+                                                BorderThickness="1"
+                                                Margin="0,0,0,4">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+                                                <TextBlock Text="{Binding Icon}" Foreground="{DynamicResource AccentColor}" FontSize="11"/>
+                                                <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="Bold"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Button Command="{Binding OpenPluginBrowserCommand}"
+                                    HorizontalAlignment="Stretch" Padding="8,4"
+                                    Background="Transparent"
+                                    BorderBrush="{DynamicResource BorderColor}"
+                                    BorderThickness="1">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+                                    <TextBlock Text="⊞" Foreground="{DynamicResource AccentColor}" FontSize="11"/>
+                                    <TextBlock Text="BROWSE PLUGINS" FontSize="10" FontWeight="Bold"/>
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="CMM ENGINE v0.3" FontSize="9" Foreground="{DynamicResource TextSubtle}" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Main Content Area -->
+            <Grid Grid.Column="1" Background="{DynamicResource ContentBg}" RowDefinitions="42, *">
+                
+                <!-- Command Bar -->
+                <Border Grid.Row="0" Background="{DynamicResource SidebarBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="*, Auto">
+                        <!-- Left controls: clip when window is too narrow instead of overflowing -->
+                        <Border Grid.Column="0" ClipToBounds="True">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Search -->
+                                <TextBlock Text="⌕" VerticalAlignment="Center" Foreground="{DynamicResource AccentColor}" FontSize="16" Margin="16,0,0,0"/>
+                                <TextBox Width="200" Watermark="Search mods..." Text="{Binding SearchText}" Classes="command-bar-input">
+                                    <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                </TextBox>
+
+                                <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
+
+                                <!-- Profile Selector -->
+                                <ComboBox Name="ProfileSelector"
+                                          ItemsSource="{Binding AvailableProfiles}"
+                                          SelectedItem="{Binding CurrentProfileName}"
+                                          PlaceholderText="Select Profile"
+                                          Width="150"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          VerticalAlignment="Center"
+                                          FontWeight="SemiBold"
+                                          FontSize="12"
+                                          Margin="8,0"/>
+
+                                <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
+
+                                <!-- Category Filter -->
+                                <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
+                                          Width="120" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" FontSize="11"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Right controls: always fully visible -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Args:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource TextSubtle}" Margin="0,0,8,0"/>
+                                <TextBox Text="{Binding LaunchArguments}" Watermark="-windowed..." Classes="command-bar-input" Width="140">
+                                    <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                </TextBox>
+                            </StackPanel>
+
+                            <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="4,8"/>
+
+                            <Button Command="{Binding ToggleMountCommand}" Classes="mount-btn">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding MountButtonIcon}" Foreground="{Binding MountButtonColor}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding MountButtonText}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Command="{Binding LaunchGameCommand}" Classes="launch-btn">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="▶"/>
+                                    <TextBlock Text="LAUNCH" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Mod List Area -->
+                <Grid Grid.Row="1" RowDefinitions="32, *">
+                    <Border Grid.Row="0" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="44, 32, *, 130, 70">
+                            <TextBlock Grid.Column="0" Text="✓" Classes="col-header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="#" Classes="col-header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="MOD NAME" Classes="col-header" VerticalAlignment="Center" Margin="8,0"/>
+                            <TextBlock Grid.Column="3" Text="CATEGORY" Classes="col-header" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="VERSION" Classes="col-header" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <ListBox Grid.Row="1" Name="ModsListBox" ItemsSource="{Binding DisplayedMods}" SelectedItem="{Binding SelectedMod}" SelectionMode="Single" DragDrop.AllowDrop="True">
+                        <ListBox.ItemContainerTheme>
+                            <!-- Full custom template — no BasedOn so FluentTheme never interferes -->
+                            <ControlTheme TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="MinHeight" Value="34"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <Setter Property="Template">
+                                    <ControlTemplate>
+                                        <Border Name="PART_Border"
+                                                Background="Transparent"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}">
+                                            <ContentPresenter Name="PART_ContentPresenter"
+                                                              Content="{TemplateBinding Content}"
+                                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                              Padding="{TemplateBinding Padding}"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter>
+                                <Style Selector="^:pointerover /template/ Border#PART_Border">
+                                    <Setter Property="Background" Value="#35373C"/>
+                                </Style>
+                                <Style Selector="^:selected /template/ Border#PART_Border">
+                                    <Setter Property="Background" Value="#3F4147"/>
+                                    <Setter Property="BorderBrush" Value="#4E7FD5"/>
+                                    <Setter Property="BorderThickness" Value="3,0,0,0"/>
+                                </Style>
+                                <Style Selector="^:selected:pointerover /template/ Border#PART_Border">
+                                    <Setter Property="Background" Value="#464A52"/>
+                                    <Setter Property="BorderBrush" Value="#4E7FD5"/>
+                                    <Setter Property="BorderThickness" Value="3,0,0,0"/>
+                                </Style>
+                            </ControlTheme>
+                        </ListBox.ItemContainerTheme>
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Refresh" Command="{Binding RefreshCommand}"/>
+                                <MenuItem Header="Open Folder" Command="{Binding OpenSelectedModFolderCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="Remove Mod" Command="{Binding RemoveModCommand}"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:Mod">
+                                <Grid ColumnDefinitions="44, 32, *, 130, 70" Background="Transparent">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsEnabled, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Priority}" VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.4" FontSize="11" FontFamily="Consolas"/>
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="{Binding RootPath}" FontSize="10" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" FontFamily="Cascadia Code, Consolas, monospace"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <Border Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,2">
+                                            <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"/>
+                                        </Border>
+                                    </Border>
+                                    <TextBlock Grid.Column="4" Text="{Binding Version}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSubtle}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Grid>
+
+            <!-- Inspector Panel -->
+            <Border Grid.Column="2" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1,0,0,0">
+                <TabControl Name="InspectorTabControl" TabStripPlacement="Top" Background="Transparent" Padding="0"
+                            SelectedIndex="{Binding SelectedInspectorTab}">
+                    <TabControl.Styles>
+                        <Style Selector="TabItem">
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="MinHeight" Value="32"/>
+                            <Setter Property="Padding" Value="14,0"/>
+                        </Style>
+                    </TabControl.Styles>
+
+                    <!-- INFO tab (static) -->
+                    <TabItem Header="INFO">
+                        <Grid RowDefinitions="*, Auto">
+                            <ScrollViewer Grid.Row="0" Padding="16">
+                                <StackPanel Name="InspectorContent" Spacing="20" IsVisible="{Binding SelectedMod, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="DISPLAY NAME" Classes="inspector-field-label"/>
+                                        <TextBox Text="{Binding SelectedMod.Name, UpdateSourceTrigger=LostFocus}" Classes="path-field">
+                                            <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                        </TextBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="VERSION" Classes="inspector-field-label"/>
+                                        <TextBox Text="{Binding SelectedMod.Version}" IsReadOnly="True" Classes="path-field" Foreground="{DynamicResource TextSubtle}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="CATEGORY" Classes="inspector-field-label"/>
+                                        <TextBox Text="{Binding SelectedMod.Category, UpdateSourceTrigger=LostFocus}" Classes="path-field">
+                                            <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                        </TextBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="PHYSICAL PATH" Classes="inspector-field-label"/>
+                                        <TextBlock Text="{Binding SelectedMod.RootPath}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextSubtle}" FontFamily="Consolas"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <Border Grid.Row="1" Padding="16" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0">
+                                <StackPanel Spacing="12">
+                                    <Button Command="{Binding OpenSelectedModFolderCommand}" Background="Transparent" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" HorizontalAlignment="Stretch" Padding="8">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                            <TextBlock Text="↗" Foreground="{DynamicResource AccentColor}"/>
+                                            <TextBlock Text="OPEN FOLDER" FontSize="11" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding RemoveModCommand}" Classes="danger-btn" HorizontalAlignment="Stretch" Padding="8">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                            <TextBlock Text="✕"/>
+                                            <TextBlock Text="REMOVE MOD" FontSize="11" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Separator Background="{DynamicResource BorderColor}" Height="1" Margin="0,4"/>
+
+                                    <Button Click="AddMod_Click" Classes="launch-btn" HorizontalAlignment="Stretch" Height="40">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                            <TextBlock Text="+"/>
+                                            <TextBlock Text="ADD MOD" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- FILES tab -->
+                    <TabItem Header="FILES">
+                        <Grid RowDefinitions="Auto, *">
+                            <Border Grid.Row="0" Background="{DynamicResource ContentBg}" Padding="8" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <Button Grid.Column="0" Command="{Binding NavigateUpCommand}" Background="Transparent" Width="32" Height="32" Padding="0">
+                                        <TextBlock Text="↑" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Button>
+                                    <TextBlock Grid.Column="1" Text="{Binding CurrentModFolderPath}" VerticalAlignment="Center" Margin="8,0" FontSize="11" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Border>
+                            <ListBox Grid.Row="1" ItemsSource="{Binding CurrentModFiles}" Background="Transparent">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ModFileItem">
+                                        <Button Command="{Binding $parent[Window].DataContext.NavigateIntoCommand}" CommandParameter="{Binding}" Background="Transparent" Padding="0" HorizontalAlignment="Stretch">
+                                            <Grid ColumnDefinitions="24, *, Auto" Height="28">
+                                                <Panel Grid.Column="0">
+                                                    <TextBlock IsVisible="{Binding IsDirectory}" Text="📁" VerticalAlignment="Center" Opacity="0.7"/>
+                                                    <TextBlock IsVisible="{Binding !IsDirectory}" Text="📄" VerticalAlignment="Center" Opacity="0.5"/>
+                                                </Panel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" Margin="4,0" FontSize="12"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Size}" VerticalAlignment="Center" FontSize="10" Foreground="{DynamicResource TextSubtle}" IsVisible="{Binding !IsDirectory}"/>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.Styles>
+                                    <Style Selector="ListBoxItem">
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="MinHeight" Value="32"/>
+                                    </Style>
+                                </ListBox.Styles>
+                            </ListBox>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- Plugin tabs are added dynamically in MainWindow.axaml.cs -->
+
+                </TabControl>
+            </Border>
+        </Grid>
+
+        <!-- 3. Status Bar -->
+        <Border Grid.Row="2" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Padding="12,0">
+            <Grid ColumnDefinitions="*, Auto">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="●" Foreground="{Binding MountButtonColor}" FontSize="8" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding AllMods.Count, StringFormat='{}{0} Mods'}" FontSize="10" Foreground="{DynamicResource TextSubtle}"/>
+                    <TextBlock Text="·" Foreground="{DynamicResource TextSubtle}"/>
+                    <TextBlock Text="{Binding SafeSwapStatusText}" Foreground="{Binding SafeSwapStatusColor}" FontSize="10" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
