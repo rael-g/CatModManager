@@ -12,7 +12,7 @@ public class NexusModsPlugin : ICmmPlugin
 {
     public string Id          => "nexus-mods";
     public string DisplayName => "Nexus Mods Integration";
-    public string Version     => "1.0.0";
+    public string Version     => typeof(NexusModsPlugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
     public string Author      => "CMM";
 
     private NexusApiService?          _api;

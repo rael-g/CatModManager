@@ -9,7 +9,7 @@ public class BethesdaToolsPlugin : ICmmPlugin
 {
     public string Id => "bethesda-tools";
     public string DisplayName => "Bethesda Tools";
-    public string Version => "1.0.0";
+    public string Version => typeof(BethesdaToolsPlugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
     public string Author => "CatModManager";
 
     public void Initialize(IPluginContext context)
