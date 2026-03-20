@@ -6,12 +6,5 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.6" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\CatModManager.Core\CatModManager.Core.csproj" />
-  </ItemGroup>
 
 </Project>

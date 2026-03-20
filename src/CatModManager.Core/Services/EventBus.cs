@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Core.Services;
 

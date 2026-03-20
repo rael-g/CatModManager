@@ -7,7 +7,6 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using CatModManager.Core.Models;
 using CatModManager.PluginSdk;
 
 namespace CmmPlugin.NexusMods;
@@ -29,12 +28,12 @@ public class NexusModInspectorTab : IInspectorTab
         _api = api;
     }
 
-    public bool IsVisible(Mod? selectedMod)
+    public bool IsVisible(IModInfo? selectedMod)
     {
         return selectedMod != null && _tracking.IsTracked(selectedMod.RootPath);
     }
 
-    public Control CreateView(Mod? mod)
+    public object CreateView(IModInfo? mod)
     {
         var entry = mod != null ? _tracking.GetEntry(mod.RootPath) : null;
 

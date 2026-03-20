@@ -15,6 +15,7 @@ using CatModManager.Core.Services;
 using CatModManager.Core.Vfs;
 using CatModManager.VirtualFileSystem;
 using CatModManager.PluginSdk;
+using CatModManager.Ui.Plugins;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Nett;
@@ -42,7 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ILogService _logService;
     private readonly IConfigService _configService;
     private readonly IGameSupportService _gameSupportService;
-    private readonly IUiExtensionHost? _uiExtensionHost;
+    private readonly UiExtensionHost? _uiExtensionHost;
     private readonly PluginBrowserViewModel? _pluginBrowserVm;
 
     private readonly SemaphoreSlim _profileLock = new(1, 1);
@@ -180,7 +181,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ILogService logService,
         IConfigService configService,
         IGameSupportService gameSupportService,
-        IUiExtensionHost? uiExtensionHost = null,
+        UiExtensionHost? uiExtensionHost = null,
         PluginBrowserViewModel? pluginBrowserVm = null)
     {
         _modScanner = modScanner;
@@ -642,7 +643,7 @@ public partial class MainWindowViewModel : ViewModelBase
             string installedPath;
             if (chosenInstaller != null)
             {
-                var ctx = new SimpleInstallContext(ModsFolderPath, _logService);
+                var ctx = new SimpleInstallContext(ModsFolderPath, new LogServiceAdapter(_logService));
                 var installResult = await chosenInstaller.InstallAsync(sourcePath, ctx);
                 
                 if (installResult == null || !installResult.IsSuccess) 
@@ -690,8 +691,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private class SimpleInstallContext : IInstallContext
     {
         public string DestinationFolder { get; }
-        public ILogService Log { get; }
-        public SimpleInstallContext(string dest, ILogService log) { DestinationFolder = dest; Log = log; }
+        public IPluginLogger Log { get; }
+        public SimpleInstallContext(string dest, IPluginLogger log) { DestinationFolder = dest; Log = log; }
     }
 
     [RelayCommand]

@@ -6,6 +6,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using CatModManager.Core.Models;
 using CatModManager.PluginSdk;
+using CatModManager.Ui.Plugins;
 using CatModManager.Ui.ViewModels;
 using System;
 using System.Collections.Specialized;
@@ -116,7 +117,7 @@ public partial class MainWindow : Window
             tc.Items.Add(new TabItem
             {
                 Header  = tab.TabLabel,
-                Content = tab.CreateView(vm.SelectedMod)
+                Content = tab.CreateView(vm.SelectedMod != null ? new ModInfoAdapter(vm.SelectedMod) : null)
             });
         }
     }
@@ -128,9 +129,10 @@ public partial class MainWindow : Window
 
         var pluginTabItems = tc.Items.OfType<TabItem>().Skip(1).ToList();
         var pluginTabs     = vm.PluginInspectorTabs.ToList();
+        IModInfo? modInfo  = vm.SelectedMod != null ? new ModInfoAdapter(vm.SelectedMod) : null;
 
         for (int i = 0; i < pluginTabItems.Count && i < pluginTabs.Count; i++)
-            pluginTabItems[i].Content = pluginTabs[i].CreateView(vm.SelectedMod);
+            pluginTabItems[i].Content = pluginTabs[i].CreateView(modInfo);
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)

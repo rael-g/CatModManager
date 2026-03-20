@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 using Microsoft.Data.Sqlite;
 
 namespace CmmPlugin.NexusMods;
@@ -12,13 +12,13 @@ namespace CmmPlugin.NexusMods;
 public class NexusDownloadService
 {
     private readonly NexusApiService _api;
-    private readonly ILogService _log;
+    private readonly IPluginLogger _log;
     private readonly NexusModTrackingService _tracking;
     private readonly NexusDatabase _db;
 
     public ObservableCollection<DownloadEntry> Downloads { get; } = new();
 
-    public NexusDownloadService(NexusApiService api, ILogService log, NexusModTrackingService tracking, NexusDatabase db)
+    public NexusDownloadService(NexusApiService api, IPluginLogger log, NexusModTrackingService tracking, NexusDatabase db)
     {
         _api = api;
         _log = log;

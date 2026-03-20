@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
-using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 using CatModManager.PluginSdk;
 using CmmPlugin.FomodInstaller.Models;
 using CmmPlugin.FomodInstaller.Parser;
@@ -13,9 +13,9 @@ namespace CmmPlugin.FomodInstaller;
 
 public class FomodModInstaller : IModInstaller
 {
-    private readonly ILogService _log;
+    private readonly IPluginLogger _log;
 
-    public FomodModInstaller(ILogService log) => _log = log;
+    public FomodModInstaller(IPluginLogger log) => _log = log;
 
     public bool CanInstall(string archivePath) => FomodParser.IsFomod(archivePath);
 

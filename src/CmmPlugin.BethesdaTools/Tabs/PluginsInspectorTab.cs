@@ -1,5 +1,3 @@
-using Avalonia.Controls;
-using CatModManager.Core.Models;
 using CatModManager.PluginSdk;
 
 namespace CmmPlugin.BethesdaTools.Tabs;
@@ -13,16 +11,15 @@ public class PluginsInspectorTab : IInspectorTab
     private readonly PluginsTabViewModel _vm;
     private PluginsTabControl? _cachedControl;
 
-    public string TabId => "bethesda-plugins";
+    public string TabId    => "bethesda-plugins";
     public string TabLabel => "PLUGINS";
 
     public PluginsInspectorTab(PluginsTabViewModel vm) => _vm = vm;
 
-    public bool IsVisible(Mod? selectedMod) => true;
+    public bool IsVisible(IModInfo? selectedMod) => true;
 
-    public Control CreateView(Mod? mod)
+    public object CreateView(IModInfo? mod)
     {
-        // Cache the control — the tab content is global, not per-mod
         _cachedControl ??= new PluginsTabControl(_vm);
         return _cachedControl;
     }

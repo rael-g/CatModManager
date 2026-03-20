@@ -1,6 +1,6 @@
 using System;
 
-namespace CatModManager.Core.Services;
+namespace CatModManager.PluginSdk;
 
 public interface IEventBus
 {

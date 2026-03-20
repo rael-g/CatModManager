@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Threading.Tasks;
 using CatModManager.Core.Services;
 using CatModManager.PluginSdk;
 
@@ -39,11 +40,21 @@ public class PluginLoader
         }
     }
 
+    public async Task ShutdownAllAsync()
+    {
+        foreach (var plugin in _loaded)
+        {
+            try   { await plugin.ShutdownAsync(); }
+            catch (Exception ex) { _log.LogError($"Plugin shutdown error: {plugin.DisplayName}", ex); }
+        }
+        _loaded.Clear();
+    }
+
     private void TryLoadPlugin(string dllPath)
     {
         try
         {
-            var alc = new AssemblyLoadContext(Path.GetFileNameWithoutExtension(dllPath), isCollectible: false);
+            var alc      = new AssemblyLoadContext(Path.GetFileNameWithoutExtension(dllPath), isCollectible: false);
             var assembly = alc.LoadFromAssemblyPath(dllPath);
 
             var pluginTypes = assembly.GetExportedTypes()

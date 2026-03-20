@@ -4,7 +4,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using CatModManager.Core.Services;
 using CatModManager.PluginSdk;
 using CmmPlugin.FomodInstaller.Models;
 
@@ -17,14 +16,14 @@ namespace CmmPlugin.FomodInstaller.Wizard;
 public class FomodWizardWindow : Window
 {
     private readonly FomodWizardViewModel _vm;
-    private readonly ILogService _log;
+    private readonly IPluginLogger _log;
     private readonly ContentControl _stepContent;
     private readonly TextBlock _stepIndicator;
     private readonly Button _btnBack;
     private readonly Button _btnNext;
     private readonly Button _btnInstall;
 
-    public FomodWizardWindow(FomodModuleConfig config, ILogService log)
+    public FomodWizardWindow(FomodModuleConfig config, IPluginLogger log)
     {
         _log = log;
         _vm = new FomodWizardViewModel(config);

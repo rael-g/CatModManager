@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using CatModManager.PluginSdk;
@@ -69,7 +68,7 @@ public class NexusModsPlugin : ICmmPlugin
             }
         };
 
-        ctx.State.ModInstalled += (mod, sourcePath) =>
+        ctx.State.ModInstalled += (IModInfo mod, string sourcePath) =>
         {
             if (_trackingService == null) return;
 
@@ -83,9 +82,9 @@ public class NexusModsPlugin : ICmmPlugin
                 .FirstOrDefault(d => string.Equals(d.LocalPath, sourcePath, StringComparison.OrdinalIgnoreCase));
             if (download != null)
             {
-                if (!string.IsNullOrEmpty(download.ModName))    mod.Name     = download.ModName;
-                if (!string.IsNullOrEmpty(download.Version))    mod.Version  = download.Version;
-                if (!string.IsNullOrEmpty(download.Category))   mod.Category = download.Category;
+                if (!string.IsNullOrEmpty(download.ModName))  mod.Name     = download.ModName;
+                if (!string.IsNullOrEmpty(download.Version))  mod.Version  = download.Version;
+                if (!string.IsNullOrEmpty(download.Category)) mod.Category = download.Category;
             }
         };
 

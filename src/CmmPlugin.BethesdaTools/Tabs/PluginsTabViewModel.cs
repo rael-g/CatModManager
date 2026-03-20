@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Models;
 using CmmPlugin.BethesdaTools.Services;
@@ -10,12 +10,12 @@ public class PluginsTabViewModel
 {
     private readonly LoadOrderService _loadOrder;
     private readonly IModManagerState _state;
-    private readonly ILogService _log;
+    private readonly IPluginLogger _log;
 
     public ObservableCollection<EspEntry> Entries => _loadOrder.Entries;
     public string Status => $"{Entries.Count(e => e.IsEnabled)}/{Entries.Count} plugins active";
 
-    public PluginsTabViewModel(LoadOrderService loadOrder, IModManagerState state, ILogService log)
+    public PluginsTabViewModel(LoadOrderService loadOrder, IModManagerState state, IPluginLogger log)
     {
         _loadOrder = loadOrder;
         _state = state;

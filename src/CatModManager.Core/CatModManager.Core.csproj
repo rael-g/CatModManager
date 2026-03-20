@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CatModManager.VirtualFileSystem\CatModManager.VirtualFileSystem.csproj" />
+    <ProjectReference Include="..\CatModManager.PluginSdk\CatModManager.PluginSdk.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,4 @@
 using System.Threading.Tasks;
-using CatModManager.Core.Models;
-using CatModManager.Core.Services;
 using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Services;
 
@@ -13,9 +11,9 @@ public class BethesdaLaunchHook : IGameLaunchHook
 {
     private readonly LoadOrderService _loadOrder;
     private readonly IModManagerState _state;
-    private readonly ILogService _log;
+    private readonly IPluginLogger _log;
 
-    public BethesdaLaunchHook(LoadOrderService loadOrder, IModManagerState state, ILogService log)
+    public BethesdaLaunchHook(LoadOrderService loadOrder, IModManagerState state, IPluginLogger log)
     {
         _loadOrder = loadOrder;
         _state = state;
@@ -27,7 +25,6 @@ public class BethesdaLaunchHook : IGameLaunchHook
         var game = BethesdaDetector.Detect(ctx.ExecutablePath ?? _state.GameExecutablePath);
         if (game == null) return Task.CompletedTask;
 
-        // Refresh load order from current active mods before writing
         string pluginsTextPath = BethesdaDetector.GetPluginsTextPath(game);
         _loadOrder.Refresh(_state.DataFolderPath, pluginsTextPath, _state.ActiveMods);
         _loadOrder.Save(pluginsTextPath, game.UsesStarFormat);

@@ -97,7 +97,8 @@ public partial class App : Application
 
         services.AddSingleton<IEventBus, EventBus>();
         services.AddSingleton<UiExtensionHost>();
-        services.AddSingleton<IUiExtensionHost>(sp => sp.GetRequiredService<UiExtensionHost>());
+        services.AddSingleton<IPluginRegistrar>(sp => sp.GetRequiredService<UiExtensionHost>());
+        services.AddSingleton<IPluginLogger>(sp => new LogServiceAdapter(sp.GetRequiredService<ILogService>()));
         services.AddSingleton<ICmmSettings, NullCmmSettings>();
         services.AddSingleton<IModManagerState>(sp =>
             new ModManagerStateAdapter(sp.GetRequiredService<MainWindowViewModel>()));

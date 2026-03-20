@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using CatModManager.Core.Models;
-using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Models;
 
 namespace CmmPlugin.BethesdaTools.Services;
@@ -18,17 +17,17 @@ public class LoadOrderService
     private static readonly HashSet<string> _pluginExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".esp", ".esm", ".esl" };
 
-    private readonly ILogService _log;
+    private readonly IPluginLogger _log;
 
     public ObservableCollection<EspEntry> Entries { get; } = new();
 
-    public LoadOrderService(ILogService log) => _log = log;
+    public LoadOrderService(IPluginLogger log) => _log = log;
 
     /// <summary>
     /// Rebuilds the load order from disk + active mods.
     /// Order of precedence: existing plugins.txt (preserves user's load order), then new files at end.
     /// </summary>
-    public void Refresh(string? dataFolderPath, string? pluginsTextPath, IEnumerable<Mod>? activeMods)
+    public void Refresh(string? dataFolderPath, string? pluginsTextPath, IEnumerable<IModInfo>? activeMods)
     {
         // 1. Collect all plugin files available
         var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
