@@ -6,7 +6,7 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Threading;
 using CatModManager.Core.Services;
-using Velopack;
+using CatModManager.Ui.Services;
 
 namespace CatModManager.Ui;
 
@@ -47,9 +47,10 @@ sealed class Program
         var db     = new AppDatabase(paths);
         var state  = new VfsStateService(db, logger);
 
+        GitHubUpdateChecker.CheckInBackground("rael-g", "CatModManager", logger);
+
         try
         {
-            VelopackApp.Build().Run();
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)

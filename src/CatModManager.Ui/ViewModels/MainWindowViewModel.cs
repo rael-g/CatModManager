@@ -367,9 +367,9 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(BaseFolderPath))
         {
             if (string.IsNullOrEmpty(ModsFolderPath))
-                ModsFolderPath = Path.Combine(BaseFolderPath, "Mods");
+                ModsFolderPath = Path.Combine(BaseFolderPath, "mods");
             if (string.IsNullOrEmpty(DownloadsFolderPath))
-                DownloadsFolderPath = Path.Combine(BaseFolderPath, "Downloads");
+                DownloadsFolderPath = Path.Combine(BaseFolderPath, "downloads");
         }
     }
 
@@ -446,7 +446,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 foreach (var f in files.OrderBy(x => x.Name)) CurrentModFiles.Add(f);
             }
         }
-        catch (Exception ex) { _logService.LogError($"Failed to list mod files", ex); }
+        catch (Exception ex) { _logService.LogError($"Failed to list mod files", ex); StatusMessage = $"ERROR: {ex.Message}"; }
     }
 
     [RelayCommand]
@@ -587,7 +587,7 @@ public partial class MainWindowViewModel : ViewModelBase
             RebuildDisplayedMods(); 
             AutoSave(); 
             StatusMessage = "Mods refreshed.";
-        } catch (Exception ex) { _logService.Log($"REFRESH ERROR: {ex.Message}"); }
+        } catch (Exception ex) { _logService.Log($"REFRESH ERROR: {ex.Message}"); StatusMessage = $"ERROR: {ex.Message}"; }
     }
 
     [RelayCommand]
@@ -607,7 +607,7 @@ public partial class MainWindowViewModel : ViewModelBase
             } 
             RebuildDisplayedMods(); 
             AutoSave(); 
-        } catch (Exception ex) { _logService.Log($"SCAN ERROR: {ex.Message}"); } 
+        } catch (Exception ex) { _logService.Log($"SCAN ERROR: {ex.Message}"); StatusMessage = $"ERROR: {ex.Message}"; }
     }
 
     [RelayCommand]
@@ -937,7 +937,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     GameExecutablePath = p.GameExecutablePath;
                     DataSubFolder = p.DataSubFolder;
                     DownloadsFolderPath = string.IsNullOrEmpty(p.DownloadsFolderPath) && !string.IsNullOrEmpty(p.ModsFolderPath)
-                        ? Path.Combine(p.ModsFolderPath, "Downloads")
+                        ? Path.Combine(p.ModsFolderPath, "downloads")
                         : p.DownloadsFolderPath;
 
                     AllMods.Clear();

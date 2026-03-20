@@ -30,7 +30,7 @@ public class NexusModsPlugin : ICmmPlugin
 
         _settingsDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "CatModManager", "plugins", "CmmPlugin.NexusMods");
+            "catmodmanager", "plugins", "nexusmods");
         Directory.CreateDirectory(_settingsDir);
 
         _nexusDb         = new NexusDatabase(_settingsDir);

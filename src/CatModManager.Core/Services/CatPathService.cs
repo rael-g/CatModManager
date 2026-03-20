@@ -13,7 +13,7 @@ public class CatPathService : ICatPathService
     public CatPathService()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        BaseDataPath = Path.Combine(localAppData, "CatModManager");
+        BaseDataPath = Path.Combine(localAppData, "catmodmanager");
         
         // Ensure all critical directories exist immediately
         if (!Directory.Exists(BaseDataPath)) Directory.CreateDirectory(BaseDataPath);

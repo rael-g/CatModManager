@@ -4,3 +4,7 @@ CLAUDE.md
 GEMINI.md
 .claude
 .vscode
+
+# Deploy build outputs
+publish/
+dist/
