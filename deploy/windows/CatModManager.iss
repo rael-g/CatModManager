@@ -13,7 +13,7 @@
 #define AppName      "Cat Mod Manager"
 #define AppPublisher "Cat Mod Manager Team"
 #define AppURL       "https://github.com/rael-g/CatModManager"
-#define AppExeName   "CatModManager.Ui.exe"
+#define AppExeName   "CatModManager.exe"
 #define AppId        "{{A7F3C142-9B2E-4D8A-B5C6-1E0F7A3D9C48}"
 
 ; ─────────────────────────────────────────────────────────────────────────────

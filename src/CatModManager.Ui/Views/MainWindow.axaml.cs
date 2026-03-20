@@ -76,6 +76,12 @@ public partial class MainWindow : Window
 
         vm.RequestClearFocus += () => this.FocusManager?.ClearFocus();
 
+        vm.ConfirmDeleteProfile = async profileName =>
+        {
+            var dialog = new ConfirmDialog($"Delete profile \"{profileName}\"?", "This cannot be undone.");
+            return await dialog.ShowDialog<bool>(this);
+        };
+
         // Build plugin tabs whenever the collection changes or SelectedMod changes
         vm.PluginInspectorTabs.CollectionChanged += (_, _) => RebuildPluginTabs(vm);
         vm.PropertyChanged += (_, args) =>
@@ -293,10 +299,4 @@ public partial class MainWindow : Window
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void FocusRename_Click(object? sender, RoutedEventArgs e)
-    {
-        var textBox = this.FindControl<TextBox>("RenameTextBox");
-        textBox?.Focus();
-    }
 }

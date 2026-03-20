@@ -164,6 +164,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public event Action<CatModManager.Core.Models.Mod, string>? ModInstalled;
 
+    /// <summary>Set by the View to show a confirmation dialog before deleting a profile.</summary>
+    public Func<string, Task<bool>>? ConfirmDeleteProfile;
+
     public MainWindowViewModel(
         IModScanner modScanner,
         IProfileService profileService,
@@ -244,6 +247,13 @@ public partial class MainWindowViewModel : ViewModelBase
             !string.IsNullOrEmpty(BaseFolderPath) && !string.IsNullOrEmpty(DataSubFolder)
                 ? Path.Combine(BaseFolderPath, DataSubFolder)
                 : DataSubFolder ?? "");
+
+    [RelayCommand]
+    private async Task OpenGameExecutableFolder() =>
+        await _processService.OpenFolderAsync(
+            !string.IsNullOrEmpty(GameExecutablePath)
+                ? Path.GetDirectoryName(GameExecutablePath) ?? ""
+                : "");
 
     public string AppDataPath => _pathService.BaseDataPath;
 
@@ -839,6 +849,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task DeleteProfile()
     {
         if (string.IsNullOrEmpty(CurrentProfileName)) return;
+
+        if (ConfirmDeleteProfile != null)
+        {
+            bool confirmed = await ConfirmDeleteProfile(CurrentProfileName);
+            if (!confirmed) return;
+        }
 
         if (IsVfsMounted)
         {

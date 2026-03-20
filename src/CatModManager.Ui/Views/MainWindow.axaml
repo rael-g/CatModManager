@@ -51,28 +51,27 @@
                     <!-- Navigation Content -->
                     <ScrollViewer Grid.Row="1">
                         <StackPanel>
-                            <!-- Profile Management Section -->
-                            <TextBlock Text="MANAGE PROFILE" Classes="sidebar-section-header"/>
-                            <Button Classes="sidebar-nav-item" Command="{Binding NewProfileCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="+"/>
-                                    <TextBlock Text="New Profile"/>
-                                </StackPanel>
-                            </Button>
+                            <!-- Profile Section -->
+                            <TextBlock Text="PROFILE" Classes="sidebar-section-header"/>
                             <Border Padding="12,4">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="RENAME" FontSize="9" Foreground="{DynamicResource TextSubtle}" FontWeight="SemiBold"/>
-                                    <TextBox Name="RenameTextBox" Text="{Binding ProfileDisplayName, UpdateSourceTrigger=LostFocus}" Watermark="New name..." Classes="path-field">
-                                        <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding RenameProfileCommand}"/></TextBox.KeyBindings>
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding ProfileDisplayName, UpdateSourceTrigger=LostFocus}"
+                                             Watermark="Profile name…"
+                                             Classes="path-field"
+                                             ToolTip.Tip="Click to rename profile">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding RenameProfileCommand}"/>
+                                        </TextBox.KeyBindings>
                                     </TextBox>
-                                </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Command="{Binding DeleteProfileCommand}"
+                                            Content="✕"
+                                            Classes="small-icon"
+                                            Foreground="{DynamicResource StatusDanger}"
+                                            ToolTip.Tip="Delete profile"/>
+                                </Grid>
                             </Border>
-                            <Button Classes="sidebar-nav-item" Command="{Binding DeleteProfileCommand}" Foreground="{DynamicResource StatusDanger}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="✕"/>
-                                    <TextBlock Text="Delete Profile"/>
-                                </StackPanel>
-                            </Button>
 
                             <!-- Configuration Section -->
                             <TextBlock Text="CONFIGURATION" Classes="sidebar-section-header"/>
@@ -100,11 +99,12 @@
                                     </StackPanel>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="EXECUTABLE" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <Grid ColumnDefinitions="*, Auto">
+                                        <Grid ColumnDefinitions="*, Auto, Auto">
                                             <TextBox Grid.Column="0" Text="{Binding GameExecutablePath}" IsReadOnly="True" Classes="path-field">
                                                 <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                             </TextBox>
-                                            <Button Grid.Column="1" Click="SelectGame_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose executable"/>
+                                            <Button Grid.Column="1" Command="{Binding OpenGameExecutableFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open containing folder"/>
+                                            <Button Grid.Column="2" Click="SelectGame_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose executable"/>
                                         </Grid>
                                     </StackPanel>
                                     <StackPanel Spacing="2">
@@ -143,11 +143,6 @@
                     <!-- Sidebar Footer -->
                     <Border Grid.Row="2" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Padding="12,12">
                         <StackPanel Spacing="8">
-                            <Button Command="{Binding InstallDriverCommand}" IsVisible="{Binding IsDriverMissing}"
-                                    Classes="danger-btn" HorizontalAlignment="Stretch" Padding="8,4">
-                                <TextBlock Text="INSTALL DRIVER" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center"/>
-                            </Button>
-
                             <!-- Plugin-contributed sidebar actions (e.g. NEXUS MODS) -->
                             <ItemsControl ItemsSource="{Binding PluginSidebarActions}">
                                 <ItemsControl.ItemTemplate>
@@ -212,7 +207,12 @@
                                           VerticalAlignment="Center"
                                           FontWeight="SemiBold"
                                           FontSize="12"
-                                          Margin="8,0"/>
+                                          Margin="8,0,0,0"/>
+                                <Button Command="{Binding NewProfileCommand}"
+                                        Content="+"
+                                        Classes="small-icon"
+                                        ToolTip.Tip="New Profile"
+                                        Margin="2,0,8,0"/>
 
                                 <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
 
