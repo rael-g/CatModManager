@@ -7,6 +7,7 @@
     <Project Path="src/CmmPlugin.BethesdaTools/CmmPlugin.BethesdaTools.csproj" />
     <Project Path="src/CmmPlugin.FomodInstaller/CmmPlugin.FomodInstaller.csproj" />
     <Project Path="src/CmmPlugin.NexusMods/CmmPlugin.NexusMods.csproj" />
+    <Project Path="src/CmmPlugin.Capcom/CmmPlugin.Capcom.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CatModManager.Tests/CatModManager.Tests.csproj" />

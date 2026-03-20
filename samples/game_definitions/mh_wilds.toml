@@ -1,0 +1,9 @@
+GameId      = "mh_wilds"
+DisplayName = "Monster Hunter Wilds"
+
+NexusDomain = "monsterhunterwilds"
+SteamAppId  = 2246340
+
+RequiredFiles = ["MonsterHunterWilds.exe"]
+
+DataSubFolder = ""

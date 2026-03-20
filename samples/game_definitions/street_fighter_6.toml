@@ -1,0 +1,9 @@
+GameId      = "sf6"
+DisplayName = "Street Fighter 6"
+
+NexusDomain = "streetfighter6"
+SteamAppId  = 1364780
+
+RequiredFiles = ["StreetFighter6.exe"]
+
+DataSubFolder = ""

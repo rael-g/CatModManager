@@ -1,0 +1,9 @@
+GameId      = "dd2"
+DisplayName = "Dragon's Dogma 2"
+
+NexusDomain = "dragonsdogma2"
+SteamAppId  = 2054970
+
+RequiredFiles = ["DD2.exe"]
+
+DataSubFolder = ""

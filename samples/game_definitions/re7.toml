@@ -1,0 +1,9 @@
+GameId      = "re7"
+DisplayName = "Resident Evil 7"
+
+NexusDomain = "residentevil72017"
+SteamAppId  = 418370
+
+RequiredFiles = ["re7.exe"]
+
+DataSubFolder = ""

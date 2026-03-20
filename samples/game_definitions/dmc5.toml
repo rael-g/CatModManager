@@ -1,0 +1,9 @@
+GameId      = "dmc5"
+DisplayName = "Devil May Cry 5"
+
+NexusDomain = "devilmaycry5"
+SteamAppId  = 601150
+
+RequiredFiles = ["DevilMayCry5.exe"]
+
+DataSubFolder = ""

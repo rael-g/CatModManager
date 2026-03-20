@@ -1,0 +1,9 @@
+GameId      = "re3r"
+DisplayName = "Resident Evil 3"
+
+NexusDomain = "residentevil32020"
+SteamAppId  = 952060
+
+RequiredFiles = ["re3.exe"]
+
+DataSubFolder = ""

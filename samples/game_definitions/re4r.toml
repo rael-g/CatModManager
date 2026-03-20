@@ -1,0 +1,9 @@
+GameId      = "re4r"
+DisplayName = "Resident Evil 4"
+
+NexusDomain = "residentevil42023"
+SteamAppId  = 2050650
+
+RequiredFiles = ["re4.exe"]
+
+DataSubFolder = ""

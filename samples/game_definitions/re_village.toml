@@ -1,0 +1,9 @@
+GameId      = "re_village"
+DisplayName = "Resident Evil Village"
+
+NexusDomain = "residentevilvillage"
+SteamAppId  = 1196590
+
+RequiredFiles = ["re8.exe"]
+
+DataSubFolder = ""

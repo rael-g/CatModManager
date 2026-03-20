@@ -1,0 +1,9 @@
+GameId      = "mh_rise"
+DisplayName = "Monster Hunter Rise"
+
+NexusDomain = "monsterhunterrise"
+SteamAppId  = 1446780
+
+RequiredFiles = ["MonsterHunterRise.exe"]
+
+DataSubFolder = ""

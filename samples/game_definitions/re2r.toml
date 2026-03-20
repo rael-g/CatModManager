@@ -1,0 +1,10 @@
+GameId      = "re2r"
+DisplayName = "Resident Evil 2"
+
+NexusDomain = "residentevil22019"
+SteamAppId  = 883710
+
+RequiredFiles = ["re2.exe"]
+
+# RE Engine mods are loose files placed at the game root (natives/x64/... structure)
+DataSubFolder = ""
