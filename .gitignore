@@ -1,10 +1,84 @@
+## .NET / C# — standard gitignore
+# Build outputs
 bin/
 obj/
+out/
+dist/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.opendb
+*.VC.db
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage*/
+
+# MSBuild
+[Ll]og/
+[Ll]ogs/
+
+# Publish / packaging
+publish/
+*.publish.xml
+*.azurePubxml
+*.pubxml
+*.pubxml.user
+
+# Entity Framework migrations temp
+*.mdf
+*.ldf
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CMM — custom exclusions
+# ─────────────────────────────────────────────────────────────────────────────
+
+# AI assistant context files
 CLAUDE.md
 GEMINI.md
-.claude
-.vscode
+.claude/
 
-# Deploy build outputs
-publish/
-dist/
+# Personal notes
+kanban.md
