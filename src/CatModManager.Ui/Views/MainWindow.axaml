@@ -130,9 +130,10 @@
                                     </StackPanel>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="APP DATA" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <Grid ColumnDefinitions="*, Auto">
+                                        <Grid ColumnDefinitions="*, Auto, Auto">
                                             <TextBox Grid.Column="0" Text="{Binding AppDataPath}" IsReadOnly="True" Classes="path-field"/>
                                             <Button Grid.Column="1" Command="{Binding OpenAppDataFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                            <Button Grid.Column="2" Classes="small-icon" Opacity="0" IsHitTestVisible="False" Content="..."/>
                                         </Grid>
                                     </StackPanel>
                                 </StackPanel>
