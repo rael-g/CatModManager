@@ -1,7 +1,8 @@
-using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace CmmPlugin.Capcom.Tabs;
 
@@ -18,34 +19,26 @@ public class ReEngineTabControl : UserControl
 
     private Control Build()
     {
-        var panel = new StackPanel { Spacing = 10, Margin = new Thickness(12) };
+        var panel = new StackPanel { Spacing = 10, Margin = new Avalonia.Thickness(12) };
 
-        panel.Children.Add(Row("Game", _vm.GameName));
-
-        if (_vm.IsReEngineGame)
-        {
-            var refLabel = _vm.ReFrameworkStatus;
-            if (!string.IsNullOrEmpty(_vm.ReFrameworkVersion))
-                refLabel += $"  v{_vm.ReFrameworkVersion}";
-
-            panel.Children.Add(Row("REFramework", refLabel));
-            panel.Children.Add(Row("Autorun scripts", _vm.ScriptCount.ToString()));
-        }
+        panel.Children.Add(Row("Game",             nameof(_vm.GameName)));
+        panel.Children.Add(Row("REFramework",      nameof(_vm.ReFrameworkLabel)));
+        panel.Children.Add(Row("Autorun scripts",  nameof(_vm.ScriptCount)));
 
         var refreshBtn = new Button
         {
-            Content              = "↺ Refresh",
-            Padding              = new Thickness(8, 3),
-            Margin               = new Thickness(0, 8, 0, 0),
-            HorizontalAlignment  = HorizontalAlignment.Left
+            Content             = "↺ Refresh",
+            Padding             = new Avalonia.Thickness(8, 3),
+            Margin              = new Avalonia.Thickness(0, 8, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left
         };
-        refreshBtn.Click += (_, _) => { _vm.Refresh(); Content = Build(); };
+        refreshBtn.Click += (_, _) => _vm.Refresh();
         panel.Children.Add(refreshBtn);
 
         return new ScrollViewer { Content = panel };
     }
 
-    private static Control Row(string label, string value)
+    private Control Row(string label, string vmProperty)
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition(140, GridUnitType.Pixel));
@@ -53,16 +46,16 @@ public class ReEngineTabControl : UserControl
 
         var lbl = new TextBlock
         {
-            Text                = label,
-            Foreground          = Brushes.Gray,
-            VerticalAlignment   = VerticalAlignment.Center
+            Text              = label,
+            Foreground        = Brushes.Gray,
+            VerticalAlignment = VerticalAlignment.Center
         };
         var val = new TextBlock
         {
-            Text                = value,
-            VerticalAlignment   = VerticalAlignment.Center,
-            TextWrapping        = TextWrapping.Wrap
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping      = TextWrapping.Wrap
         };
+        val.Bind(TextBlock.TextProperty, new Binding(vmProperty) { Source = _vm });
 
         Grid.SetColumn(lbl, 0);
         Grid.SetColumn(val, 1);

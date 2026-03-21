@@ -9,11 +9,9 @@ public partial class ReEngineTabViewModel : ObservableObject
 {
     private readonly IModManagerState _state;
 
-    [ObservableProperty] private bool   _isReEngineGame;
-    [ObservableProperty] private string _gameName           = "—";
-    [ObservableProperty] private string _reFrameworkStatus  = "—";
-    [ObservableProperty] private string _reFrameworkVersion = "";
-    [ObservableProperty] private int    _scriptCount;
+    [ObservableProperty] private string _gameName        = "—";
+    [ObservableProperty] private string _reFrameworkLabel = "—";
+    [ObservableProperty] private string _scriptCount     = "—";
 
     public ReEngineTabViewModel(IModManagerState state)
     {
@@ -23,28 +21,37 @@ public partial class ReEngineTabViewModel : ObservableObject
 
     public void Refresh()
     {
-        var exe  = _state.GameExecutablePath;
-        var game = ReEngineDetector.Detect(exe);
+        var exe        = _state.GameExecutablePath;
+        var game       = ReEngineDetector.Detect(exe);
+        var gameFolder = Path.GetDirectoryName(exe ?? "");
 
         if (game == null)
         {
-            IsReEngineGame      = false;
-            GameName            = "Not an RE Engine game";
-            ReFrameworkStatus   = "—";
-            ReFrameworkVersion  = "";
-            ScriptCount         = 0;
+            GameName         = "Not an RE Engine game";
+            ReFrameworkLabel = "—";
+            ScriptCount      = "—";
             return;
         }
 
-        var gameFolder = Path.GetDirectoryName(exe ?? "");
-        var hasRef     = ReEngineDetector.IsReFrameworkInstalled(gameFolder);
+        GameName = game.DisplayName;
 
-        IsReEngineGame      = true;
-        GameName            = game.DisplayName;
-        ReFrameworkStatus   = game.HasReFrameworkSupport
-                                ? (hasRef ? "Installed ✓" : "Not installed ✗")
-                                : "N/A";
-        ReFrameworkVersion  = hasRef ? ReEngineDetector.GetReFrameworkVersion(gameFolder) : "";
-        ScriptCount         = ReEngineDetector.CountReFrameworkScripts(gameFolder);
+        if (!game.HasReFrameworkSupport)
+        {
+            ReFrameworkLabel = "N/A";
+            ScriptCount      = "—";
+            return;
+        }
+
+        var installed = ReEngineDetector.IsReFrameworkInstalled(gameFolder);
+        if (!installed)
+        {
+            ReFrameworkLabel = "Not installed ✗";
+            ScriptCount      = "—";
+            return;
+        }
+
+        var version = ReEngineDetector.GetReFrameworkVersion(gameFolder);
+        ReFrameworkLabel = string.IsNullOrEmpty(version) ? "Installed ✓" : $"Installed ✓  v{version}";
+        ScriptCount      = ReEngineDetector.CountReFrameworkScripts(gameFolder).ToString();
     }
 }
