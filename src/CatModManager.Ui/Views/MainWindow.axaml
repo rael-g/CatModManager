@@ -340,6 +340,7 @@
                             <ContextMenu>
                                 <MenuItem Header="Refresh" Command="{Binding RefreshCommand}"/>
                                 <MenuItem Header="Open Folder" Command="{Binding OpenSelectedModFolderCommand}"/>
+                                <MenuItem Header="Install to Game Folder" Command="{Binding InstallSelectedModToGameFolderCommand}"/>
                                 <Separator/>
                                 <MenuItem Header="Remove Mod" Command="{Binding RemoveModCommand}"/>
                             </ContextMenu>
@@ -354,8 +355,16 @@
                                         <TextBlock Text="{Binding RootPath}" FontSize="10" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" FontFamily="Cascadia Code, Consolas, monospace"/>
                                     </StackPanel>
                                     <Border Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Border Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,2">
+                                        <!-- Show "Game Folder" badge for base-folder installs, otherwise show the category -->
+                                        <Border Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,2"
+                                                IsVisible="{Binding !IsBaseFolderInstall}">
                                             <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"/>
+                                        </Border>
+                                    </Border>
+                                    <Border Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                            IsVisible="{Binding IsBaseFolderInstall}">
+                                        <Border Background="{DynamicResource AccentColor}" CornerRadius="3" Padding="8,2" Opacity="0.8">
+                                            <TextBlock Text="Game Folder" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
                                         </Border>
                                     </Border>
                                     <TextBlock Grid.Column="4" Text="{Binding Version}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSubtle}"/>

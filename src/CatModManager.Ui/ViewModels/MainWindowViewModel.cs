@@ -603,7 +603,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 GameFolderPath = BaseFolderPath,
                 DataSubFolder = DataSubFolder,
-                ActiveMods = AllMods.Where(m => m.IsEnabled).ToList()
+                ActiveMods = AllMods.Where(m => m.IsEnabled && !m.IsBaseFolderInstall).ToList()
             });
         }
         
@@ -706,9 +706,38 @@ public partial class MainWindowViewModel : ViewModelBase
                 installedPath = await _modManagementService.InstallModAsync(sourcePath, ModsFolderPath); 
             }
 
-            string name = Path.GetFileNameWithoutExtension(installedPath); 
-            var mod = new Mod(name, installedPath, AllMods.Count, true, "Uncategorized"); 
-            
+            // Ask installation destination when a game folder is configured
+            bool isBaseFolderInstall = false;
+            if (!string.IsNullOrEmpty(BaseFolderPath))
+            {
+                var owner = Avalonia.Application.Current?.ApplicationLifetime
+                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime dt
+                    ? dt.MainWindow : null;
+
+                var destDialog = new CatModManager.Ui.Views.InstallDestinationDialog();
+                await destDialog.ShowDialog(owner!);
+
+                if (destDialog.WasCancelled)
+                {
+                    // Clean up the extracted mod folder and bail
+                    if (Directory.Exists(installedPath)) Directory.Delete(installedPath, true);
+                    StatusMessage = "Installation cancelled.";
+                    return;
+                }
+
+                if (destDialog.ResultIsGameFolder)
+                {
+                    StatusMessage = "Copying to game folder...";
+                    await CatModManager.Core.Services.BaseFolderService.InstallAsync(installedPath, BaseFolderPath);
+                    isBaseFolderInstall = true;
+                    _logService.Log($"Base folder install: files copied to {BaseFolderPath}");
+                }
+            }
+
+            string name = Path.GetFileNameWithoutExtension(installedPath);
+            var mod = new Mod(name, installedPath, AllMods.Count, true, "Uncategorized");
+            mod.IsBaseFolderInstall = isBaseFolderInstall;
+
             string sidecar = Path.Combine(installedPath, ".cmm_metadata.toml");
             if (File.Exists(sidecar))
             {
@@ -722,7 +751,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 } catch { }
             }
 
-            AllMods.Insert(0, mod); 
+            AllMods.Insert(0, mod);
             UpdatePriorities(); UpdateCategories(); 
             RebuildDisplayedMods(); 
             SelectedMod = mod; 
@@ -741,10 +770,36 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void RemoveMod() 
+    private async Task InstallSelectedModToGameFolder()
     {
-        var modsToRemove = (SelectedMods != null && SelectedMods.Count > 1) 
-            ? SelectedMods.ToList() 
+        if (SelectedMod == null || string.IsNullOrEmpty(BaseFolderPath)) return;
+        if (SelectedMod.IsBaseFolderInstall)
+        {
+            StatusMessage = $"'{SelectedMod.Name}' is already installed to the game folder.";
+            return;
+        }
+        if (!Directory.Exists(SelectedMod.RootPath))
+        {
+            StatusMessage = "Mod folder not found.";
+            return;
+        }
+        try
+        {
+            StatusMessage = "Copying to game folder...";
+            await CatModManager.Core.Services.BaseFolderService.InstallAsync(SelectedMod.RootPath, BaseFolderPath);
+            SelectedMod.IsBaseFolderInstall = true;
+            AutoSave();
+            _logService.Log($"Base folder install: '{SelectedMod.Name}' copied to {BaseFolderPath}");
+            StatusMessage = $"'{SelectedMod.Name}' installed to game folder.";
+        }
+        catch (Exception ex) { _logService.Log($"BASE FOLDER ERROR: {ex.Message}"); StatusMessage = $"ERROR: {ex.Message}"; }
+    }
+
+    [RelayCommand]
+    private async Task RemoveMod()
+    {
+        var modsToRemove = (SelectedMods != null && SelectedMods.Count > 1)
+            ? SelectedMods.ToList()
             : (SelectedMod != null ? new List<Mod> { SelectedMod } : new List<Mod>());
         if (modsToRemove.Count == 0) return;
         try
@@ -753,6 +808,14 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 foreach (var mod in modsToRemove)
                 {
+                    // Uninstall from game folder before deleting the mod's mods-folder entry
+                    if (mod.IsBaseFolderInstall && !string.IsNullOrEmpty(BaseFolderPath) &&
+                        CatModManager.Core.Services.BaseFolderService.IsInstalled(mod.RootPath))
+                    {
+                        await CatModManager.Core.Services.BaseFolderService.UninstallAsync(mod.RootPath, BaseFolderPath);
+                        _logService.Log($"Base folder files removed for '{mod.Name}'.");
+                    }
+
                     AllMods.Remove(mod);
                     _logService.Log($"Mod '{mod.Name}' removed.");
                     if (!string.IsNullOrEmpty(ModsFolderPath) && mod.RootPath.StartsWith(ModsFolderPath))

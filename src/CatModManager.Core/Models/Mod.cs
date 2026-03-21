@@ -28,6 +28,10 @@ public partial class Mod : ObservableObject
     [ObservableProperty]
     private bool _isSeparator;
 
+    /// <summary>True when the mod was physically copied into the game folder via the Base Folder installer.</summary>
+    [ObservableProperty]
+    private bool _isBaseFolderInstall;
+
     public Mod() { }
 
     public Mod(string name, string rootPath, int priority, bool isArchive = false, string category = "Uncategorized", string version = "1.0.0")
