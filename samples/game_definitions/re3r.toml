@@ -6,4 +6,4 @@ SteamAppId  = 952060
 
 RequiredFiles = ["re3.exe"]
 
-DataSubFolder = ""
+DataSubFolder = "reframework"

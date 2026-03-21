@@ -6,4 +6,4 @@ SteamAppId  = 2246340
 
 RequiredFiles = ["MonsterHunterWilds.exe"]
 
-DataSubFolder = ""
+DataSubFolder = "reframework"
