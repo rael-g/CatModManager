@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
+using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
 using CatModManager.VirtualFileSystem;
 using CatModManager.PluginSdk;
@@ -42,7 +43,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ICatPathService _pathService;
     private readonly ILogService _logService;
     private readonly IConfigService _configService;
-    private readonly IGameSupportService _gameSupportService;
+    private readonly IGameSupportService    _gameSupportService;
+    private readonly IGameDiscoveryService  _gameDiscoveryService;
     private readonly UiExtensionHost? _uiExtensionHost;
     private readonly PluginBrowserViewModel? _pluginBrowserVm;
 
@@ -181,6 +183,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ILogService logService,
         IConfigService configService,
         IGameSupportService gameSupportService,
+        IGameDiscoveryService gameDiscoveryService,
         UiExtensionHost? uiExtensionHost = null,
         PluginBrowserViewModel? pluginBrowserVm = null)
     {
@@ -195,7 +198,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _pathService = pathService;
         _logService = logService;
         _configService = configService;
-        _gameSupportService = gameSupportService;
+        _gameSupportService   = gameSupportService;
+        _gameDiscoveryService = gameDiscoveryService;
         _uiExtensionHost = uiExtensionHost;
         _pluginBrowserVm = pluginBrowserVm;
 
@@ -359,6 +363,43 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnBaseFolderPathChanged(string? value) => AutoSave();
     partial void OnLaunchArgumentsChanged(string? value) => AutoSave();
     partial void OnActiveGameSupportChanged(IGameSupport value) => AutoSave();
+
+    [RelayCommand]
+    private void DetectGameSupport() => DetectSupport(GameExecutablePath);
+
+    [RelayCommand]
+    private async Task AutoDetectGameAsync()
+    {
+        var dialogVm = new GameDetectionDialogViewModel(
+            _gameDiscoveryService,
+            AvailableGameSupports);
+
+        var dialog = new CatModManager.Ui.Views.GameDetectionDialog(dialogVm);
+
+        var owner = Avalonia.Application.Current?.ApplicationLifetime
+                        is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime dt
+                    ? dt.MainWindow : null;
+
+        await dialog.ShowDialog(owner!);
+
+        var result = dialogVm.Result;
+        if (result == null) return;
+
+        var mode = dialogVm.ResultMode ?? _gameSupportService.Default;
+
+        using (SuppressAutoSave())
+        {
+            GameExecutablePath  = result.ExecutablePath;
+            BaseFolderPath      = result.GameFolder;
+            DataSubFolder       = mode.DataSubFolder;
+            ModsFolderPath      = Path.Combine(result.GameFolder, "mods");
+            DownloadsFolderPath = Path.Combine(result.GameFolder, "downloads");
+            ActiveGameSupport   = mode;
+        }
+        AutoSave();
+        _logService.Log($"Game auto-detected: {result.DisplayName} [{result.StoreName}]");
+        StatusMessage = $"Game configured: {result.DisplayName}";
+    }
 
     private void DetectSupport(string? value)
     {

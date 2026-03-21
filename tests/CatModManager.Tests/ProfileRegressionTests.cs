@@ -1,6 +1,7 @@
 using CatModManager.Ui.ViewModels;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
+using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
 
 namespace CatModManager.Tests;
@@ -55,7 +56,8 @@ public class ProfileRegressionTests : IDisposable
             _pathService,
             _mockLog,
             _configService,
-            _gameSupportService
+            _gameSupportService,
+            new GameDiscoveryService(_gameSupportService)
         );
     }
 

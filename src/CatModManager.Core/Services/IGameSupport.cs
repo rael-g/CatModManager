@@ -21,6 +21,12 @@ public interface IGameSupport
     /// Empty string means mount at the game root (not recommended for most games).
     /// </summary>
     string DataSubFolder { get; }
+
+    /// <summary>
+    /// Files/folders (relative to the game root) required for detection.
+    /// The first .exe entry is treated as the primary executable.
+    /// </summary>
+    string[] RequiredFiles { get; }
 }
 
 public class GenericGameSupport : IGameSupport
@@ -34,4 +40,5 @@ public class GenericGameSupport : IGameSupport
     public string? NexusDomain => null;
     public int SteamAppId => 0;
     public string DataSubFolder => "";
+    public string[] RequiredFiles => [];
 }

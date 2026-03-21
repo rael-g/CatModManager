@@ -25,20 +25,31 @@ public class GameSupportService : IGameSupportService
         _supports.Clear();
         _supports.Add(Default);
 
-        string supportsPath = _pathService.GameSupportsPath;
-        if (Directory.Exists(supportsPath))
+        // 1. Bundled definitions (shipped alongside the executable)
+        var bundled = Path.Combine(AppContext.BaseDirectory, "game_definitions");
+        LoadFromDirectory(bundled);
+
+        // 2. User-installed definitions (AppData — override or extend bundled ones)
+        LoadFromDirectory(_pathService.GameSupportsPath);
+    }
+
+    private void LoadFromDirectory(string path)
+    {
+        if (!Directory.Exists(path)) return;
+        foreach (var file in Directory.GetFiles(path, "*.toml"))
         {
-            foreach (var file in Directory.GetFiles(supportsPath, "*.toml"))
+            try
             {
-                try 
-                {
-                    var custom = CustomGameSupport.LoadFromFile(file);
-                    if (custom != null) _supports.Add(custom);
-                }
-                catch (Exception ex)
-                {
-                    _logService.LogError($"Failed to load game support from {file}", ex);
-                }
+                var custom = CustomGameSupport.LoadFromFile(file);
+                if (custom == null) continue;
+                // User definitions override bundled ones with the same GameId
+                var existing = _supports.FindIndex(s => s.GameId == custom.GameId);
+                if (existing >= 0) _supports[existing] = custom;
+                else _supports.Add(custom);
+            }
+            catch (Exception ex)
+            {
+                _logService.LogError($"Failed to load game support from {file}", ex);
             }
         }
     }

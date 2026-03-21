@@ -74,7 +74,19 @@
                             </Border>
 
                             <!-- Configuration Section -->
-                            <TextBlock Text="CONFIGURATION" Classes="sidebar-section-header"/>
+                            <Grid ColumnDefinitions="*, Auto" Margin="12,4,12,0">
+                                <TextBlock Grid.Column="0" Text="CONFIGURATION" Classes="sidebar-section-header" Margin="0"/>
+                                <Button Grid.Column="1"
+                                        Command="{Binding AutoDetectGameCommand}"
+                                        Content="⊕ AUTO DETECT"
+                                        FontSize="9" FontWeight="Bold"
+                                        Padding="6,2"
+                                        Background="Transparent"
+                                        BorderBrush="{DynamicResource BorderColor}"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        ToolTip.Tip="Scan Steam, GOG and Epic for installed games"/>
+                            </Grid>
                             <Border Padding="12,8">
                                 <StackPanel Spacing="12">
                                     <StackPanel Spacing="2">
@@ -105,6 +117,29 @@
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenGameExecutableFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open containing folder"/>
                                             <Button Grid.Column="2" Click="SelectGame_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose executable"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="GAME MODE" FontSize="9" Foreground="{DynamicResource TextSubtle}"
+                                                   ToolTip.Tip="Select the game support profile (auto-detected from the executable)"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <ComboBox Grid.Column="0"
+                                                      ItemsSource="{Binding AvailableGameSupports}"
+                                                      SelectedItem="{Binding ActiveGameSupport}"
+                                                      HorizontalAlignment="Stretch"
+                                                      Padding="6,4"
+                                                      FontSize="12">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="services:IGameSupport">
+                                                        <TextBlock Text="{Binding DisplayName}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding DetectGameSupportCommand}"
+                                                    Content="⟳"
+                                                    Classes="small-icon"
+                                                    ToolTip.Tip="Auto-detect from executable"/>
                                         </Grid>
                                     </StackPanel>
                                     <StackPanel Spacing="2">

@@ -6,6 +6,7 @@ using CatModManager.Ui.Views;
 using CatModManager.Ui.Plugins;
 using CatModManager.Ui.Services;
 using CatModManager.Core.Services;
+using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
 using CatModManager.VirtualFileSystem;
 using CatModManager.PluginSdk;
@@ -80,6 +81,7 @@ public partial class App : Application
         services.AddSingleton<IFileService, PhysicalFileService>();
         services.AddSingleton<IConfigService, ConfigService>();
         services.AddSingleton<IGameSupportService, GameSupportService>();
+        services.AddSingleton<IGameDiscoveryService, GameDiscoveryService>();
 
         services.AddSingleton<IDriverService, WinFspDriverService>();
         services.AddSingleton<IProcessService, ProcessService>();

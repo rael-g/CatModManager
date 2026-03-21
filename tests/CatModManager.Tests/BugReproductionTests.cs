@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Xunit;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
+using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Ui.ViewModels;
 using CatModManager.Core.Vfs;
 
@@ -107,7 +108,8 @@ public class BugReproductionTests : IDisposable
             _pathService,
             _logService,
             configService,
-            gameSupportService);
+            gameSupportService,
+            new GameDiscoveryService(gameSupportService));
 
         // ACT
         await Task.Run(() => vm.Shutdown());

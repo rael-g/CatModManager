@@ -48,5 +48,14 @@
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\CmmPlugin.NexusMods\CmmPlugin.NexusMods.csproj"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\CmmPlugin.Capcom\CmmPlugin.Capcom.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Bundle game definitions shipped with the app -->
+  <ItemGroup>
+    <Content Include="..\..\samples\game_definitions\*.toml"
+             CopyToOutputDirectory="PreserveNewest"
+             Link="game_definitions\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

@@ -31,6 +31,7 @@ public class CustomGameSupport : IGameSupport
     public string? NexusDomain => string.IsNullOrEmpty(_def.NexusDomain) ? null : _def.NexusDomain;
     public int SteamAppId => _def.SteamAppId;
     public string DataSubFolder => _def.DataSubFolder;
+    public string[] RequiredFiles => _def.RequiredFiles;
 
     public CustomGameSupport(GameDefinition def) => _def = def;
 
