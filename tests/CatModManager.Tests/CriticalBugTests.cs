@@ -46,7 +46,7 @@ public class CriticalBugTests : IDisposable
         var mockVfs = new MockVfs();
         var state = new VfsStateService(new AppDatabase(_pathService), _logService);
         var mockDriver = new MockDriverService();
-        var orchestrator = new VfsOrchestrationService(mockVfs, state, mockDriver, _logService);
+        var orchestrator = new VfsOrchestrationService(mockVfs, state, mockDriver, _logService, new NullRootSwapService());
 
         string original = Path.Combine(_tempDir, "GameFolder");
         string backup = Path.Combine(_tempDir, ".GameFolder.CMM_base");
@@ -79,6 +79,14 @@ public class CriticalBugTests : IDisposable
         public void Dispose() { }
     }
     private class MockDriverService : IDriverService { public bool IsDriverInstalled() => true; }
+    private class NullRootSwapService : IRootSwapService
+    {
+        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
+        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
+        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
+        public void RecoverStaleDeployments() { }
+        public bool HasDeployedFiles(string gameFolder) => false;
+    }
 
     public void Dispose()
     {

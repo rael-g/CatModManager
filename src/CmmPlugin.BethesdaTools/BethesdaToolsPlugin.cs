@@ -1,5 +1,6 @@
 using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Hooks;
+using CmmPlugin.BethesdaTools.Installers;
 using CmmPlugin.BethesdaTools.Services;
 using CmmPlugin.BethesdaTools.Tabs;
 
@@ -19,6 +20,9 @@ public class BethesdaToolsPlugin : ICmmPlugin
         var tab = new PluginsInspectorTab(vm);
         var hook = new BethesdaLaunchHook(loadOrder, context.State, context.Log);
 
+        var installer = new BethesdaModInstaller(context.State);
+
+        context.Ui.RegisterModInstaller(installer);
         context.Ui.RegisterInspectorTab(tab);
         context.Ui.RegisterGameLaunchHook(hook);
 

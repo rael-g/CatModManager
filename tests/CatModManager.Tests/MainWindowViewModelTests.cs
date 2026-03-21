@@ -62,14 +62,15 @@ public class MainWindowViewModelTests : IDisposable
             _mockDriverService, 
             _mockModManagementService, 
             _mockProcessService,
-            new VfsOrchestrationService(_mockVfs, _mockStateService, _mockDriverService, _logService),
+            new VfsOrchestrationService(_mockVfs, _mockStateService, _mockDriverService, _logService, new NullRootSwapService()),
             new GameLaunchService(_mockProcessService, _logService),
             _mockFileService,
             _pathService,
             _logService,
             _mockConfigService,
             _mockGameSupportService,
-            new GameDiscoveryService(_mockGameSupportService));
+            new GameDiscoveryService(_mockGameSupportService),
+            new NullRootSwapService());
     }
 
     [Fact]
@@ -160,6 +161,14 @@ public class MainWindowViewModelTests : IDisposable
         public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) => Task.FromResult(Enumerable.Empty<Mod>());
     }
     
+    private class NullRootSwapService : IRootSwapService
+    {
+        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
+        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
+        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
+        public void RecoverStaleDeployments() { }
+        public bool HasDeployedFiles(string gameFolder) => false;
+    }
     private class MockVfs : IVirtualFileSystem {
         public bool IsMounted { get; set; }
         public event EventHandler<string>? ErrorOccurred;

@@ -102,14 +102,15 @@ public class BugReproductionTests : IDisposable
             mockDriverService, 
             mockModManagementService, 
             mockProcessService,
-            new VfsOrchestrationService(mockVfs, stateService, mockDriverService, _logService),
+            new VfsOrchestrationService(mockVfs, stateService, mockDriverService, _logService, new NullRootSwapService()),
             new GameLaunchService(mockProcessService, _logService),
             new MockFileService(),
             _pathService,
             _logService,
             configService,
             gameSupportService,
-            new GameDiscoveryService(gameSupportService));
+            new GameDiscoveryService(gameSupportService),
+            new NullRootSwapService());
 
         // ACT
         await Task.Run(() => vm.Shutdown());
@@ -134,6 +135,14 @@ public class BugReproductionTests : IDisposable
         public Task SaveProfileAsync(Profile p, string f) => Task.CompletedTask;
         public Task<Profile?> LoadProfileAsync(string f) => Task.FromResult<Profile?>(null);
         public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
+    }
+    private class NullRootSwapService : IRootSwapService
+    {
+        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
+        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
+        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
+        public void RecoverStaleDeployments() { }
+        public bool HasDeployedFiles(string gameFolder) => false;
     }
     private class MockDriverService : IDriverService {
         public bool IsDriverInstalled() => true;

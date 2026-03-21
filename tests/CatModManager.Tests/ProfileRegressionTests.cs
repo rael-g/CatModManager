@@ -50,14 +50,15 @@ public class ProfileRegressionTests : IDisposable
             _mockDriverService,
             _mockModManagementService,
             _mockProcessService,
-            new VfsOrchestrationService(new NullVfs(), _stateService, _mockDriverService, _mockLog),
+            new VfsOrchestrationService(new NullVfs(), _stateService, _mockDriverService, _mockLog, new NullRootSwapService()),
             new GameLaunchService(_mockProcessService, _mockLog),
             new MockFileService(),
             _pathService,
             _mockLog,
             _configService,
             _gameSupportService,
-            new GameDiscoveryService(_gameSupportService)
+            new GameDiscoveryService(_gameSupportService),
+            new NullRootSwapService()
         );
     }
 
@@ -140,6 +141,14 @@ public class ProfileRegressionTests : IDisposable
         public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(_storage.Keys.Select(Path.GetFileNameWithoutExtension).AsEnumerable()!);
     }
 
+    private class NullRootSwapService : IRootSwapService
+    {
+        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
+        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
+        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
+        public void RecoverStaleDeployments() { }
+        public bool HasDeployedFiles(string gameFolder) => false;
+    }
     private class MockDriverService : IDriverService {
         public bool IsDriverInstalled() => true;
     }
