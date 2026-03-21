@@ -531,11 +531,14 @@ public partial class MainWindowViewModel : ViewModelBase
             if (_fileService.FileExists(oldPath)) {
                 await SaveProfileInternal(ProfileDisplayName);
                 File.Delete(oldPath);
-                _logService.Log($"Profile renamed: '{CurrentProfileName}' -> '{ProfileDisplayName}'");
-                
+                var newName = ProfileDisplayName;
+                _logService.Log($"Profile renamed: '{CurrentProfileName}' -> '{newName}'");
+                _configService.Current.LastProfileName = newName;
+                _configService.Save();
+
                 using (SuppressAutoSave())
                 {
-                    CurrentProfileName = ProfileDisplayName;
+                    CurrentProfileName = newName;
                 }
                 await RefreshProfilesAsync();
                 SyncCurrentSelection(CurrentProfileName, ActiveGameSupport?.GameId);
