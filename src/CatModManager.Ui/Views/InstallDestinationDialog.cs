@@ -38,9 +38,8 @@ public class InstallDestinationDialog : Window
             Text = "Virtual Filesystem (VFS) — Recommended.\n" +
                    "The mod is applied at game launch without touching the game files. " +
                    "Enable/disable at any time.\n\n" +
-                   "Game Folder (Direct) — For ENB presets, ASI loaders, DLL mods.\n" +
-                   "Files are copied physically into the game folder. " +
-                   "Removing the mod from CMM will also delete those files.",
+                   "Game Root (Root/) — For ENB presets, ASI loaders, DLL mods.\n" +
+                   "Files are placed in a Root/ subfolder and deployed to the game folder at mount time via a safe swap. Fully reversible.",
             FontSize     = 12,
             TextWrapping = TextWrapping.Wrap,
             Foreground   = Brushes.Gray,
@@ -68,7 +67,7 @@ public class InstallDestinationDialog : Window
 
         var gameFolderBtn = new Button
         {
-            Content = "Game Folder (Direct)",
+            Content = "Game Root (Root/)",
             Padding = new Thickness(12, 6)
         };
         gameFolderBtn.Click += (_, _) =>

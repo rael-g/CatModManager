@@ -90,6 +90,7 @@ public partial class App : Application
         services.AddSingleton<IProfileService, TomlProfileService>();
         services.AddSingleton<IModManagementService, ModManagementService>();
         services.AddSingleton<IVfsStateService, VfsStateService>();
+        services.AddSingleton<IRootSwapService, RootSwapService>();
 
         services.AddSingleton<IConflictResolver, SimpleConflictResolver>();
         services.AddSingleton<IVirtualFileSystem, CatVirtualFileSystem>();

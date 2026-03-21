@@ -1,3 +1,4 @@
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatModManager.Core.Models;
@@ -28,9 +29,8 @@ public partial class Mod : ObservableObject
     [ObservableProperty]
     private bool _isSeparator;
 
-    /// <summary>True when the mod was physically copied into the game folder via the Base Folder installer.</summary>
-    [ObservableProperty]
-    private bool _isBaseFolderInstall;
+    /// <summary>True if this mod has a Root/ subfolder whose files will be deployed to the game root at mount time.</summary>
+    public bool HasRootFolder => !string.IsNullOrEmpty(RootPath) && Directory.Exists(Path.Combine(RootPath, "Root"));
 
     public Mod() { }
 

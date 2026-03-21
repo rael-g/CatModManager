@@ -14,7 +14,9 @@ public class VfsOrchestrationService : IVfsOrchestrationService
     private readonly IVfsStateService _stateService;
     private readonly IDriverService _driverService;
     private readonly ILogService _logService;
+    private readonly IRootSwapService _rootSwapService;
     private string? _lastMountPoint;
+    private string? _lastMountGameFolder;
 
     public bool IsMounted => _vfs.IsMounted;
 
@@ -22,21 +24,31 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         IVirtualFileSystem vfs,
         IVfsStateService stateService,
         IDriverService driverService,
-        ILogService logService)
+        ILogService logService,
+        IRootSwapService rootSwapService)
     {
         _vfs = vfs;
         _stateService = stateService;
         _driverService = driverService;
         _logService = logService;
+        _rootSwapService = rootSwapService;
     }
 
-    public void RecoverStaleMounts() => _stateService.RecoverStaleMounts();
+    public void RecoverStaleMounts()
+    {
+        _stateService.RecoverStaleMounts();
+        _rootSwapService.RecoverStaleDeployments();
+    }
 
     public void ShutdownCleanup()
     {
         if (IsMounted)
         {
             try { _vfs.Unmount(); } catch { }
+        }
+        else
+        {
+            _rootSwapService.RecoverStaleDeployments();
         }
         _stateService.RecoverStaleMounts();
     }
@@ -48,9 +60,13 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         try
         {
             string? targetToClean = _lastMountPoint;
+            string? gameFolder = _lastMountGameFolder;
             await Task.Run(() => _vfs.Unmount());
 
             await Task.Delay(500);
+
+            if (!string.IsNullOrEmpty(gameFolder))
+                await _rootSwapService.UndeployAsync(gameFolder);
 
             if (!string.IsNullOrEmpty(targetToClean))
             {
@@ -60,6 +76,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
             await Task.Run(() => _stateService.RecoverStaleMounts());
             _logService.Log("VFS Unmounted.");
             _lastMountPoint = null;
+            _lastMountGameFolder = null;
             return OperationResult.Success();
         }
         catch (Exception ex)
@@ -82,11 +99,12 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
     private async Task<OperationResult> MountWithRetryAsync(MountOptions options)
     {
-        string targetPath = Path.GetFullPath(string.IsNullOrEmpty(options.DataSubFolder) 
-            ? options.GameFolderPath! 
+        string targetPath = Path.GetFullPath(string.IsNullOrEmpty(options.DataSubFolder)
+            ? options.GameFolderPath!
             : Path.Combine(options.GameFolderPath!, options.DataSubFolder));
-            
+
         _lastMountPoint = targetPath;
+        _lastMountGameFolder = options.GameFolderPath;
 
         for (int attempt = 1; attempt <= 5; attempt++)
         {
@@ -115,6 +133,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
                 }
 
                 _logService.Log($"Mounting at {targetPath} with {options.ActiveMods.Count} mod(s).");
+                await _rootSwapService.DeployAsync(options.ActiveMods, options.GameFolderPath!);
                 await Task.Run(() => _vfs.Mount(targetPath, options.ActiveMods, effectiveBaseDataPath, options.DataSubFolder));
                 _logService.Log($"VFS Mounted at {targetPath}");
                 

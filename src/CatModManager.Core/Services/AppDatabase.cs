@@ -42,6 +42,13 @@ public class AppDatabase
                 version      TEXT NOT NULL,
                 installed_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS root_swap_entries (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_folder           TEXT NOT NULL,
+                source_path           TEXT NOT NULL,
+                dest_path             TEXT NOT NULL,
+                original_backup_path  TEXT
+            );
             """;
         cmd.ExecuteNonQuery();
     }

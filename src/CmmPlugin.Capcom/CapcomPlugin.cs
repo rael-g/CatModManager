@@ -1,5 +1,6 @@
 using CatModManager.PluginSdk;
 using CmmPlugin.Capcom.Hooks;
+using CmmPlugin.Capcom.Installers;
 using CmmPlugin.Capcom.Tabs;
 
 namespace CmmPlugin.Capcom;
@@ -19,6 +20,9 @@ public class CapcomPlugin : ICmmPlugin
 
         ctx.Ui.RegisterInspectorTab(tab);
         ctx.Ui.RegisterGameLaunchHook(hook);
+
+        var installer = new ReEngineModInstaller(ctx.State);
+        ctx.Ui.RegisterModInstaller(installer);
 
         ctx.Log.Log($"[{DisplayName}] Initialized — RE2R, RE3R, RE7, RE Village, RE4R, RE9, DMC5, MH Rise, MH Wilds, DD2, SF6.");
     }
