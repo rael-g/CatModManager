@@ -90,6 +90,29 @@
                             <Border Padding="12,8">
                                 <StackPanel Spacing="12">
                                     <StackPanel Spacing="2">
+                                        <TextBlock Text="GAME MODE" FontSize="9" Foreground="{DynamicResource TextSubtle}"
+                                                   ToolTip.Tip="Select the game support profile (auto-detected from the executable)"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <ComboBox Grid.Column="0"
+                                                      ItemsSource="{Binding AvailableGameSupports}"
+                                                      SelectedItem="{Binding ActiveGameSupport}"
+                                                      HorizontalAlignment="Stretch"
+                                                      Padding="6,4"
+                                                      FontSize="12">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="services:IGameSupport">
+                                                        <TextBlock Text="{Binding DisplayName}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding DetectGameSupportCommand}"
+                                                    Content="⟳"
+                                                    Classes="small-icon"
+                                                    ToolTip.Tip="Auto-detect from executable"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
                                         <TextBlock Text="MOD INSTALLATION FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
                                             <TextBox Grid.Column="0" Text="{Binding ModsFolderPath}" IsReadOnly="True" Classes="path-field">
@@ -117,29 +140,6 @@
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenGameExecutableFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open containing folder"/>
                                             <Button Grid.Column="2" Click="SelectGame_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose executable"/>
-                                        </Grid>
-                                    </StackPanel>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="GAME MODE" FontSize="9" Foreground="{DynamicResource TextSubtle}"
-                                                   ToolTip.Tip="Select the game support profile (auto-detected from the executable)"/>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <ComboBox Grid.Column="0"
-                                                      ItemsSource="{Binding AvailableGameSupports}"
-                                                      SelectedItem="{Binding ActiveGameSupport}"
-                                                      HorizontalAlignment="Stretch"
-                                                      Padding="6,4"
-                                                      FontSize="12">
-                                                <ComboBox.ItemTemplate>
-                                                    <DataTemplate x:DataType="services:IGameSupport">
-                                                        <TextBlock Text="{Binding DisplayName}"/>
-                                                    </DataTemplate>
-                                                </ComboBox.ItemTemplate>
-                                            </ComboBox>
-                                            <Button Grid.Column="1"
-                                                    Command="{Binding DetectGameSupportCommand}"
-                                                    Content="⟳"
-                                                    Classes="small-icon"
-                                                    ToolTip.Tip="Auto-detect from executable"/>
                                         </Grid>
                                     </StackPanel>
                                     <StackPanel Spacing="2">

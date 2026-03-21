@@ -42,7 +42,6 @@ public class GameDiscoveryService : IGameDiscoveryService
         var seenFolders   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenExes      = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        _gameSupportService.RefreshSupports();
         var supports = _gameSupportService.GetAllSupports()
                            .Where(s => s.GameId != "generic")
                            .ToList();
@@ -126,6 +125,7 @@ public class GameDiscoveryService : IGameDiscoveryService
                 .FirstOrDefault(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
             if (rel != null)
             {
+                // RequiredFiles is an explicit hint — skip size filter.
                 var full = Path.GetFullPath(Path.Combine(gameFolder, rel));
                 if (File.Exists(full)) return full;
             }
@@ -136,25 +136,31 @@ public class GameDiscoveryService : IGameDiscoveryService
         try { candidates = Directory.GetFiles(gameFolder, "*.exe", SearchOption.TopDirectoryOnly); }
         catch { return null; }
 
-        var valid = candidates
-            .Where(e => !_excluded.Contains(Path.GetFileName(e))
-                     && new FileInfo(e).Length >= MinExeSizeBytes)
+        var nonExcluded = candidates
+            .Where(e => !_excluded.Contains(Path.GetFileName(e)))
             .ToList();
 
-        if (valid.Count == 0) return null;
-        if (valid.Count == 1) return valid[0];
+        var valid = nonExcluded
+            .Where(e => new FileInfo(e).Length >= MinExeSizeBytes)
+            .ToList();
+
+        // If all root exes are small launchers, fall back to the largest one rather
+        // than returning null and losing the game entirely from the list.
+        var pool = valid.Count > 0 ? valid : nonExcluded;
+        if (pool.Count == 0) return null;
+        if (pool.Count == 1) return pool[0];
 
         // 3. Prefer the exe whose name is closest to the game/install-dir name.
         var nameToken = Path.GetFileNameWithoutExtension(
             gameName.Replace(" ", "").Replace(":", "").Replace("'", ""));
 
-        var byName = valid.FirstOrDefault(e =>
+        var byName = pool.FirstOrDefault(e =>
             Path.GetFileNameWithoutExtension(e)
                 .Contains(nameToken, StringComparison.OrdinalIgnoreCase));
         if (byName != null) return byName;
 
         // 4. Fall back to the largest file (heuristic: game binaries are big).
-        return valid
+        return pool
             .OrderByDescending(e => new FileInfo(e).Length)
             .First();
     }

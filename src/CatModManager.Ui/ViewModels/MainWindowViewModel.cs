@@ -385,7 +385,11 @@ public partial class MainWindowViewModel : ViewModelBase
         var result = dialogVm.Result;
         if (result == null) return;
 
-        var mode = dialogVm.ResultMode ?? _gameSupportService.Default;
+        // RefreshSupports() inside ScanAsync recreates instances, so match by GameId
+        // to get the reference that lives in AvailableGameSupports (used by the ComboBox).
+        var resultMode = dialogVm.ResultMode ?? _gameSupportService.Default;
+        var mode = AvailableGameSupports.FirstOrDefault(s => s.GameId == resultMode.GameId)
+                   ?? resultMode;
 
         using (SuppressAutoSave())
         {
@@ -409,7 +413,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (detected.GameId != "generic")
             {
                 using (SuppressAutoSave()) ActiveGameSupport = detected;
-                _logService.Log($"Auto-detected Game Support: {ActiveGameSupport.DisplayName}");
+                _logService.Log($"Auto-detected Game Support: {detected.DisplayName}");
                 if (string.IsNullOrEmpty(DataSubFolder) && !string.IsNullOrEmpty(detected.DataSubFolder))
                     DataSubFolder = detected.DataSubFolder;
             }
@@ -986,8 +990,6 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             var p = await _profileService.LoadProfileAsync(filePath);
             if (p != null) {
-                _gameSupportService.RefreshSupports();
-
                 using (SuppressAutoSave())
                 {
                     ModsFolderPath = p.ModsFolderPath;
@@ -1001,10 +1003,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     AllMods.Clear();
                     foreach (var m in p.Mods) AllMods.Add(m);
 
-                    var savedSupport = _gameSupportService.GetSupportById(p.GameSupportId);
-                    ActiveGameSupport = savedSupport.GameId == "generic"
-                        ? _gameSupportService.DetectSupport(p.GameExecutablePath)
-                        : savedSupport;
+                    // Always resolve from AvailableGameSupports so the ComboBox binding finds the same instance.
+                    ActiveGameSupport = AvailableGameSupports.FirstOrDefault(s => s.GameId == p.GameSupportId)
+                        ?? AvailableGameSupports.FirstOrDefault(s => s.CanSupport(p.GameExecutablePath))
+                        ?? _gameSupportService.Default;
                     LaunchArguments = p.LaunchArguments;
                     CurrentProfileName = name;
                     ProfileDisplayName = name;

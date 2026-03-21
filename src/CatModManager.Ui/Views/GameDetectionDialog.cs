@@ -55,6 +55,7 @@ public class GameDetectionDialog : Window
             Background = new SolidColorBrush(Color.Parse("#1E1F22")),
             ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<GameInstallation>((item, _) =>
             {
+                if (item is null) return new TextBlock();
                 var grid = new Grid { Margin = new Thickness(6, 5) };
                 grid.ColumnDefinitions.Add(new ColumnDefinition(52, GridUnitType.Pixel));
                 grid.ColumnDefinitions.Add(new ColumnDefinition(1,  GridUnitType.Star));

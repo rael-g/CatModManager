@@ -4,6 +4,6 @@ DisplayName = "Lies of P"
 NexusDomain = "liesofp"
 SteamAppId  = 1627720
 
-RequiredFiles = ["LiesofP.exe", "LiesofP"]
+RequiredFiles = ["LOP.exe"]
 
 DataSubFolder = "LiesofP\\Content\\Paks\\~mods"

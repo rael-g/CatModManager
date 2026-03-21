@@ -1,0 +1,9 @@
+GameId      = "re_requiem"
+DisplayName = "Resident Evil Requiem"
+
+NexusDomain = "residentevilrequiem"
+SteamAppId  = 3764200
+
+RequiredFiles = ["re9.exe"]
+
+DataSubFolder = ""
