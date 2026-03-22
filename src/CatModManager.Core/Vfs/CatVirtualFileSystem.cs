@@ -68,7 +68,7 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
             // It returns the effective baseFolderPath for the conflict resolver:
             //   null         → driver handles all files itself (HardlinkDriver)
             //   gameFolderPath → serve base files from game folder (FuseDriver)
-            //   backupPath   → serve base files from renamed backup (WinFspDriver)
+            //   gameFolderPath → serve base files from the game folder (FuseDriver)
             string? effectiveBase = _swapStrategy.Prepare(gameFolderPath, mountPoint);
 
             // DataSubFolder stripping makes sense only when the VFS mounts at a

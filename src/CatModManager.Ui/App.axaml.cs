@@ -95,10 +95,8 @@ public partial class App : Application
 
         services.AddSingleton<IConflictResolver, SimpleConflictResolver>();
         services.AddSingleton<IFileSystemDriver>(_ => FileSystemFactory.CreateDriver());
-        // ISafeSwapStrategy drives mount-time folder-swap behaviour:
-        //   NoBaseSwapStrategy  — HardlinkDriver (Windows): no rename, mod files link directly.
-        //   PassthroughStrategy — FuseDriver (Linux): no rename, game folder serves as base.
-        //   FolderSwapStrategy  — WinFspDriver: rename to hidden backup (inject if WinFsp restored).
+        // ISafeSwapStrategy: NoBaseSwapStrategy (HardlinkDriver/Windows) or
+        //                    PassthroughSwapStrategy (FuseDriver/Linux).
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             services.AddSingleton<ISafeSwapStrategy, NoBaseSwapStrategy>();
         else

@@ -7,13 +7,7 @@ namespace CatModManager.Core.Services;
 
 /// <summary>
 /// Coordinates mount / unmount operations.
-///
-/// All SafeSwap logic has moved into <see cref="ISafeSwapStrategy"/> implementations
-/// which are injected into <see cref="CatVirtualFileSystem"/>.
-/// This service is now responsible only for:
-///   - forwarding Mount / Unmount to the VFS
-///   - crash recovery at startup via IVfsStateService / IRootSwapService
-///   - the legacy RootSwap-only path (WinFsp + RE Engine games)
+/// Forwards Mount/Unmount to the VFS and handles crash recovery at startup.
 /// </summary>
 public class VfsOrchestrationService : IVfsOrchestrationService
 {
@@ -67,10 +61,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         if (string.IsNullOrEmpty(options.GameFolderPath))
             return OperationResult.Failure("ERROR: No game folder path specified.");
 
-        // Legacy RootSwap-only path (WinFsp + RE Engine games that expose Root/ files).
-        // The ISafeSwapStrategy handles everything for HardlinkDriver / FuseDriver,
-        // so RootSwapOnly is only reached when it is explicitly set and a WinFsp driver
-        // is in use (i.e. someone overrides FileSystemFactory back to WinFspDriver).
+        // Legacy RootSwap-only path for RE Engine games that expose Root/ files.
         if (options.RootSwapOnly)
             return await MountRootSwapOnlyAsync(options);
 

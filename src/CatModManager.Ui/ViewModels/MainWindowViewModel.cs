@@ -1060,9 +1060,6 @@ public partial class MainWindowViewModel : ViewModelBase
         finally { _profileLock.Release(); }
     }
 
-    [RelayCommand]
-    private async Task InstallDriver() { string msi = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dependencies", "winfsp.msi"); if (!File.Exists(msi)) return; try { bool success = await _processService.StartProcessAsync("msiexec.exe", $"/i \"{msi}\" /passive", true); if (success) CheckDriverStatus(); } catch (Exception ex) { _logService.Log($"INSTALL ERROR: {ex.Message}"); } }
-
     public void Shutdown()
     {
         _logService.Log("Shutdown detected. Cleaning up VFS...");
