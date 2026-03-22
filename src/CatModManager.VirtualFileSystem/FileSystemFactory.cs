@@ -9,7 +9,7 @@ public static class FileSystemFactory
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return new CatModManager.VirtualFileSystem.Windows.WinFspDriver();
+            return new CatModManager.VirtualFileSystem.Windows.HardlinkDriver();
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {

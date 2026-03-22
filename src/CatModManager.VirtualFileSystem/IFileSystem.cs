@@ -24,6 +24,12 @@ public interface IFileSystem
     FileSystemNodeInfo? GetInfo(string path);
     IEnumerable<string> ReadDirectory(string path);
     Stream? OpenFile(string path);
+    /// <summary>
+    /// Returns the absolute physical path of the file on disk, or null if the file
+    /// is backed by an archive or another non-physical source.
+    /// Used by HardlinkDriver to create NTFS hard links without copying bytes.
+    /// </summary>
+    string? GetPhysicalPath(string path);
 }
 
 /// <summary>

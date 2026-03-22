@@ -1,38 +1,46 @@
 using System;
-using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using CatModManager.Core.Models;
 using CatModManager.Core.Vfs;
 
 namespace CatModManager.Core.Services;
 
+/// <summary>
+/// Coordinates mount / unmount operations.
+///
+/// All SafeSwap logic has moved into <see cref="ISafeSwapStrategy"/> implementations
+/// which are injected into <see cref="CatVirtualFileSystem"/>.
+/// This service is now responsible only for:
+///   - forwarding Mount / Unmount to the VFS
+///   - crash recovery at startup via IVfsStateService / IRootSwapService
+///   - the legacy RootSwap-only path (WinFsp + RE Engine games)
+/// </summary>
 public class VfsOrchestrationService : IVfsOrchestrationService
 {
-    private const string BackupSuffix = ".CMM_base";
     private readonly IVirtualFileSystem _vfs;
-    private readonly IVfsStateService _stateService;
-    private readonly IDriverService _driverService;
-    private readonly ILogService _logService;
-    private readonly IRootSwapService _rootSwapService;
-    private string? _lastMountPoint;
-    private string? _lastMountGameFolder;
+    private readonly IVfsStateService    _stateService;
+    private readonly IRootSwapService    _rootSwapService;
+    private readonly ILogService         _logService;
 
-    public bool IsMounted => _vfs.IsMounted;
+    private string? _lastMountGameFolder;
+    private bool    _rootSwapOnlyDeployed;
+
+    public bool IsMounted => _vfs.IsMounted || _rootSwapOnlyDeployed;
 
     public VfsOrchestrationService(
         IVirtualFileSystem vfs,
-        IVfsStateService stateService,
-        IDriverService driverService,
-        ILogService logService,
-        IRootSwapService rootSwapService)
+        IVfsStateService    stateService,
+        IDriverService      driverService,
+        ILogService         logService,
+        IRootSwapService    rootSwapService)
     {
-        _vfs = vfs;
-        _stateService = stateService;
-        _driverService = driverService;
-        _logService = logService;
+        _vfs             = vfs;
+        _stateService    = stateService;
         _rootSwapService = rootSwapService;
+        _logService      = logService;
     }
+
+    // ── Recovery ─────────────────────────────────────────────────────────────
 
     public void RecoverStaleMounts()
     {
@@ -43,40 +51,76 @@ public class VfsOrchestrationService : IVfsOrchestrationService
     public void ShutdownCleanup()
     {
         if (IsMounted)
-        {
             try { _vfs.Unmount(); } catch { }
-        }
-        else
-        {
-            _rootSwapService.RecoverStaleDeployments();
-        }
+
+        _rootSwapService.RecoverStaleDeployments();
         _stateService.RecoverStaleMounts();
     }
+
+    // ── Mount ─────────────────────────────────────────────────────────────────
+
+    public async Task<OperationResult> MountAsync(MountOptions options)
+    {
+        if (IsMounted)
+            return OperationResult.Failure("VFS is already mounted.");
+
+        if (string.IsNullOrEmpty(options.GameFolderPath))
+            return OperationResult.Failure("ERROR: No game folder path specified.");
+
+        // Legacy RootSwap-only path (WinFsp + RE Engine games that expose Root/ files).
+        // The ISafeSwapStrategy handles everything for HardlinkDriver / FuseDriver,
+        // so RootSwapOnly is only reached when it is explicitly set and a WinFsp driver
+        // is in use (i.e. someone overrides FileSystemFactory back to WinFspDriver).
+        if (options.RootSwapOnly)
+            return await MountRootSwapOnlyAsync(options);
+
+        try
+        {
+            _lastMountGameFolder = options.GameFolderPath;
+            _logService.Log($"Mounting {options.ActiveMods.Count} mod(s) → {options.GameFolderPath}");
+            await Task.Run(() => _vfs.Mount(
+                options.GameFolderPath!,
+                options.ActiveMods,
+                options.DataSubFolder));
+            _logService.Log("Mounted.");
+            return OperationResult.Success();
+        }
+        catch (Exception ex)
+        {
+            _lastMountGameFolder = null;
+            return OperationResult.Failure($"MOUNT ERROR: {ex.Message}", ex);
+        }
+    }
+
+    // ── Unmount ───────────────────────────────────────────────────────────────
 
     public async Task<OperationResult> UnmountAsync()
     {
         if (!IsMounted) return OperationResult.Success();
 
+        if (_rootSwapOnlyDeployed)
+        {
+            try
+            {
+                string? gameFolder = _lastMountGameFolder;
+                if (!string.IsNullOrEmpty(gameFolder))
+                    await _rootSwapService.UndeployAsync(gameFolder);
+                _rootSwapOnlyDeployed = false;
+                _lastMountGameFolder  = null;
+                _logService.Log("RootSwap undeployed.");
+                return OperationResult.Success();
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Failure($"ROOTSWAP UNDEPLOY ERROR: {ex.Message}", ex);
+            }
+        }
+
         try
         {
-            string? targetToClean = _lastMountPoint;
-            string? gameFolder = _lastMountGameFolder;
             await Task.Run(() => _vfs.Unmount());
-
-            await Task.Delay(500);
-
-            if (!string.IsNullOrEmpty(gameFolder))
-                await _rootSwapService.UndeployAsync(gameFolder);
-
-            if (!string.IsNullOrEmpty(targetToClean))
-            {
-                _stateService.UnregisterMount(targetToClean);
-            }
-
-            await Task.Run(() => _stateService.RecoverStaleMounts());
-            _logService.Log("VFS Unmounted.");
-            _lastMountPoint = null;
             _lastMountGameFolder = null;
+            _logService.Log("Unmounted.");
             return OperationResult.Success();
         }
         catch (Exception ex)
@@ -85,73 +129,22 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         }
     }
 
-    public async Task<OperationResult> MountAsync(MountOptions options)
+    // ── Legacy RootSwap-only path ─────────────────────────────────────────────
+
+    private async Task<OperationResult> MountRootSwapOnlyAsync(MountOptions options)
     {
-        if (IsMounted) return OperationResult.Failure("VFS is already mounted.");
-
-        if (!_driverService.IsDriverInstalled()) return OperationResult.Failure("ERROR: WinFsp Driver missing.");
-
-        if (string.IsNullOrEmpty(options.GameFolderPath))
-            return OperationResult.Failure("ERROR: No game folder path specified.");
-
-        return await MountWithRetryAsync(options);
-    }
-
-    private async Task<OperationResult> MountWithRetryAsync(MountOptions options)
-    {
-        string targetPath = Path.GetFullPath(string.IsNullOrEmpty(options.DataSubFolder)
-            ? options.GameFolderPath!
-            : Path.Combine(options.GameFolderPath!, options.DataSubFolder));
-
-        _lastMountPoint = targetPath;
-        _lastMountGameFolder = options.GameFolderPath;
-
-        for (int attempt = 1; attempt <= 5; attempt++)
+        try
         {
-            try
-            {
-                string? effectiveBaseDataPath = null;
-                if (Directory.Exists(targetPath))
-                {
-                    string normalized = targetPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                    string folderName = Path.GetFileName(normalized);
-                    string hiddenPath = Path.Combine(Path.GetDirectoryName(normalized)!, "." + folderName + BackupSuffix);
-
-                    if (!Directory.Exists(hiddenPath))
-                    {
-                        _logService.Log($"Safe Swap: Moving '{normalized}' to backup.");
-                        _stateService.RegisterMount(normalized, hiddenPath);
-                        await Task.Run(() => Directory.Move(normalized, hiddenPath));
-                        try { var di = new DirectoryInfo(hiddenPath); di.Attributes |= FileAttributes.Hidden; } catch { }
-                    }
-                    else
-                    {
-                        _logService.Log("Target path occupied. Clearing it.");
-                        await Task.Run(() => Directory.Delete(normalized, true));
-                    }
-                    effectiveBaseDataPath = hiddenPath;
-                }
-
-                _logService.Log($"Mounting at {targetPath} with {options.ActiveMods.Count} mod(s).");
-                await _rootSwapService.DeployAsync(options.ActiveMods, options.GameFolderPath!);
-                await Task.Run(() => _vfs.Mount(targetPath, options.ActiveMods, effectiveBaseDataPath, options.DataSubFolder));
-                _logService.Log($"VFS Mounted at {targetPath}");
-                
-                return OperationResult.Success();
-            }
-            catch (Exception ex) when ((ex.Message.Contains("0xC0000035") || ex.Message.Contains("access")) && attempt < 5)
-            {
-                _logService.Log($"Conflict detected... retrying ({attempt}/5)");
-                await Task.Delay(1000 * attempt);
-            }
-            catch (Exception ex)
-            {
-                await Task.Run(() => _stateService.RecoverStaleMounts());
-                _lastMountPoint = null;
-                return OperationResult.Failure($"MOUNT ERROR: {ex.Message}", ex);
-            }
+            _lastMountGameFolder = options.GameFolderPath;
+            _logService.Log($"RootSwap deploy: {options.ActiveMods.Count} mod(s) → {options.GameFolderPath}");
+            await _rootSwapService.DeployAsync(options.ActiveMods, options.GameFolderPath!);
+            _rootSwapOnlyDeployed = true;
+            _logService.Log("RootSwap deployed.");
+            return OperationResult.Success();
         }
-
-        return OperationResult.Failure("Mount failed after multiple attempts due to system conflicts.");
+        catch (Exception ex)
+        {
+            return OperationResult.Failure($"ROOTSWAP ERROR: {ex.Message}", ex);
+        }
     }
 }

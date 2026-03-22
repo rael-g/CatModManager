@@ -32,6 +32,16 @@ public interface IDriverService
     bool IsDriverInstalled();
 }
 
+/// <summary>
+/// Driver service for HardlinkDriver — kernel32 CreateHardLinkW is always
+/// present on Windows, and hard links via POSIX on Linux are always available.
+/// Returns true on all supported platforms.
+/// </summary>
+public class HardlinkDriverService : IDriverService
+{
+    public bool IsDriverInstalled() => true;
+}
+
 public class WinFspDriverService : IDriverService
 {
     private readonly IRegistryService _registry;
