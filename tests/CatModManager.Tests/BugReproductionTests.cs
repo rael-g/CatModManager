@@ -165,9 +165,9 @@ public class BugReproductionTests : IDisposable
         public void DeleteDirectory(string p, bool r) { }
     }
     private class MockVfs : IVirtualFileSystem {
-        public bool IsMounted => true;
+        public bool IsMounted          => true;
         public event EventHandler<string>? ErrorOccurred;
-        public void Mount(string m, List<Mod> a, string? b, string? d = null) { }
+        public void Mount(string m, List<Mod> a, string? d = null) { }
         public void Unmount() { }
         public void Dispose() { }
     }

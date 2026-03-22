@@ -45,10 +45,14 @@ public class OmniVirtualFileSystemTests : IDisposable
     {
         var resolver = new SimpleConflictResolver(_logService);
         var vfs = new CatVirtualFileSystem(resolver, new MockDriver());
-        
-        // Simula arquivos no resolver
-        File.WriteAllText(Path.Combine(_baseFolder, "test.txt"), "hello");
-        vfs.Mount(_mountPoint, new List<Mod>(), _baseFolder);
+
+        // Create a mod with a test file so it appears in the VFS file map.
+        var modDir = Path.Combine(_tempDir, "Mod1");
+        Directory.CreateDirectory(modDir);
+        File.WriteAllText(Path.Combine(modDir, "test.txt"), "hello");
+
+        var mod = new Mod("Mod1", modDir, 10);
+        vfs.Mount(_mountPoint, new List<Mod> { mod }, null);
 
         var info = vfs.GetInfo("test.txt");
         Assert.NotNull(info);
@@ -57,7 +61,7 @@ public class OmniVirtualFileSystemTests : IDisposable
 
     private class MockDriver : CatModManager.VirtualFileSystem.IFileSystemDriver
     {
-        public bool IsMounted { get; private set; }
+        public bool IsMounted          { get; private set; }
         public void Mount(string m, CatModManager.VirtualFileSystem.IFileSystem fs) => IsMounted = true;
         public void Unmount() => IsMounted = false;
         public void Dispose() { }

@@ -35,6 +35,7 @@ public class WinFspDriverTests
             path == "dir" ? new FileSystemNodeInfo { IsDirectory = true } : null;
         public IEnumerable<string> ReadDirectory(string path) => new[] { "test.txt" };
         public Stream? OpenFile(string path) => new MemoryStream(new byte[100]);
+        public string? GetPhysicalPath(string path) => null;
     }
 
     [Fact]

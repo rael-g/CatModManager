@@ -82,30 +82,12 @@ public class HeadlessUiTests
     [AvaloniaFact]
     public void DriverWarning_Visibility_ReflectsDriverStatus()
     {
-        var window = new MainWindow();
+        // HardlinkDriver (kernel32 CreateHardLinkW) needs no installation.
+        // The "INSTALL DRIVER" button was removed with WinFSP. IsDriverMissing
+        // is always false at runtime; verify the ViewModel reflects this.
         var app = (App)Application.Current!;
         var vm = app.Services!.GetRequiredService<MainWindowViewModel>();
-        window.DataContext = vm;
-        
-        window.Show();
-        
-        var warningButton = window.GetVisualDescendants()
-            .OfType<Button>()
-            .FirstOrDefault(b => b.Classes.Contains("danger-btn") && b.Content is TextBlock tb && tb.Text == "INSTALL DRIVER");
-
-        // The button is in the sidebar footer and bound to IsDriverMissing
-        vm.IsDriverMissing = false;
-        Dispatcher.UIThread.RunJobs();
-        if (warningButton != null) Assert.False(warningButton.IsVisible);
-
-        vm.IsDriverMissing = true;
-        Dispatcher.UIThread.RunJobs();
-        // Re-find if necessary, but it should be there
-        warningButton = window.GetVisualDescendants()
-            .OfType<Button>()
-            .FirstOrDefault(b => b.Classes.Contains("danger-btn") && b.Content is TextBlock tb && tb.Text == "INSTALL DRIVER");
-        Assert.NotNull(warningButton);
-        Assert.True(warningButton.IsVisible);
+        Assert.False(vm.IsDriverMissing);
     }
 
     [AvaloniaFact]

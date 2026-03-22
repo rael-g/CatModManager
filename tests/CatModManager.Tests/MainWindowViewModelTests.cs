@@ -172,10 +172,7 @@ public class MainWindowViewModelTests : IDisposable
     private class MockVfs : IVirtualFileSystem {
         public bool IsMounted { get; set; }
         public event EventHandler<string>? ErrorOccurred;
-        public void Mount(string m, List<Mod> a, string? b, string? v, bool s) => IsMounted = true;
-        public void Mount(string m, List<Mod> a) => IsMounted = true;
-        public void Mount(string m, List<Mod> a, string? b) => IsMounted = true;
-        public void Mount(string m, List<Mod> a, string? b, string? v) => IsMounted = true;
+        public void Mount(string m, List<Mod> a, string? d = null) => IsMounted = true;
         public void Unmount() => IsMounted = false;
         public void Dispose() { }
     }

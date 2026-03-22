@@ -71,10 +71,10 @@ public class CriticalBugTests : IDisposable
         public string GetProfilePath(string n) => Path.Combine(ProfilesPath, n + ".toml");
     }
     private class MockVfs : IVirtualFileSystem {
-        public bool IsMounted { get; private set; }
+        public bool IsMounted          { get; private set; }
         public void SetMounted(bool val) => IsMounted = val;
         public event EventHandler<string>? ErrorOccurred;
-        public void Mount(string m, List<Mod> a, string? b, string? d = null) => IsMounted = true;
+        public void Mount(string m, List<Mod> a, string? d = null) => IsMounted = true;
         public void Unmount() => IsMounted = false;
         public void Dispose() { }
     }

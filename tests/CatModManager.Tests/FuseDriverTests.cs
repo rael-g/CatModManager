@@ -28,6 +28,7 @@ public class FuseDriverTests
         public FileSystemNodeInfo? GetInfo(string path) => null;
         public System.Collections.Generic.IEnumerable<string> ReadDirectory(string path) => Array.Empty<string>();
         public System.IO.Stream? OpenFile(string path) => null;
+        public string? GetPhysicalPath(string path) => null;
     }
 
     [Fact]
