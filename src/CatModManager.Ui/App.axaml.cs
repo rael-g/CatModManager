@@ -5,6 +5,7 @@ using CatModManager.Ui.ViewModels;
 using CatModManager.Ui.Views;
 using CatModManager.Ui.Plugins;
 using CatModManager.Ui.Services;
+using CatModManager.Ui.Services;
 using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
@@ -110,10 +111,10 @@ public partial class App : Application
         services.AddSingleton<UiExtensionHost>();
         services.AddSingleton<IPluginRegistrar>(sp => sp.GetRequiredService<UiExtensionHost>());
         services.AddSingleton<IPluginLogger>(sp => new LogServiceAdapter(sp.GetRequiredService<ILogService>()));
-        services.AddSingleton<ICmmSettings, NullCmmSettings>();
+        services.AddSingleton<CmmSettingsFactory>(sp =>
+            new CmmSettingsFactory(sp.GetRequiredService<ICatPathService>().BaseDataPath));
         services.AddSingleton<IModManagerState>(sp =>
             new ModManagerStateAdapter(sp.GetRequiredService<MainWindowViewModel>()));
-        services.AddSingleton<IPluginContext, PluginContext>();
         services.AddSingleton<PluginLoader>();
 
         services.AddSingleton<NuGetPluginService>();
