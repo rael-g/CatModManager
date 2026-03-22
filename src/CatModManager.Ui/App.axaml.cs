@@ -13,6 +13,7 @@ using CatModManager.PluginSdk;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace CatModManager.Ui;
 
@@ -83,7 +84,7 @@ public partial class App : Application
         services.AddSingleton<IGameSupportService, GameSupportService>();
         services.AddSingleton<IGameDiscoveryService, GameDiscoveryService>();
 
-        services.AddSingleton<IDriverService, WinFspDriverService>();
+        services.AddSingleton<IDriverService, HardlinkDriverService>();
         services.AddSingleton<IProcessService, ProcessService>();
         services.AddSingleton<IModParser, TomlModParser>();
         services.AddSingleton<IModScanner, LocalModScanner>();
@@ -93,6 +94,15 @@ public partial class App : Application
         services.AddSingleton<IRootSwapService, RootSwapService>();
 
         services.AddSingleton<IConflictResolver, SimpleConflictResolver>();
+        services.AddSingleton<IFileSystemDriver>(_ => FileSystemFactory.CreateDriver());
+        // ISafeSwapStrategy drives mount-time folder-swap behaviour:
+        //   NoBaseSwapStrategy  — HardlinkDriver (Windows): no rename, mod files link directly.
+        //   PassthroughStrategy — FuseDriver (Linux): no rename, game folder serves as base.
+        //   FolderSwapStrategy  — WinFspDriver: rename to hidden backup (inject if WinFsp restored).
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            services.AddSingleton<ISafeSwapStrategy, NoBaseSwapStrategy>();
+        else
+            services.AddSingleton<ISafeSwapStrategy, PassthroughSwapStrategy>();
         services.AddSingleton<IVirtualFileSystem, CatVirtualFileSystem>();
 
         services.AddSingleton<IVfsOrchestrationService, VfsOrchestrationService>();

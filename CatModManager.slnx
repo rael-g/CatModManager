@@ -8,6 +8,7 @@
     <Project Path="src/CmmPlugin.FomodInstaller/CmmPlugin.FomodInstaller.csproj" />
     <Project Path="src/CmmPlugin.NexusMods/CmmPlugin.NexusMods.csproj" />
     <Project Path="src/CmmPlugin.Capcom/CmmPlugin.Capcom.csproj" />
+    <Project Path="src/CmmPlugin.SaveManager/CmmPlugin.SaveManager.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CatModManager.Tests/CatModManager.Tests.csproj" />

@@ -37,6 +37,8 @@ public class ModManagerStateAdapter : IModManagerState
     public string? GameExecutablePath  => _vm.GameExecutablePath;
     public string? GameId              => _vm.ActiveGameSupport?.GameId;
     public string? CurrentProfileName  => _vm.CurrentProfileName;
+    public string? DataSubFolder       => _vm.ActiveGameSupport?.DataSubFolder;
+    public bool    RootSwapOnly        => _vm.ActiveGameSupport?.RootSwapOnly ?? false;
 
     public event Action<string>?          ProfileChanged;
     public event Action<IModInfo, string>? ModInstalled;

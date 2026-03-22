@@ -355,7 +355,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void CheckDriverStatus()
     {
         IsDriverMissing = !_driverService.IsDriverInstalled();
-        if (IsDriverMissing && RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) _logService.Log("WARNING: WinFsp driver not found.");
+        if (IsDriverMissing) _logService.Log("WARNING: File system driver not available.");
         else if (!IsDriverMissing) _logService.Log("VFS driver detected.");
     }
 
@@ -608,8 +608,9 @@ public partial class MainWindowViewModel : ViewModelBase
             result = await _vfsOrchestrator.MountAsync(new MountOptions
             {
                 GameFolderPath = BaseFolderPath,
-                DataSubFolder = DataSubFolder,
-                ActiveMods = AllMods.Where(m => m.IsEnabled).ToList()
+                DataSubFolder  = DataSubFolder,
+                RootSwapOnly   = ActiveGameSupport?.RootSwapOnly ?? false,
+                ActiveMods     = AllMods.Where(m => m.IsEnabled).ToList()
             });
         }
         
@@ -712,8 +713,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 installedPath = await _modManagementService.InstallModAsync(sourcePath, ModsFolderPath); 
             }
 
-            // Ask installation destination when a game folder is configured
-            if (!string.IsNullOrEmpty(BaseFolderPath))
+            // Ask installation destination only for generic installs (no plugin handled it)
+            if (chosenInstaller == null && !string.IsNullOrEmpty(BaseFolderPath))
             {
                 var owner = Avalonia.Application.Current?.ApplicationLifetime
                     is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime dt
