@@ -20,6 +20,12 @@ public class GameDefinition
     public string DataSubFolder { get; set; } = "";
 
     public string[] RequiredFiles { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// When true the VFS is skipped; mods deploy exclusively via RootSwap.
+    /// Set to true for RE Engine games (exe cannot run from virtual filesystem).
+    /// </summary>
+    public bool RootSwapOnly { get; set; } = false;
 }
 
 public class CustomGameSupport : IGameSupport
@@ -31,6 +37,7 @@ public class CustomGameSupport : IGameSupport
     public string? NexusDomain => string.IsNullOrEmpty(_def.NexusDomain) ? null : _def.NexusDomain;
     public int SteamAppId => _def.SteamAppId;
     public string DataSubFolder => _def.DataSubFolder;
+    public bool RootSwapOnly => _def.RootSwapOnly;
     public string[] RequiredFiles => _def.RequiredFiles;
 
     public CustomGameSupport(GameDefinition def) => _def = def;

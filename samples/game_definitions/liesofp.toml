@@ -7,3 +7,6 @@ SteamAppId  = 1627720
 RequiredFiles = ["LOP.exe"]
 
 DataSubFolder = "LiesofP\\Content\\Paks\\~mods"
+
+# Save Manager: where this game stores save files (%APPDATA%, %LOCALAPPDATA% supported; * = first numeric Steam-ID subfolder)
+SaveFolderPattern = "%LOCALAPPDATA%\\LiesofP\\Saved\\SaveGames"

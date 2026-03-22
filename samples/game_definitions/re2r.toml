@@ -6,4 +6,5 @@ SteamAppId  = 883710
 
 RequiredFiles = ["re2.exe"]
 
-DataSubFolder = "reframework"
+DataSubFolder = ""
+RootSwapOnly  = true

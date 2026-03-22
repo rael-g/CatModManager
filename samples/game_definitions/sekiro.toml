@@ -1,0 +1,11 @@
+GameId      = "sekiro"
+DisplayName = "Sekiro: Shadows Die Twice"
+
+NexusDomain = "sekiro"
+SteamAppId  = 814380
+
+RequiredFiles = ["sekiro.exe"]
+
+DataSubFolder = ""
+
+SaveFolderPattern = "%APPDATA%\\Sekiro\\*"

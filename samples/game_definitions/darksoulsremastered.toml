@@ -1,0 +1,11 @@
+GameId      = "darksoulsremastered"
+DisplayName = "Dark Souls: Remastered"
+
+NexusDomain = "darksoulsremastered"
+SteamAppId  = 570940
+
+RequiredFiles = ["DarkSoulsRemastered.exe"]
+
+DataSubFolder = ""
+
+SaveFolderPattern = "%APPDATA%\\DarkSoulsRemastered\\*"

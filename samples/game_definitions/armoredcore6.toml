@@ -1,0 +1,11 @@
+GameId      = "armoredcore6"
+DisplayName = "Armored Core VI: Fires of Rubicon"
+
+NexusDomain = "armoredcore6firesofrubiconac6"
+SteamAppId  = 1888160
+
+RequiredFiles = ["armoredcore6.exe"]
+
+DataSubFolder = ""
+
+SaveFolderPattern = "%APPDATA%\\ArmoredCore6\\*"

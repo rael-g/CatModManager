@@ -6,4 +6,5 @@ SteamAppId  = 601150
 
 RequiredFiles = ["DevilMayCry5.exe"]
 
-DataSubFolder = "reframework"
+DataSubFolder = ""
+RootSwapOnly  = true

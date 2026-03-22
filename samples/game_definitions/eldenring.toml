@@ -1,0 +1,11 @@
+GameId      = "eldenring"
+DisplayName = "Elden Ring"
+
+NexusDomain = "eldenring"
+SteamAppId  = 1245620
+
+RequiredFiles = ["eldenring.exe"]
+
+DataSubFolder = ""
+
+SaveFolderPattern = "%APPDATA%\\EldenRing\\*"

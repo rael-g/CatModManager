@@ -1,0 +1,11 @@
+GameId      = "darksouls3"
+DisplayName = "Dark Souls III"
+
+NexusDomain = "darksouls3"
+SteamAppId  = 374320
+
+RequiredFiles = ["DarkSoulsIII.exe"]
+
+DataSubFolder = ""
+
+SaveFolderPattern = "%APPDATA%\\DarkSoulsIII\\*"
