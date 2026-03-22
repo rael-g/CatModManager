@@ -67,10 +67,10 @@ public class ProfileRegressionTests : IDisposable
     {
         var vm = CreateVm();
         
-        await vm.NewProfileCommand.ExecuteAsync(null);
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
 
         Assert.True(_mockProfileService.SaveCount >= 1, "Profile should be saved immediately after creation.");
-        Assert.Contains(vm.CurrentProfileName!, vm.AvailableProfiles);
+        Assert.Contains(vm.ProfileManager.CurrentProfileName!, vm.ProfileManager.AvailableProfiles);
     }
 
     [Fact]
@@ -79,18 +79,18 @@ public class ProfileRegressionTests : IDisposable
         var vm = CreateVm();
         
         // Setup initial profiles
-        await vm.NewProfileCommand.ExecuteAsync(null);
-        string profileA = vm.CurrentProfileName!;
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
+        string profileA = vm.ProfileManager.CurrentProfileName!;
         vm.ModsFolderPath = "PathA";
-        await vm.SaveProfileCommand.ExecuteAsync(profileA);
+        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(profileA);
 
-        await vm.NewProfileCommand.ExecuteAsync(null);
-        string profileB = vm.CurrentProfileName!;
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
+        string profileB = vm.ProfileManager.CurrentProfileName!;
         vm.ModsFolderPath = "PathB";
-        await vm.SaveProfileCommand.ExecuteAsync(profileB);
+        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(profileB);
 
         // Switch USING THE COMMAND to avoid race condition of the property setter
-        await vm.LoadProfileCommand.ExecuteAsync(profileA);
+        await vm.ProfileManager.LoadProfileCommand.ExecuteAsync(profileA);
 
         Assert.Equal("PathA", vm.ModsFolderPath);
     }
@@ -99,10 +99,10 @@ public class ProfileRegressionTests : IDisposable
     public async Task NewProfile_Should_Avoid_Duplicate_Names()
     {
         var vm = CreateVm();
-        vm.AvailableProfiles.Add("NewProfile");
-        await vm.NewProfileCommand.ExecuteAsync(null);
-        Assert.NotEqual("NewProfile", vm.CurrentProfileName);
-        Assert.Contains("NewProfile", vm.CurrentProfileName);
+        vm.ProfileManager.AvailableProfiles.Add("NewProfile");
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
+        Assert.NotEqual("NewProfile", vm.ProfileManager.CurrentProfileName);
+        Assert.Contains("NewProfile", vm.ProfileManager.CurrentProfileName);
     }
 
     // MOCKS

@@ -103,13 +103,13 @@ public class HeadlessUiTests
         Assert.NotNull(selector);
 
         // Populate profiles and let ItemsSource binding settle
-        vm.AvailableProfiles.Clear();
-        vm.AvailableProfiles.Add("Profile 1");
-        vm.AvailableProfiles.Add("Profile 2");
+        vm.ProfileManager.AvailableProfiles.Clear();
+        vm.ProfileManager.AvailableProfiles.Add("Profile 1");
+        vm.ProfileManager.AvailableProfiles.Add("Profile 2");
         Dispatcher.UIThread.RunJobs();
 
         // Test VM → UI direction (reliable in headless without full render pass)
-        vm.CurrentProfileName = "Profile 2";
+        vm.ProfileManager.CurrentProfileName = "Profile 2";
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal("Profile 2", selector.SelectedItem);

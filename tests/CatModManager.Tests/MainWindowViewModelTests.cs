@@ -84,7 +84,7 @@ public class MainWindowViewModelTests : IDisposable
         _mockFileService.ForceExists = true;
         _mockProfileService.ShouldFail = true;
 
-        await vm.SaveProfileCommand.ExecuteAsync("any");
+        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync("any");
         
         // Poll for log arrival (max 1s)
         for (int i = 0; i < 10 && !vm.Logs.Any(l => l.Contains("SAVE ERROR", StringComparison.OrdinalIgnoreCase)); i++)
@@ -92,7 +92,7 @@ public class MainWindowViewModelTests : IDisposable
 
         Assert.True(vm.Logs.Any(l => l.Contains("SAVE ERROR", StringComparison.OrdinalIgnoreCase)), "Log should contain SAVE ERROR");
 
-        await vm.LoadProfileCommand.ExecuteAsync("any");
+        await vm.ProfileManager.LoadProfileCommand.ExecuteAsync("any");
 
         for (int i = 0; i < 10 && !vm.Logs.Any(l => l.Contains("LOAD ERROR", StringComparison.OrdinalIgnoreCase)); i++)
             await Task.Delay(100);

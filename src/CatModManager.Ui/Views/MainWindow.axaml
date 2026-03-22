@@ -57,16 +57,16 @@
                                 <Grid ColumnDefinitions="*, Auto">
                                     <TextBox Grid.Column="0"
                                              Name="RenameTextBox"
-                                             Text="{Binding ProfileDisplayName, UpdateSourceTrigger=LostFocus}"
+                                             Text="{Binding ProfileManager.ProfileDisplayName, UpdateSourceTrigger=LostFocus}"
                                              Watermark="Profile name…"
                                              Classes="path-field"
                                              ToolTip.Tip="Click to rename profile">
                                         <TextBox.KeyBindings>
-                                            <KeyBinding Gesture="Enter" Command="{Binding RenameProfileCommand}"/>
+                                            <KeyBinding Gesture="Enter" Command="{Binding ProfileManager.RenameProfileCommand}"/>
                                         </TextBox.KeyBindings>
                                     </TextBox>
                                     <Button Grid.Column="1"
-                                            Command="{Binding DeleteProfileCommand}"
+                                            Command="{Binding ProfileManager.DeleteProfileCommand}"
                                             Content="✕"
                                             Classes="small-icon"
                                             Foreground="{DynamicResource StatusDanger}"
@@ -235,8 +235,8 @@
 
                                 <!-- Profile Selector -->
                                 <ComboBox Name="ProfileSelector"
-                                          ItemsSource="{Binding AvailableProfiles}"
-                                          SelectedItem="{Binding CurrentProfileName}"
+                                          ItemsSource="{Binding ProfileManager.AvailableProfiles}"
+                                          SelectedItem="{Binding ProfileManager.CurrentProfileName}"
                                           PlaceholderText="Select Profile"
                                           Width="150"
                                           Background="Transparent"
@@ -245,7 +245,7 @@
                                           FontWeight="SemiBold"
                                           FontSize="12"
                                           Margin="8,0,0,0"/>
-                                <Button Command="{Binding NewProfileCommand}"
+                                <Button Command="{Binding ProfileManager.NewProfileCommand}"
                                         Content="+"
                                         Classes="small-icon"
                                         ToolTip.Tip="New Profile"

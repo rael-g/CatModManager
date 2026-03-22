@@ -77,7 +77,7 @@ public partial class MainWindow : Window
 
         vm.RequestClearFocus += () => this.FocusManager?.ClearFocus();
 
-        vm.ConfirmDeleteProfile = async profileName =>
+        vm.ProfileManager.ConfirmDelete = async profileName =>
         {
             var dialog = new ConfirmDialog($"Delete profile \"{profileName}\"?", "This cannot be undone.");
             return await dialog.ShowDialog<bool>(this);

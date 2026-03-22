@@ -18,10 +18,10 @@ public class ModManagerStateAdapter : IModManagerState
     public ModManagerStateAdapter(MainWindowViewModel vm)
     {
         _vm = vm;
-        _vm.PropertyChanged += (_, e) =>
+        _vm.ProfileManager.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(MainWindowViewModel.CurrentProfileName) &&
-                _vm.CurrentProfileName is { } name)
+            if (e.PropertyName == nameof(ProfileManagerViewModel.CurrentProfileName) &&
+                _vm.ProfileManager.CurrentProfileName is { } name)
                 ProfileChanged?.Invoke(name);
         };
         _vm.ModInstalled += (mod, sourcePath) =>
@@ -36,7 +36,7 @@ public class ModManagerStateAdapter : IModManagerState
     public string? DownloadsFolderPath => _vm.DownloadsFolderPath;
     public string? GameExecutablePath  => _vm.GameExecutablePath;
     public string? GameId              => _vm.ActiveGameSupport?.GameId;
-    public string? CurrentProfileName  => _vm.CurrentProfileName;
+    public string? CurrentProfileName  => _vm.ProfileManager.CurrentProfileName;
     public string? DataSubFolder       => _vm.ActiveGameSupport?.DataSubFolder;
     public bool    RootSwapOnly        => _vm.ActiveGameSupport?.RootSwapOnly ?? false;
 

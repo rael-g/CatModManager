@@ -51,8 +51,8 @@ public class ProfileSelectorTests
         System.IO.File.WriteAllText(System.IO.Path.Combine(profilesDir, "Modded.toml"), "Name = \"Modded\"");
 
         // Refresh available profiles
-        vm.AvailableProfiles.Clear();
-        vm.AvailableProfiles.Add("Modded");
+        vm.ProfileManager.AvailableProfiles.Clear();
+        vm.ProfileManager.AvailableProfiles.Add("Modded");
 
         // Simulate UI selection
         selector.SelectedIndex = 0; // "Modded"
@@ -61,6 +61,6 @@ public class ProfileSelectorTests
         await Task.Delay(100);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal("Modded", vm.CurrentProfileName);
+        Assert.Equal("Modded", vm.ProfileManager.CurrentProfileName);
     }
 }

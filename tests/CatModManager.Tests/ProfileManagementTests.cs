@@ -15,12 +15,8 @@ namespace CatModManager.Tests;
 
 public class ProfileManagementTests
 {
-    private async Task RefreshProfilesAsync(MainWindowViewModel vm)
-    {
-        var method = typeof(MainWindowViewModel).GetMethod("RefreshProfilesAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-        var task = (Task)method.Invoke(vm, new object?[] { null });
-        await task;
-    }
+    private static Task RefreshProfilesAsync(MainWindowViewModel vm)
+        => vm.ProfileManager.RefreshListAsync();
 
     [AvaloniaFact]
     public async Task DeleteProfile_ShouldWork_And_CreateNewProfile()
@@ -42,13 +38,13 @@ public class ProfileManagementTests
         await RefreshProfilesAsync(vm);
         
         // Setup VM state
-        vm.CurrentProfileName = profileName;
+        vm.ProfileManager.CurrentProfileName = profileName;
         
-        Assert.Contains(profileName, vm.AvailableProfiles);
+        Assert.Contains(profileName, vm.ProfileManager.AvailableProfiles);
         Assert.True(File.Exists(profilePath));
 
         // Delete the profile - This should NOT deadlock
-        var deleteAction = vm.DeleteProfileCommand.ExecuteAsync(null);
+        var deleteAction = vm.ProfileManager.DeleteProfileCommand.ExecuteAsync(null);
         
         // Wait for it with a timeout to detect deadlock
         var delayTask = Task.Delay(2000);
@@ -60,9 +56,9 @@ public class ProfileManagementTests
         }
 
         // Assertions
-        Assert.DoesNotContain(profileName, vm.AvailableProfiles);
+        Assert.DoesNotContain(profileName, vm.ProfileManager.AvailableProfiles);
         Assert.False(File.Exists(profilePath));
-        Assert.NotNull(vm.CurrentProfileName);
-        Assert.NotEqual(profileName, vm.CurrentProfileName);
+        Assert.NotNull(vm.ProfileManager.CurrentProfileName);
+        Assert.NotEqual(profileName, vm.ProfileManager.CurrentProfileName);
     }
 }
