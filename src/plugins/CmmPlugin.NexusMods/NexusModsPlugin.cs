@@ -95,6 +95,11 @@ public class NexusModsPlugin : ICmmPlugin
         ctx.Ui.RegisterInspectorTab(new NexusDownloadsTab(_downloadService, _api, InstallCallback, GetDownloadsFolder));
         ctx.Ui.RegisterInspectorTab(new NexusModInspectorTab(_trackingService, _api));
 
+        ctx.Ui.RegisterSidebarAction(new NexusBrowseSidebarAction(
+            _api, _downloadService,
+            GetDownloadsFolder,
+            () => _context?.State.GameId));
+
         ctx.Log.Log($"[{DisplayName}] Initialized — Nexus Mods integration ready.");
     }
 

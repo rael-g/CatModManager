@@ -187,3 +187,62 @@ public class NexusGameDetails
     [JsonPropertyName("categories")]
     public List<NexusCategory> Categories { get; set; } = new();
 }
+
+// ---------------------------------------------------------------------------
+// Nexus search (search.nexusmods.com)
+// ---------------------------------------------------------------------------
+
+public class NexusSearchHit
+{
+    [JsonPropertyName("mod_id")]            public int    ModId            { get; set; }
+    [JsonPropertyName("game_id")]           public int    GameId           { get; set; }
+    [JsonPropertyName("name")]              public string Name             { get; set; } = string.Empty;
+    [JsonPropertyName("author")]            public string Author           { get; set; } = string.Empty;
+    [JsonPropertyName("summary")]           public string Summary          { get; set; } = string.Empty;
+    [JsonPropertyName("endorsement_count")] public int    EndorsementCount { get; set; }
+    [JsonPropertyName("downloads")]         public int    Downloads        { get; set; }
+}
+
+public class NexusSearchResponse
+{
+    [JsonPropertyName("results")] public List<NexusSearchHit> Results { get; set; } = new();
+    [JsonPropertyName("total")]   public int                  Total   { get; set; }
+}
+
+// ---------------------------------------------------------------------------
+// Nexus Collections
+// ---------------------------------------------------------------------------
+
+public class NexusCollectionInfo
+{
+    [JsonPropertyName("name")]    public string Name    { get; set; } = string.Empty;
+    [JsonPropertyName("summary")] public string Summary { get; set; } = string.Empty;
+    [JsonPropertyName("latest_published_revision")]
+    public NexusCollectionRevisionRef? LatestPublishedRevision { get; set; }
+}
+
+public class NexusCollectionRevisionRef
+{
+    [JsonPropertyName("revision_number")] public int RevisionNumber { get; set; }
+    [JsonPropertyName("mod_count")]       public int ModCount       { get; set; }
+}
+
+public class NexusCollectionRevision
+{
+    [JsonPropertyName("collection")] public NexusCollectionInfo?       Collection { get; set; }
+    [JsonPropertyName("mods")]       public List<NexusCollectionMod>   Mods       { get; set; } = new();
+}
+
+public class NexusCollectionMod
+{
+    [JsonPropertyName("nexus_file_id")] public int            FileId { get; set; }
+    [JsonPropertyName("mod")]           public NexusModRef?   Mod    { get; set; }
+}
+
+public class NexusModRef
+{
+    [JsonPropertyName("mod_id")]      public int    ModId      { get; set; }
+    [JsonPropertyName("name")]        public string Name       { get; set; } = string.Empty;
+    [JsonPropertyName("domain_name")] public string DomainName { get; set; } = string.Empty;
+    [JsonPropertyName("game_id")]     public int    GameId     { get; set; }
+}
