@@ -42,13 +42,13 @@
     <ProjectReference Include="..\CatModManager.PluginSdk\CatModManager.PluginSdk.csproj" />
     <ProjectReference Include="..\CatModManager.VirtualFileSystem\CatModManager.VirtualFileSystem.csproj" />
     <!-- Build-order-only: ensures plugins are built and copied before Ui runs -->
-    <ProjectReference Include="..\CmmPlugin.BethesdaTools\CmmPlugin.BethesdaTools.csproj"
+    <ProjectReference Include="..\plugins\CmmPlugin.BethesdaTools\CmmPlugin.BethesdaTools.csproj"
                       ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\CmmPlugin.FomodInstaller\CmmPlugin.FomodInstaller.csproj"
+    <ProjectReference Include="..\plugins\CmmPlugin.FomodInstaller\CmmPlugin.FomodInstaller.csproj"
                       ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\CmmPlugin.NexusMods\CmmPlugin.NexusMods.csproj"
+    <ProjectReference Include="..\plugins\CmmPlugin.NexusMods\CmmPlugin.NexusMods.csproj"
                       ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\CmmPlugin.Capcom\CmmPlugin.Capcom.csproj"
+    <ProjectReference Include="..\plugins\CmmPlugin.REEngine\CmmPlugin.REEngine.csproj"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 

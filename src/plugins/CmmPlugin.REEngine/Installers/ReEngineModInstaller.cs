@@ -7,10 +7,10 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CatModManager.PluginSdk;
-using CmmPlugin.Capcom.Services;
+using CmmPlugin.REEngine.Services;
 using SharpCompress.Archives;
 
-namespace CmmPlugin.Capcom.Installers;
+namespace CmmPlugin.REEngine.Installers;
 
 /// <summary>
 /// Smart mod installer for RE Engine games.

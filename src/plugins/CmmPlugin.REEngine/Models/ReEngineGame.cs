@@ -1,4 +1,4 @@
-namespace CmmPlugin.Capcom.Models;
+namespace CmmPlugin.REEngine.Models;
 
 /// <summary>Metadata for a known RE Engine game title.</summary>
 public record ReEngineGame(

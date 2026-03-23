@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using CmmPlugin.Capcom.Models;
+using CmmPlugin.REEngine.Models;
 
-namespace CmmPlugin.Capcom.Services;
+namespace CmmPlugin.REEngine.Services;
 
 /// <summary>Detects RE Engine games and probes for REFramework installation.</summary>
 public static class ReEngineDetector

@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-namespace CmmPlugin.Capcom.Installers;
+namespace CmmPlugin.REEngine.Installers;
 
 /// <summary>
 /// Shown when a RE Engine zip contains multiple top-level variant folders

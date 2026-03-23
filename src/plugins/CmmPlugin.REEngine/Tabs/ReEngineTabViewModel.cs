@@ -1,9 +1,9 @@
 using System.IO;
 using CatModManager.PluginSdk;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CmmPlugin.Capcom.Services;
+using CmmPlugin.REEngine.Services;
 
-namespace CmmPlugin.Capcom.Tabs;
+namespace CmmPlugin.REEngine.Tabs;
 
 public partial class ReEngineTabViewModel : ObservableObject
 {

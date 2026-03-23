@@ -1,22 +1,22 @@
 using CatModManager.PluginSdk;
-using CmmPlugin.Capcom.Hooks;
-using CmmPlugin.Capcom.Installers;
-using CmmPlugin.Capcom.Tabs;
+using CmmPlugin.REEngine.Hooks;
+using CmmPlugin.REEngine.Installers;
+using CmmPlugin.REEngine.Tabs;
 
-namespace CmmPlugin.Capcom;
+namespace CmmPlugin.REEngine;
 
-public class CapcomPlugin : ICmmPlugin
+public class REEnginePlugin : ICmmPlugin
 {
     public string Id          => "capcom-re-engine";
     public string DisplayName => "Capcom RE Engine";
-    public string Version     => typeof(CapcomPlugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+    public string Version     => typeof(REEnginePlugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
     public string Author      => "CatModManager";
 
     public void Initialize(IPluginContext ctx)
     {
         var vm   = new ReEngineTabViewModel(ctx.State);
         var tab  = new ReEngineInspectorTab(vm, ctx.State);
-        var hook = new CapcomLaunchHook(ctx.State, ctx.Log);
+        var hook = new REEngineLaunchHook(ctx.State, ctx.Log);
 
         ctx.Ui.RegisterInspectorTab(tab);
         ctx.Ui.RegisterGameLaunchHook(hook);

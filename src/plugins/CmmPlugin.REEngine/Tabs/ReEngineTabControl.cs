@@ -4,7 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-namespace CmmPlugin.Capcom.Tabs;
+namespace CmmPlugin.REEngine.Tabs;
 
 /// <summary>Code-only Avalonia UserControl for the RE ENGINE inspector tab.</summary>
 public class ReEngineTabControl : UserControl

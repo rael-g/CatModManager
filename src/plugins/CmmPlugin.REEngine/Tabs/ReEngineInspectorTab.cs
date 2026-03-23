@@ -1,7 +1,7 @@
 using CatModManager.PluginSdk;
-using CmmPlugin.Capcom.Services;
+using CmmPlugin.REEngine.Services;
 
-namespace CmmPlugin.Capcom.Tabs;
+namespace CmmPlugin.REEngine.Tabs;
 
 /// <summary>
 /// Inspector tab that shows RE Engine game info (REFramework status, script count).
