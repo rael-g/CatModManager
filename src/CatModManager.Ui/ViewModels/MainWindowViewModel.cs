@@ -139,7 +139,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Tools.AutoSave = () => ProfileManager.AutoSave();
 
         // Wire AppSessionState
-        _sessionState.RequestInstallModAction = archivePath =>
+        _sessionState.RequestInstallModAction = (archivePath, _) =>
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => AddModCommand.Execute(archivePath));
         GameConfig.PropertyChanged += (_, _) => SyncGameConfigToState();
         ProfileManager.PropertyChanged += (_, e) =>
@@ -364,7 +364,7 @@ public partial class MainWindowViewModel : ViewModelBase
             string installedPath;
             if (chosen != null)
             {
-                var ctx           = new SimpleInstallContext(GameConfig.ModsFolderPath, new LogServiceAdapter(_logService));
+                var ctx           = new SimpleInstallContext(GameConfig.ModsFolderPath, new LogServiceAdapter(_logService), _sessionState.ConsumePendingPreset());
                 var installResult = await chosen.InstallAsync(sourcePath, ctx);
                 if (installResult == null || !installResult.IsSuccess)
                 {
@@ -408,9 +408,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private sealed class SimpleInstallContext : IInstallContext
     {
-        public string       DestinationFolder { get; }
+        public string        DestinationFolder { get; }
         public IPluginLogger Log              { get; }
-        public SimpleInstallContext(string dest, IPluginLogger log) { DestinationFolder = dest; Log = log; }
+        public FomodPreset?  FomodPreset      { get; }
+        public SimpleInstallContext(string dest, IPluginLogger log, FomodPreset? fomodPreset = null)
+        {
+            DestinationFolder = dest;
+            Log               = log;
+            FomodPreset       = fomodPreset;
+        }
     }
 
     [RelayCommand]

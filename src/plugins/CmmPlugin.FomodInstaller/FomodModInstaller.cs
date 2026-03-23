@@ -30,6 +30,15 @@ public class FomodModInstaller : IModInstaller
             return InstallResult.Failure($"Failed to parse FOMOD config: {ex.Message}");
         }
 
+        // If a preset was supplied (e.g. from a Nexus Collection), auto-apply without showing the wizard.
+        if (ctx.FomodPreset != null)
+        {
+            _log.Log($"[FOMOD] Auto-installing '{config.ModuleName}' using collection preset.");
+            var vm = new FomodWizardViewModel(config);
+            vm.ApplyPreset(ctx.FomodPreset);
+            return InstallResult.Success(vm.BuildFileMapping());
+        }
+
         _log.Log($"[FOMOD] Launching wizard for: {config.ModuleName}");
 
         InstallResult? result = null;

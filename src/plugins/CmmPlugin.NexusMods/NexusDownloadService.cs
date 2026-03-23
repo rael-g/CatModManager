@@ -217,18 +217,19 @@ public class NexusDownloadService
         });
     }
 
-    public void QueueDownloadDirect(string gameDomain, int modId, int fileId, string modName, string downloadsFolder, string version = "", string category = "")
+    public void QueueDownloadDirect(string gameDomain, int modId, int fileId, string modName, string downloadsFolder, string version = "", string category = "", CatModManager.PluginSdk.FomodPreset? fomodPreset = null)
     {
         var entry = new DownloadEntry
         {
-            ModName    = modName,
-            FileName   = $"mod_{modId}_file_{fileId}",
-            Status     = "Queued",
-            ModId      = modId,
-            FileId     = fileId,
-            GameDomain = gameDomain,
-            Version    = version,
-            Category   = string.IsNullOrEmpty(category) ? "Uncategorized" : category
+            ModName     = modName,
+            FileName    = $"mod_{modId}_file_{fileId}",
+            Status      = "Queued",
+            ModId       = modId,
+            FileId      = fileId,
+            GameDomain  = gameDomain,
+            Version     = version,
+            Category    = string.IsNullOrEmpty(category) ? "Uncategorized" : category,
+            FomodPreset = fomodPreset
         };
 
         // Always marshal to UI thread — this method may be called from background threads.
@@ -501,8 +502,9 @@ public class NexusDownloadService
                 });
 
                 // ── Step 4: Queue individual downloads ────────────────────────────────
-                foreach (var (modId, fileId, domain, name, version, _) in orderedMods)
-                    QueueDownloadDirect(domain, modId, fileId, name, downloadsFolder, version);
+                foreach (var (modId, fileId, domain, name, version, choices) in orderedMods)
+                    QueueDownloadDirect(domain, modId, fileId, name, downloadsFolder, version,
+                        fomodPreset: ConvertToFomodPreset(choices));
             }
             catch (OperationCanceledException)
             {
@@ -526,6 +528,25 @@ public class NexusDownloadService
     }
 
     public void Cancel(DownloadEntry entry) => entry.Cts.Cancel();
+
+    private static CatModManager.PluginSdk.FomodPreset? ConvertToFomodPreset(NexusCollectionFomodChoices? choices)
+    {
+        if (choices == null || !string.Equals(choices.Type, "fomod", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var preset = new CatModManager.PluginSdk.FomodPreset();
+        foreach (var option in choices.Options)
+        {
+            var group = new CatModManager.PluginSdk.FomodPresetGroup { GroupName = option.Name };
+            foreach (var choice in option.Choices)
+            {
+                group.SelectedNames.Add(choice.Name);
+                group.SelectedIndices.Add(choice.Idx);
+            }
+            preset.Groups.Add(group);
+        }
+        return preset;
+    }
 
     public void OpenFolder(DownloadEntry entry)
     {

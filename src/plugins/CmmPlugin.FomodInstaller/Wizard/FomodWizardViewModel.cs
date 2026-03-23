@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using CatModManager.PluginSdk;
 using CmmPlugin.FomodInstaller.Models;
 
 namespace CmmPlugin.FomodInstaller.Wizard;
@@ -59,6 +60,40 @@ public class FomodWizardViewModel
 
     public void GoNext() { if (CanGoNext) _currentStepIndex++; }
     public void GoBack() { if (CanGoBack) _currentStepIndex--; }
+
+    /// <summary>
+    /// Overrides default selections with choices from a collection preset.
+    /// Matches by group name (case-insensitive); unmatched groups keep their defaults.
+    /// </summary>
+    public void ApplyPreset(FomodPreset preset)
+    {
+        var byGroupName = preset.Groups.ToDictionary(g => g.GroupName, System.StringComparer.OrdinalIgnoreCase);
+
+        foreach (var step in _config.InstallSteps)
+        {
+            foreach (var group in step.Groups)
+            {
+                if (!byGroupName.TryGetValue(group.Name, out var pg)) continue;
+
+                var key = GroupKey(step, group);
+                var set = new HashSet<string>();
+
+                if (pg.SelectedNames.Count > 0)
+                {
+                    foreach (var name in pg.SelectedNames)
+                        set.Add(name);
+                }
+                else
+                {
+                    foreach (var idx in pg.SelectedIndices.Where(i => i >= 0 && i < group.Plugins.Count))
+                        set.Add(group.Plugins[idx].Name);
+                }
+
+                if (set.Count > 0)
+                    Selections[key] = set;
+            }
+        }
+    }
 
     public HashSet<string> GetSelection(FomodInstallStep step, FomodGroup group)
     {

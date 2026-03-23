@@ -28,10 +28,29 @@ public sealed class AppSessionState
     public event Action<IModInfo, string>? ModInstalled;
 
     /// <summary>Wired by MainWindowViewModel to execute AddModCommand on the UI thread.</summary>
-    public Action<string>? RequestInstallModAction { get; set; }
+    public Action<string, FomodPreset?>? RequestInstallModAction { get; set; }
+
+    /// <summary>
+    /// Temporarily holds a FOMOD preset between RequestInstallMod and the actual install.
+    /// Consumed (set to null) by MainWindowViewModel.AddMod.
+    /// </summary>
+    internal FomodPreset? PendingFomodPreset { get; private set; }
+
+    internal FomodPreset? ConsumePendingPreset()
+    {
+        var p = PendingFomodPreset;
+        PendingFomodPreset = null;
+        return p;
+    }
 
     // ── Notification helpers ───────────────────────────────────────────────────
 
     internal void NotifyProfileChanged(string name) => ProfileChanged?.Invoke(name);
     internal void NotifyModInstalled(IModInfo mod, string sourcePath) => ModInstalled?.Invoke(mod, sourcePath);
+
+    internal void RequestInstall(string archivePath, FomodPreset? preset = null)
+    {
+        PendingFomodPreset = preset;
+        RequestInstallModAction?.Invoke(archivePath, preset);
+    }
 }

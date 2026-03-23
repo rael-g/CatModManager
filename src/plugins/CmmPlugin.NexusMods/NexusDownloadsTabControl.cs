@@ -2,6 +2,7 @@ using System;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
+using CatModManager.PluginSdk;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -20,7 +21,7 @@ public class NexusDownloadsTabControl : UserControl
 {
     private readonly NexusDownloadService _downloadService;
     private readonly NexusApiService _api;
-    private readonly Action<string>? _installCallback;
+    private readonly Action<string, FomodPreset?>? _installCallback;
     private readonly Func<string>? _getDownloadsFolder;
     private readonly StackPanel _activePanel;
     private readonly StackPanel _completedPanel;
@@ -39,7 +40,7 @@ public class NexusDownloadsTabControl : UserControl
     public NexusDownloadsTabControl(
         NexusDownloadService downloadService,
         NexusApiService api,
-        Action<string>? installCallback = null,
+        Action<string, FomodPreset?>? installCallback = null,
         Func<string>? getDownloadsFolder = null)
     {
         _downloadService = downloadService;
@@ -580,7 +581,7 @@ public class NexusDownloadsTabControl : UserControl
             cardBorder.DoubleTapped += (_, _) =>
             {
                 if (entry.LocalPath != null && File.Exists(entry.LocalPath))
-                    _installCallback(entry.LocalPath);
+                    _installCallback(entry.LocalPath, entry.FomodPreset);
             };
         }
 

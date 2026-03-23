@@ -233,6 +233,9 @@ public partial class DownloadEntry : ObservableObject
     public string Category { get; set; } = "Uncategorized";
 
     public CancellationTokenSource Cts { get; } = new();
+
+    /// <summary>When non-null, the FOMOD installer will auto-apply these choices without showing the wizard.</summary>
+    public CatModManager.PluginSdk.FomodPreset? FomodPreset { get; set; }
 }
 
 // ---------------------------------------------------------------------------

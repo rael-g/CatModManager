@@ -26,4 +26,10 @@ public interface IModManagerState
 
     /// <summary>Requests CMM to install the given archive as a mod.</summary>
     void RequestInstallMod(string archivePath);
+
+    /// <summary>
+    /// Requests CMM to install the given archive as a mod, supplying pre-selected FOMOD choices
+    /// so the installer can auto-apply them without showing the wizard UI.
+    /// </summary>
+    void RequestInstallMod(string archivePath, FomodPreset? fomodPreset);
 }

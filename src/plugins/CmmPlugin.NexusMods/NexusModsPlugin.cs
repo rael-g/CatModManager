@@ -90,7 +90,8 @@ public class NexusModsPlugin : ICmmPlugin
 
         ctx.Events.Subscribe<NxmLinkEvent>(OnNxmLink);
 
-        void InstallCallback(string archivePath) => ctx.State.RequestInstallMod(archivePath);
+        void InstallCallback(string archivePath, CatModManager.PluginSdk.FomodPreset? preset) =>
+            ctx.State.RequestInstallMod(archivePath, preset);
 
         ctx.Ui.RegisterInspectorTab(new NexusDownloadsTab(_downloadService, _api, InstallCallback, GetDownloadsFolder));
         ctx.Ui.RegisterInspectorTab(new NexusModInspectorTab(_trackingService, _api));

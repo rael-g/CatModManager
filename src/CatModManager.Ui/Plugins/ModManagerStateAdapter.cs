@@ -37,5 +37,8 @@ public class ModManagerStateAdapter : IModManagerState
     }
 
     public void RequestInstallMod(string archivePath) =>
-        _state.RequestInstallModAction?.Invoke(archivePath);
+        _state.RequestInstall(archivePath);
+
+    public void RequestInstallMod(string archivePath, FomodPreset? fomodPreset) =>
+        _state.RequestInstall(archivePath, fomodPreset);
 }
