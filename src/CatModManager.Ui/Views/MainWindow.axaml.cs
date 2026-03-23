@@ -128,7 +128,7 @@ public partial class MainWindow : Window
         var tc = this.FindControl<TabControl>("InspectorTabControl");
         if (tc == null) return;
 
-        var pluginTabItems = tc.Items.OfType<TabItem>().Skip(1).ToList();
+        var pluginTabItems = tc.Items.OfType<TabItem>().Skip(3).ToList();
         var pluginTabs     = vm.PluginInspectorTabs.ToList();
         IModInfo? modInfo  = vm.ModList.SelectedMod != null ? new ModInfoAdapter(vm.ModList.SelectedMod) : null;
 

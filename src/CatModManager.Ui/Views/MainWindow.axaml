@@ -57,7 +57,7 @@
                                 <Grid ColumnDefinitions="*, Auto">
                                     <TextBox Grid.Column="0"
                                              Name="RenameTextBox"
-                                             Text="{Binding ProfileManager.ProfileDisplayName, UpdateSourceTrigger=LostFocus}"
+                                             Text="{Binding ProfileManager.ProfileDisplayName, UpdateSourceTrigger=PropertyChanged}"
                                              Watermark="Profile name…"
                                              Classes="path-field"
                                              ToolTip.Tip="Click to rename profile">
@@ -355,17 +355,15 @@
                                         <TextBlock Text="{Binding RootPath}" FontSize="10" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" FontFamily="Cascadia Code, Consolas, monospace"/>
                                     </StackPanel>
                                     <Border Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <!-- Show "Root/" badge for mods with Root/ subfolder, otherwise show the category -->
-                                        <Border Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,2"
-                                                IsVisible="{Binding !HasRootFolder}">
-                                            <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"/>
-                                        </Border>
-                                    </Border>
-                                    <Border Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left"
-                                            IsVisible="{Binding HasRootFolder}">
-                                        <Border Background="{DynamicResource AccentColor}" CornerRadius="3" Padding="8,2" Opacity="0.8">
-                                            <TextBlock Text="Root/" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
-                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <Border Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,2">
+                                                <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"/>
+                                            </Border>
+                                            <Border Background="{DynamicResource AccentColor}" CornerRadius="3" Padding="8,2" Opacity="0.8"
+                                                    IsVisible="{Binding HasRootFolder}">
+                                                <TextBlock Text="Root/" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
+                                            </Border>
+                                        </StackPanel>
                                     </Border>
                                     <TextBlock Grid.Column="4" Text="{Binding Version}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSubtle}"/>
                                 </Grid>
