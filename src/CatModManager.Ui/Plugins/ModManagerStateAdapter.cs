@@ -20,6 +20,7 @@ public class ModManagerStateAdapter : IModManagerState
     public string? DownloadsFolderPath => _state.DownloadsFolderPath;
     public string? GameExecutablePath  => _state.GameExecutablePath;
     public string? GameId              => _state.GameId;
+    public string? NexusDomain         => _state.NexusDomain;
     public string? CurrentProfileName  => _state.CurrentProfileName;
     public string? DataSubFolder       => _state.DataSubFolder;
     public bool    RootSwapOnly        => _state.RootSwapOnly;
@@ -41,4 +42,7 @@ public class ModManagerStateAdapter : IModManagerState
 
     public void RequestInstallMod(string archivePath, FomodPreset? fomodPreset) =>
         _state.RequestInstall(archivePath, fomodPreset);
+
+    public void RequestInstallModToRoot(string archivePath) =>
+        _state.RequestInstallToRoot(archivePath);
 }

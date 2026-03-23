@@ -92,8 +92,10 @@ public class NexusModsPlugin : ICmmPlugin
 
         void InstallCallback(string archivePath, CatModManager.PluginSdk.FomodPreset? preset) =>
             ctx.State.RequestInstallMod(archivePath, preset);
+        void InstallToRootCallback(string archivePath) =>
+            ctx.State.RequestInstallModToRoot(archivePath);
 
-        ctx.Ui.RegisterInspectorTab(new NexusDownloadsTab(_downloadService, _api, InstallCallback, GetDownloadsFolder));
+        ctx.Ui.RegisterInspectorTab(new NexusDownloadsTab(_downloadService, _api, InstallCallback, GetDownloadsFolder, InstallToRootCallback));
         ctx.Ui.RegisterInspectorTab(new NexusModInspectorTab(_trackingService, _api));
         ctx.Ui.RegisterSidebarAction(new NexusBrowseSidebarAction(_api, ctx.State, _downloadService, GetDownloadsFolder));
 

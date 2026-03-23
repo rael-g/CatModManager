@@ -18,6 +18,7 @@ public sealed class AppSessionState
     public string?                 DownloadsFolderPath { get; set; }
     public string?                 GameExecutablePath { get; set; }
     public string?                 GameId            { get; set; }
+    public string?                 NexusDomain       { get; set; }
     public string?                 CurrentProfileName { get; set; }
     public string?                 DataSubFolder     { get; set; }
     public bool                    RootSwapOnly      { get; set; }
@@ -29,6 +30,9 @@ public sealed class AppSessionState
 
     /// <summary>Wired by MainWindowViewModel to execute AddModCommand on the UI thread.</summary>
     public Action<string, FomodPreset?>? RequestInstallModAction { get; set; }
+
+    /// <summary>Wired by MainWindowViewModel to execute AddModToRootCommand on the UI thread.</summary>
+    public Action<string>? RequestInstallModToRootAction { get; set; }
 
     /// <summary>
     /// Temporarily holds a FOMOD preset between RequestInstallMod and the actual install.
@@ -53,4 +57,7 @@ public sealed class AppSessionState
         PendingFomodPreset = preset;
         RequestInstallModAction?.Invoke(archivePath, preset);
     }
+
+    internal void RequestInstallToRoot(string archivePath)
+        => RequestInstallModToRootAction?.Invoke(archivePath);
 }

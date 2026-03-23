@@ -12,6 +12,8 @@ public interface IModManagerState
     string?                 DownloadsFolderPath { get; }
     string?                 GameExecutablePath  { get; }
     string?                 GameId              { get; }
+    /// <summary>Nexus Mods game domain (e.g. "skyrimspecialedition"). Used by the NexusMods plugin for Browse.</summary>
+    string?                 NexusDomain         { get; }
     string?                 CurrentProfileName  { get; }
     /// <summary>Relative sub-folder the VFS mounts in (empty = game root). Use to determine routing mode in installers.</summary>
     string?                 DataSubFolder       { get; }
@@ -32,4 +34,11 @@ public interface IModManagerState
     /// so the installer can auto-apply them without showing the wizard UI.
     /// </summary>
     void RequestInstallMod(string archivePath, FomodPreset? fomodPreset);
+
+    /// <summary>
+    /// Requests CMM to install the given archive into the mod's Root/ subfolder so its files
+    /// are deployed directly to the game root at mount time (not into Data/).
+    /// Wrapper folders in the archive are automatically stripped.
+    /// </summary>
+    void RequestInstallModToRoot(string archivePath);
 }

@@ -22,6 +22,7 @@ public class NexusDownloadsTabControl : UserControl
     private readonly NexusDownloadService _downloadService;
     private readonly NexusApiService _api;
     private readonly Action<string, FomodPreset?>? _installCallback;
+    private readonly Action<string>? _installToRootCallback;
     private readonly Func<string>? _getDownloadsFolder;
     private readonly StackPanel _activePanel;
     private readonly StackPanel _completedPanel;
@@ -41,12 +42,14 @@ public class NexusDownloadsTabControl : UserControl
         NexusDownloadService downloadService,
         NexusApiService api,
         Action<string, FomodPreset?>? installCallback = null,
-        Func<string>? getDownloadsFolder = null)
+        Func<string>? getDownloadsFolder = null,
+        Action<string>? installToRootCallback = null)
     {
-        _downloadService = downloadService;
-        _api = api;
-        _installCallback = installCallback;
-        _getDownloadsFolder = getDownloadsFolder;
+        _downloadService      = downloadService;
+        _api                  = api;
+        _installCallback      = installCallback;
+        _installToRootCallback = installToRootCallback;
+        _getDownloadsFolder   = getDownloadsFolder;
         Background = BackgroundBrush;
 
         // Active section header
@@ -583,6 +586,33 @@ public class NexusDownloadsTabControl : UserControl
                 if (entry.LocalPath != null && File.Exists(entry.LocalPath))
                     _installCallback(entry.LocalPath, entry.FomodPreset);
             };
+        }
+
+        // Right-click context menu on completed cards
+        if (!entry.IsActive && (_installCallback != null || _installToRootCallback != null))
+        {
+            var menu = new ContextMenu();
+            if (_installCallback != null)
+            {
+                var installItem = new MenuItem { Header = "Install" };
+                installItem.Click += (_, _) =>
+                {
+                    if (entry.LocalPath != null && File.Exists(entry.LocalPath))
+                        _installCallback(entry.LocalPath, entry.FomodPreset);
+                };
+                menu.Items.Add(installItem);
+            }
+            if (_installToRootCallback != null)
+            {
+                var installRootItem = new MenuItem { Header = "Install to Root" };
+                installRootItem.Click += (_, _) =>
+                {
+                    if (entry.LocalPath != null && File.Exists(entry.LocalPath))
+                        _installToRootCallback(entry.LocalPath);
+                };
+                menu.Items.Add(installRootItem);
+            }
+            cardBorder.ContextMenu = menu;
         }
 
         entry.PropertyChanged += (_, args) =>

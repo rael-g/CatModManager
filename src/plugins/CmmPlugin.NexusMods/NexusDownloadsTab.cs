@@ -17,6 +17,6 @@ public class NexusDownloadsTab : IInspectorTab
 
     public object CreateView(IModInfo? mod) => _control;
 
-    public NexusDownloadsTab(NexusDownloadService downloadService, NexusApiService api, Action<string, FomodPreset?>? installCallback = null, Func<string>? getDownloadsFolder = null)
-        => _control = new NexusDownloadsTabControl(downloadService, api, installCallback, getDownloadsFolder);
+    public NexusDownloadsTab(NexusDownloadService downloadService, NexusApiService api, Action<string, FomodPreset?>? installCallback = null, Func<string>? getDownloadsFolder = null, Action<string>? installToRootCallback = null)
+        => _control = new NexusDownloadsTabControl(downloadService, api, installCallback, getDownloadsFolder, installToRootCallback);
 }

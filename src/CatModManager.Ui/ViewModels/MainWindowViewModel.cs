@@ -141,6 +141,8 @@ public partial class MainWindowViewModel : ViewModelBase
         // Wire AppSessionState
         _sessionState.RequestInstallModAction = (archivePath, _) =>
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => AddModCommand.Execute(archivePath));
+        _sessionState.RequestInstallModToRootAction = archivePath =>
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => AddModToRootCommand.Execute(archivePath));
         GameConfig.PropertyChanged += (_, _) => SyncGameConfigToState();
         ProfileManager.PropertyChanged += (_, e) =>
         {
@@ -221,6 +223,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _sessionState.DownloadsFolderPath = GameConfig.DownloadsFolderPath;
         _sessionState.GameExecutablePath  = GameConfig.GameExecutablePath;
         _sessionState.GameId              = GameConfig.ActiveGameSupport?.GameId;
+        _sessionState.NexusDomain        = GameConfig.ActiveGameSupport?.NexusDomain;
         _sessionState.DataSubFolder       = GameConfig.ActiveGameSupport?.DataSubFolder;
         _sessionState.RootSwapOnly        = GameConfig.ActiveGameSupport?.RootSwapOnly ?? false;
     }
@@ -404,6 +407,30 @@ public partial class MainWindowViewModel : ViewModelBase
             _logService.Log($"Mod imported to: {installedPath}");
         }
         catch (Exception ex) { _logService.Log($"IMPORT ERROR: {ex.Message}"); StatusMessage = $"IMPORT ERROR: {ex.Message}"; }
+    }
+
+    [RelayCommand]
+    private async Task AddModToRoot(string? sourcePath)
+    {
+        if (string.IsNullOrEmpty(sourcePath)) return;
+        if (string.IsNullOrEmpty(GameConfig.ModsFolderPath)) { _logService.Log("ERROR: Please select a Mods Folder first."); return; }
+        try
+        {
+            StatusMessage = "Installing to Root...";
+            string modName    = Path.GetFileNameWithoutExtension(sourcePath);
+            string installedPath = await _modManagementService.InstallModToRootAsync(sourcePath, modName, GameConfig.ModsFolderPath);
+
+            var mod = new Mod(modName, installedPath, ModList.AllMods.Count, true, "Uncategorized");
+            ModList.AllMods.Insert(0, mod);
+            ModList.UpdatePriorities(); ModList.UpdateCategories();
+            ModList.RebuildDisplayedMods();
+            ModList.SelectedMod = mod;
+            AutoSave();
+            ModInstalled?.Invoke(mod, sourcePath);
+            StatusMessage = "Installed to Root.";
+            _logService.Log($"Root install: {installedPath}");
+        }
+        catch (Exception ex) { _logService.Log($"ROOT INSTALL ERROR: {ex.Message}"); StatusMessage = $"ROOT INSTALL ERROR: {ex.Message}"; }
     }
 
     private sealed class SimpleInstallContext : IInstallContext
