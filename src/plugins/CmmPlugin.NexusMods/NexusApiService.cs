@@ -278,7 +278,7 @@ public class NexusApiService
             ["op"]          = "AND"
         };
         if (!includeAdult)
-            filter["adultContent"] = new[] { new { op = "EQUALS", value = "false" } };
+            filter["adultContent"] = new[] { new { op = "EQUALS", value = false } };
 
         return QueryModsAsync(gameDomain, filter,
             sort: new[] { new Dictionary<string, object> { ["relevance"] = new { direction = "DESC" } } },
@@ -306,7 +306,7 @@ public class NexusApiService
             ["op"]     = "AND"
         };
         if (!includeAdult)
-            filter["adultContent"] = new[] { new { op = "EQUALS", value = "false" } };
+            filter["adultContent"] = new[] { new { op = "EQUALS", value = false } };
 
         return QueryModsAsync(gameDomain, filter,
             sort: new[] { new Dictionary<string, object> { [sortField] = new { direction = "DESC" } } },
@@ -336,8 +336,15 @@ public class NexusApiService
             resp.EnsureSuccessStatusCode();
 
             var result = await resp.Content.ReadFromJsonAsync<NexusModsGraphQlResponse>(cancellationToken: ct);
-            var nodes  = result?.Data?.Mods?.Nodes ?? new List<NexusGraphQlMod>();
-            var total  = result?.Data?.Mods?.TotalCount ?? 0;
+
+            if (result?.Errors is { Count: > 0 } errors)
+            {
+                foreach (var err in errors)
+                    Console.Error.WriteLine($"[NexusApiService] GraphQL error: {err}");
+            }
+
+            var nodes = result?.Data?.Mods?.Nodes ?? new List<NexusGraphQlMod>();
+            var total = result?.Data?.Mods?.TotalCount ?? 0;
 
             return (nodes.Select(m => new NexusBrowseMod
             {
