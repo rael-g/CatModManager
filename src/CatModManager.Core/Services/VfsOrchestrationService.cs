@@ -22,6 +22,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
     private string? _lastMountGameFolder;
     private bool    _rootSwapOnlyDeployed;
+    private bool    _rootFilesDeployed;
 
     public bool IsMounted => _vfs.IsMounted || _rootSwapOnlyDeployed;
 
@@ -90,11 +91,22 @@ public class VfsOrchestrationService : IVfsOrchestrationService
                 options.ActiveMods,
                 options.DataSubFolder));
             _logService.Log("Mounted.");
+
+            // Deploy Root/ files from any mod that has them to the actual game root.
+            var modsWithRoot = options.ActiveMods.Where(m => m.HasRootFolder).ToList();
+            if (modsWithRoot.Count > 0)
+            {
+                await _rootSwapService.DeployAsync(modsWithRoot, options.GameFolderPath!);
+                _rootFilesDeployed = true;
+                _logService.Log($"Root files deployed for {modsWithRoot.Count} mod(s).");
+            }
+
             return OperationResult.Success();
         }
         catch (Exception ex)
         {
             _lastMountGameFolder = null;
+            _rootFilesDeployed   = false;
             return OperationResult.Failure($"MOUNT ERROR: {ex.Message}", ex);
         }
     }
@@ -126,6 +138,15 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         try
         {
             string? mountedPath = _lastMountGameFolder;
+
+            // Undeploy Root/ files before unmounting the VFS.
+            if (_rootFilesDeployed && !string.IsNullOrEmpty(mountedPath))
+            {
+                await _rootSwapService.UndeployAsync(mountedPath);
+                _rootFilesDeployed = false;
+                _logService.Log("Root files undeployed.");
+            }
+
             await Task.Run(() => _vfs.Unmount());
             _lastMountGameFolder = null;
             _logService.Log("Unmounted.");

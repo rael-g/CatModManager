@@ -43,8 +43,15 @@ public class SimpleConflictResolver : IConflictResolver
             if (Directory.Exists(mod.RootPath))
             {
                 string fullRoot = Path.GetFullPath(mod.RootPath);
-                ScanRecursive(fullRoot, fullRoot, finalMap,
-                    relPath => StripDataPrefix(NormalizePath(relPath), prefixesToStrip), null);
+                ScanRecursive(fullRoot, fullRoot, finalMap, relPath =>
+                {
+                    var normalized = NormalizePath(relPath);
+                    // Root/ is deployed to game root by RootSwapService — exclude from the VFS Data mount.
+                    if (normalized.Equals("Root", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.StartsWith("Root\\", StringComparison.OrdinalIgnoreCase))
+                        return null;
+                    return StripDataPrefix(normalized, prefixesToStrip);
+                }, null);
             }
             else if (File.Exists(mod.RootPath))
             {
@@ -91,11 +98,21 @@ public class SimpleConflictResolver : IConflictResolver
     /// </summary>
     private static string StripDataPrefix(string normalizedPath, IReadOnlyList<string> prefixesToStrip)
     {
+        // Direct match: e.g. "LiesofP\Content\Package\~mods\modname\file"
         foreach (var prefix in prefixesToStrip)
-        {
             if (normalizedPath.StartsWith(prefix + '\\', StringComparison.OrdinalIgnoreCase))
-                return normalizedPath.Substring(prefix.Length + 1);
+                return normalizedPath[(prefix.Length + 1)..];
+
+        // Wrapper + partial match: e.g. "modname\~mods\modname\file" → strip "modname\" first, then prefix
+        var firstSep = normalizedPath.IndexOf('\\');
+        if (firstSep > 0)
+        {
+            var withoutWrapper = normalizedPath[(firstSep + 1)..];
+            foreach (var prefix in prefixesToStrip)
+                if (withoutWrapper.StartsWith(prefix + '\\', StringComparison.OrdinalIgnoreCase))
+                    return withoutWrapper[(prefix.Length + 1)..];
         }
+
         return normalizedPath;
     }
 
@@ -191,6 +208,7 @@ public class SimpleConflictResolver : IConflictResolver
                     // Avoid recursive loops with CMM internal backups
                     if (entryName.StartsWith(".") || entryName.Contains("CMM_base"))
                         continue;
+
 
                     // Skip junctions/symlinks to prevent infinite Windows loops
                     var di = new DirectoryInfo(entry);
