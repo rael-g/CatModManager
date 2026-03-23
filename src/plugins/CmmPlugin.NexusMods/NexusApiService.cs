@@ -220,6 +220,35 @@ public class NexusApiService
         }
     }
 
+    /// <summary>
+    /// Tries to get the download URL for a collection archive using the NXM one-time key.
+    /// Returns null if the endpoint is unavailable (requires premium or the key has expired).
+    /// </summary>
+    public async Task<string?> GetCollectionArchiveUrlAsync(
+        string slug, int revision, string? key, string? expires, CancellationToken ct = default)
+    {
+        try
+        {
+            var url = $"{BaseApiUrl}/collections/{slug}/revisions/{revision}/download_link.json";
+            var queryParts = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrEmpty(key))     queryParts.Add($"key={Uri.EscapeDataString(key)}");
+            if (!string.IsNullOrEmpty(expires)) queryParts.Add($"expires={Uri.EscapeDataString(expires)}");
+            if (queryParts.Count > 0)           url += "?" + string.Join("&", queryParts);
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (HasApiKey) request.Headers.Add("apikey", ApiKey);
+            var response = await _http.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var links = await response.Content.ReadFromJsonAsync<List<NexusDownloadLink>>(cancellationToken: ct);
+            return links?.FirstOrDefault()?.URI;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private const string GraphQlUrl = "https://api.nexusmods.com/v2/graphql";
 
     /// <summary>

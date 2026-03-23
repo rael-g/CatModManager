@@ -166,7 +166,30 @@ public class NexusCollectionModEntry
     [JsonPropertyName("name")]     public string Name     { get; set; } = string.Empty;
     [JsonPropertyName("version")]  public string Version  { get; set; } = string.Empty;
     [JsonPropertyName("optional")] public bool   Optional { get; set; }
+    /// <summary>Installation phase (0 = default). Higher phases install after lower phases complete.</summary>
+    [JsonPropertyName("phase")]    public int    Phase    { get; set; }
     [JsonPropertyName("source")]   public NexusCollectionModSource? Source { get; set; }
+    /// <summary>Pre-selected FOMOD choices for this mod. Present only if the curator saved installer options.</summary>
+    [JsonPropertyName("choices")]  public NexusCollectionFomodChoices? Choices { get; set; }
+}
+
+public class NexusCollectionFomodChoices
+{
+    /// <summary>"fomod" when the choices are for a FOMOD installer.</summary>
+    [JsonPropertyName("type")]    public string Type    { get; set; } = string.Empty;
+    [JsonPropertyName("options")] public List<NexusCollectionFomodOption> Options { get; set; } = new();
+}
+
+public class NexusCollectionFomodOption
+{
+    [JsonPropertyName("name")]    public string Name    { get; set; } = string.Empty;
+    [JsonPropertyName("choices")] public List<NexusCollectionFomodChoice> Choices { get; set; } = new();
+}
+
+public class NexusCollectionFomodChoice
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("idx")]  public int    Idx  { get; set; }
 }
 
 public class NexusCollectionModSource
