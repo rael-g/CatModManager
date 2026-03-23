@@ -133,10 +133,20 @@ public class NexusModsPlugin : ICmmPlugin
 
         try
         {
-            var link           = NxmLink.Parse(e.NxmUri);
             var downloadsFolder = GetDownloadsFolder();
-            var modName        = $"Nexus Mod #{link.ModId}";
 
+            // Collection link: nxm://{game}/collections/{slug}/revisions/{rev}?...
+            var collectionLink = NxmCollectionLink.TryParse(e.NxmUri);
+            if (collectionLink != null)
+            {
+                _downloadService.QueueCollectionDownloadFromNxm(collectionLink, downloadsFolder);
+                _context.Log.Log($"[NexusMods] Collection NXM queued: {collectionLink.Slug} rev.{collectionLink.Revision}");
+                return;
+            }
+
+            // Regular mod link: nxm://{game}/mods/{modId}/files/{fileId}?...
+            var link    = NxmLink.Parse(e.NxmUri);
+            var modName = $"Nexus Mod #{link.ModId}";
             _downloadService.QueueDownloadFromNxm(link, modName, downloadsFolder);
             _context.Log.Log($"[NexusMods] NXM download queued: {e.NxmUri}");
         }

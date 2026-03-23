@@ -220,6 +220,58 @@ public class NexusApiService
         }
     }
 
+    private const string GraphQlUrl = "https://api.nexusmods.com/v2/graphql";
+
+    /// <summary>
+    /// Queries the Nexus v2 GraphQL API for the mod files in a collection revision.
+    /// No API key required — same approach used by the MO2 NexusCollections plugin.
+    /// </summary>
+    public async Task<NexusCollectionGraphQlResponse?> QueryCollectionRevisionAsync(
+        string slug, int revision, CancellationToken ct = default)
+    {
+        const string query = """
+            query CollectionRevisionMods($revision: Int, $slug: String!, $viewAdultContent: Boolean) {
+              collectionRevision(revision: $revision, slug: $slug, viewAdultContent: $viewAdultContent) {
+                modFiles {
+                  fileId
+                  optional
+                  file {
+                    name
+                    version
+                    mod {
+                      modId
+                      name
+                      game { domainName }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            query,
+            variables  = new { revision, slug, viewAdultContent = true },
+            operationName = "CollectionRevisionMods"
+        });
+
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, GraphQlUrl);
+            req.Headers.Add("User-Agent", "Mozilla/5.0");
+            req.Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+            var resp = await _http.SendAsync(req, ct);
+            resp.EnsureSuccessStatusCode();
+            return await resp.Content.ReadFromJsonAsync<NexusCollectionGraphQlResponse>(cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[NexusApiService] QueryCollectionRevisionAsync error: {ex.Message}");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Opens nexusmods.com/sso in the browser and waits for the user to authorize.
     /// WebSocket is connected BEFORE opening the browser to avoid the race condition

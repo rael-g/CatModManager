@@ -93,27 +93,89 @@ public record NxmLink(
 {
     /// <summary>
     /// Parses nxm://{gameDomain}/mods/{modId}/files/{fileId}?key={key}&amp;expires={expires}&amp;user_id={userId}
+    /// Returns null if this is not a mod link (e.g. it's a collection link).
     /// </summary>
-    public static NxmLink Parse(string uri)
+    public static NxmLink? TryParse(string uri)
     {
         var parsed = new Uri(uri);
-
-        var gameDomain = parsed.Host;
-
-        // path segments: /mods/{modId}/files/{fileId}
         var segments = parsed.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var modId  = segments.Length > 1 ? int.Parse(segments[1]) : 0;
-        var fileId = segments.Length > 3 ? int.Parse(segments[3]) : 0;
+        if (segments.Length < 1 || !string.Equals(segments[0], "mods", StringComparison.OrdinalIgnoreCase))
+            return null;
 
         var query = System.Web.HttpUtility.ParseQueryString(parsed.Query);
-        var key     = query["key"];
-        var expires = query["expires"];
-        int? userId = null;
-        if (int.TryParse(query["user_id"], out var uid))
-            userId = uid;
-
-        return new NxmLink(gameDomain, modId, fileId, key, expires, userId);
+        int? userId = int.TryParse(query["user_id"], out var uid) ? uid : null;
+        return new NxmLink(
+            parsed.Host,
+            segments.Length > 1 ? int.Parse(segments[1]) : 0,
+            segments.Length > 3 ? int.Parse(segments[3]) : 0,
+            query["key"], query["expires"], userId);
     }
+
+    /// <summary>Kept for backward compat — throws on collection links.</summary>
+    public static NxmLink Parse(string uri) =>
+        TryParse(uri) ?? throw new FormatException($"Not a mod nxm link: {uri}");
+}
+
+/// <summary>
+/// Parses nxm://{gameDomain}/collections/{slug}/revisions/{revision}?key=...&amp;expires=...
+/// </summary>
+public record NxmCollectionLink(
+    string GameDomain,
+    string Slug,
+    int    Revision,
+    string? Key,
+    string? Expires,
+    int?   UserId)
+{
+    public static NxmCollectionLink? TryParse(string uri)
+    {
+        var parsed = new Uri(uri);
+        var segments = parsed.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // Expected: collections/{slug}/revisions/{revision}
+        if (segments.Length < 4 || !string.Equals(segments[0], "collections", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (!int.TryParse(segments[3], out var revision)) return null;
+        var query = System.Web.HttpUtility.ParseQueryString(parsed.Query);
+        int? userId = int.TryParse(query["user_id"], out var uid) ? uid : null;
+        return new NxmCollectionLink(
+            parsed.Host, segments[1], revision,
+            query["key"], query["expires"], userId);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Nexus Collection manifest (inside the downloaded .zip archive)
+// ---------------------------------------------------------------------------
+
+public class NexusCollectionManifest
+{
+    [JsonPropertyName("info")] public NexusCollectionManifestInfo? Info { get; set; }
+    [JsonPropertyName("mods")] public List<NexusCollectionModEntry> Mods { get; set; } = new();
+}
+
+public class NexusCollectionManifestInfo
+{
+    [JsonPropertyName("name")]       public string Name       { get; set; } = string.Empty;
+    [JsonPropertyName("domainName")] public string DomainName { get; set; } = string.Empty;
+    [JsonPropertyName("version")]    public string Version    { get; set; } = string.Empty;
+}
+
+public class NexusCollectionModEntry
+{
+    [JsonPropertyName("name")]     public string Name     { get; set; } = string.Empty;
+    [JsonPropertyName("version")]  public string Version  { get; set; } = string.Empty;
+    [JsonPropertyName("optional")] public bool   Optional { get; set; }
+    [JsonPropertyName("source")]   public NexusCollectionModSource? Source { get; set; }
+}
+
+public class NexusCollectionModSource
+{
+    [JsonPropertyName("type")]       public string Type       { get; set; } = string.Empty;
+    [JsonPropertyName("modId")]      public int    ModId      { get; set; }
+    [JsonPropertyName("fileId")]     public long   FileId     { get; set; }
+    [JsonPropertyName("gameDomain")] public string GameDomain { get; set; } = string.Empty;
+    [JsonPropertyName("fileSize")]   public long   FileSize   { get; set; }
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +210,51 @@ public partial class DownloadEntry : ObservableObject
     public string Category { get; set; } = "Uncategorized";
 
     public CancellationTokenSource Cts { get; } = new();
+}
+
+// ---------------------------------------------------------------------------
+// GraphQL response models (v2 API — collection revision)
+// ---------------------------------------------------------------------------
+
+public class NexusCollectionGraphQlResponse
+{
+    [JsonPropertyName("data")] public NexusCollectionGraphQlData? Data { get; set; }
+}
+
+public class NexusCollectionGraphQlData
+{
+    [JsonPropertyName("collectionRevision")] public NexusCollectionRevisionData? CollectionRevision { get; set; }
+}
+
+public class NexusCollectionRevisionData
+{
+    [JsonPropertyName("modFiles")] public List<NexusCollectionModFile> ModFiles { get; set; } = new();
+}
+
+public class NexusCollectionModFile
+{
+    [JsonPropertyName("fileId")]   public long FileId   { get; set; }
+    [JsonPropertyName("optional")] public bool Optional { get; set; }
+    [JsonPropertyName("file")]     public NexusCollectionFileInfo? File { get; set; }
+}
+
+public class NexusCollectionFileInfo
+{
+    [JsonPropertyName("name")]    public string Name    { get; set; } = string.Empty;
+    [JsonPropertyName("version")] public string Version { get; set; } = string.Empty;
+    [JsonPropertyName("mod")]     public NexusCollectionModInfo? Mod { get; set; }
+}
+
+public class NexusCollectionModInfo
+{
+    [JsonPropertyName("modId")] public int    ModId { get; set; }
+    [JsonPropertyName("name")]  public string Name  { get; set; } = string.Empty;
+    [JsonPropertyName("game")]  public NexusCollectionGame? Game { get; set; }
+}
+
+public class NexusCollectionGame
+{
+    [JsonPropertyName("domainName")] public string DomainName { get; set; } = string.Empty;
 }
 
 // ---------------------------------------------------------------------------

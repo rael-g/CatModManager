@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CatModManager.PluginSdk;
@@ -342,6 +343,92 @@ public class NexusDownloadService
         });
 
         _log.Log($"[NexusMods] Downloaded: {fileName} → {destPath}");
+    }
+
+    // ── Collection download ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolves a collection revision via the Nexus v2 GraphQL API (no API key required)
+    /// and queues individual mod downloads. A single "Collection" entry tracks overall progress.
+    /// </summary>
+    public void QueueCollectionDownloadFromNxm(NxmCollectionLink link, string downloadsFolder)
+    {
+        var collectionEntry = new DownloadEntry
+        {
+            ModName    = $"Collection: {link.Slug} rev.{link.Revision}",
+            FileName   = $"{link.Slug}_r{link.Revision}",
+            Status     = "Queued",
+            GameDomain = link.GameDomain
+        };
+        Downloads.Add(collectionEntry);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    collectionEntry.IsActive = true;
+                    collectionEntry.Status   = "Resolving collection via Nexus API…";
+                });
+
+                var gql = await _api.QueryCollectionRevisionAsync(
+                    link.Slug, link.Revision, collectionEntry.Cts.Token);
+
+                var modFiles = gql?.Data?.CollectionRevision?.ModFiles;
+                if (modFiles == null || modFiles.Count == 0)
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        collectionEntry.HasFailed = true;
+                        collectionEntry.IsActive  = false;
+                        collectionEntry.Status    = "Failed: collection not found or empty.";
+                    });
+                    return;
+                }
+
+                var required = modFiles.Where(f => !f.Optional).ToList();
+
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    collectionEntry.Progress = 100;
+                    collectionEntry.IsActive = false;
+                    collectionEntry.Status   = $"Done — queued {required.Count} mod(s) for download.";
+                });
+
+                foreach (var modFile in required)
+                {
+                    var info       = modFile.File;
+                    var mod        = info?.Mod;
+                    string domain  = mod?.Game?.DomainName ?? link.GameDomain;
+                    string name    = mod?.Name ?? info?.Name ?? $"Mod #{mod?.ModId}";
+                    string version = info?.Version ?? string.Empty;
+
+                    if (mod == null || mod.ModId == 0 || modFile.FileId == 0) continue;
+
+                    QueueDownloadDirect(domain, mod.ModId, (int)modFile.FileId,
+                        name, downloadsFolder, version);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    collectionEntry.IsActive = false;
+                    collectionEntry.Status   = "Cancelled";
+                });
+            }
+            catch (Exception ex)
+            {
+                _log.LogError($"[NexusMods] Collection download failed: {link.Slug}", ex);
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    collectionEntry.HasFailed = true;
+                    collectionEntry.IsActive  = false;
+                    collectionEntry.Status    = $"Failed: {ex.Message}";
+                });
+            }
+        });
     }
 
     public void Cancel(DownloadEntry entry) => entry.Cts.Cancel();
