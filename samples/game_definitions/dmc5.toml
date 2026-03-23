@@ -8,3 +8,5 @@ RequiredFiles = ["DevilMayCry5.exe"]
 
 DataSubFolder = ""
 RootSwapOnly  = true
+
+SaveFolderPattern = "%APPDATA%\DMC5"

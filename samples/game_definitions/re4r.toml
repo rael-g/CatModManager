@@ -8,3 +8,5 @@ RequiredFiles = ["re4.exe"]
 
 DataSubFolder = ""
 RootSwapOnly  = true
+
+SaveFolderPattern = "%APPDATA%\RE4"

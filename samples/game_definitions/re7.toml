@@ -8,3 +8,5 @@ RequiredFiles = ["re7.exe"]
 
 DataSubFolder = ""
 RootSwapOnly  = true
+
+SaveFolderPattern = "%APPDATA%\RE7"

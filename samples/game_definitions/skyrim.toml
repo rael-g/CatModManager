@@ -7,3 +7,5 @@ SteamAppId  = 489830
 RequiredFiles = ["SkyrimSE.exe", "Data"]
 
 DataSubFolder = "Data"
+
+SaveFolderPattern = "%USERPROFILE%\\Documents\\My Games\\Skyrim Special Edition\\Saves"
