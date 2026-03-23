@@ -220,53 +220,6 @@ public class NexusApiService
         }
     }
 
-    public async Task<NexusSearchResponse> SearchModsAsync(
-        int gameId, string query, bool includeAdult = false, CancellationToken ct = default)
-    {
-        try
-        {
-            var url = $"https://search.nexusmods.com/mods" +
-                      $"?terms={Uri.EscapeDataString(query)}" +
-                      $"&game_id={gameId}" +
-                      $"&include_adult={(includeAdult ? "1" : "0")}" +
-                      $"&page_size=20&page=0";
-            var response = await _http.GetAsync(url, ct);
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<NexusSearchResponse>(cancellationToken: ct)
-                   ?? new NexusSearchResponse();
-        }
-        catch { return new NexusSearchResponse(); }
-    }
-
-    public async Task<NexusCollectionInfo?> GetCollectionAsync(string slug, CancellationToken ct = default)
-    {
-        try
-        {
-            var url = $"{BaseApiUrl}/collections/{Uri.EscapeDataString(slug)}.json";
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            if (HasApiKey) request.Headers.Add("apikey", ApiKey);
-            var response = await _http.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<NexusCollectionInfo>(cancellationToken: ct);
-        }
-        catch { return null; }
-    }
-
-    public async Task<NexusCollectionRevision?> GetCollectionRevisionAsync(
-        string slug, int revision, CancellationToken ct = default)
-    {
-        try
-        {
-            var url = $"{BaseApiUrl}/collections/{Uri.EscapeDataString(slug)}/revisions/{revision}.json";
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            if (HasApiKey) request.Headers.Add("apikey", ApiKey);
-            var response = await _http.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<NexusCollectionRevision>(cancellationToken: ct);
-        }
-        catch { return null; }
-    }
-
     /// <summary>
     /// Opens nexusmods.com/sso in the browser and waits for the user to authorize.
     /// WebSocket is connected BEFORE opening the browser to avoid the race condition
