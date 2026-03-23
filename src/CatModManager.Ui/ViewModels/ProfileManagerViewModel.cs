@@ -104,8 +104,7 @@ public partial class ProfileManagerViewModel : ViewModelBase
         string newName = GetUniqueProfileName("NewProfile");
         ProfileDisplayName = newName;
         await SaveProfileInternalAsync(newName);
-        using (SuppressAutoSave())
-            CurrentProfileName = newName;
+        await RefreshListAsync(newName);
     }
 
     [RelayCommand]
@@ -174,9 +173,7 @@ public partial class ProfileManagerViewModel : ViewModelBase
                 _logService.Log($"Profile renamed: '{CurrentProfileName}' → '{newName}'");
                 _configService.Current.LastProfileName = newName;
                 _configService.Save();
-                using (SuppressAutoSave())
-                    CurrentProfileName = newName;
-                await RefreshListAsync();
+                await RefreshListAsync(newName);
             }
         }
         catch (Exception ex) { _logService.Log($"RENAME ERROR: {ex.Message}"); }
@@ -198,7 +195,8 @@ public partial class ProfileManagerViewModel : ViewModelBase
 
     public void AutoSave()
     {
-        if (IsAutoSaveSuppressed || string.IsNullOrWhiteSpace(CurrentProfileName)) return;
+        if (IsAutoSaveSuppressed) return;
+        if (string.IsNullOrWhiteSpace(CurrentProfileName)) return;
         _ = SaveProfile(CurrentProfileName);
     }
 
@@ -266,14 +264,13 @@ public partial class ProfileManagerViewModel : ViewModelBase
         {
             var profile = BuildSaveData?.Invoke() ?? new Profile { Name = name };
             profile.Name = name;
-            string filePath = _pathService.GetProfilePath(name);
+string filePath = _pathService.GetProfilePath(name);
             await _profileService.SaveProfileAsync(profile, filePath);
             using (SuppressAutoSave())
             {
                 _configService.Current.LastProfileName = name;
                 _configService.Save();
             }
-            await RefreshListAsync();
         }
         catch (Exception ex) { _logService.Log($"SAVE ERROR: {ex.Message}"); }
     }

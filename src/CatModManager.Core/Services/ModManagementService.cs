@@ -23,28 +23,38 @@ public class ModManagementService : IModManagementService
         _logService = logService;
     }
 
+    private static readonly HashSet<string> ArchiveExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".zip", ".7z", ".rar" };
+
     public async Task<string> InstallModAsync(string sourcePath, string targetBaseDir)
     {
-        if (!_fileService.DirectoryExists(targetBaseDir)) 
+        if (!_fileService.DirectoryExists(targetBaseDir))
             _fileService.CreateDirectory(targetBaseDir);
 
-        string fileName = Path.GetFileName(sourcePath);
-        string targetPath = Path.Combine(targetBaseDir, fileName);
+        bool isArchive = _fileService.FileExists(sourcePath)
+                      && ArchiveExtensions.Contains(Path.GetExtension(sourcePath));
+
+        // Archives are extracted to a folder named after the archive (without extension).
+        // Directories are copied as-is.
+        string baseName = isArchive
+            ? Path.GetFileNameWithoutExtension(sourcePath)
+            : Path.GetFileName(sourcePath);
+
+        string targetPath = Path.Combine(targetBaseDir, baseName);
 
         int count = 1;
         while (_fileService.FileExists(targetPath) || _fileService.DirectoryExists(targetPath))
-        {
-            string nameOnly = Path.GetFileNameWithoutExtension(fileName);
-            string ext = Path.GetExtension(fileName);
-            targetPath = Path.Combine(targetBaseDir, $"{nameOnly} ({count}){ext}");
-            count++;
-        }
+            targetPath = Path.Combine(targetBaseDir, $"{baseName} ({count++})");
 
         try
         {
             if (_fileService.DirectoryExists(sourcePath))
             {
                 await Task.Run(() => _fileService.CopyDirectory(sourcePath, targetPath));
+            }
+            else if (isArchive)
+            {
+                await Task.Run(() => ExtractArchive(sourcePath, targetPath));
             }
             else if (_fileService.FileExists(sourcePath))
             {
@@ -55,13 +65,28 @@ public class ModManagementService : IModManagementService
                 throw new FileNotFoundException("Source mod path not found.");
             }
 
-            _logService.Log($"Mod installed successfully: {targetPath}");
+            _logService.Log($"Mod installed: {targetPath}");
             return targetPath;
         }
         catch (Exception ex)
         {
             _logService.LogError($"Failed to install mod from {sourcePath}", ex);
             throw;
+        }
+    }
+
+    private static void ExtractArchive(string archivePath, string targetFolder)
+    {
+        Directory.CreateDirectory(targetFolder);
+        using var archive = ArchiveFactory.Open(archivePath);
+        foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+        {
+            var destPath = Path.Combine(targetFolder,
+                entry.Key.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+            using var inStream  = entry.OpenEntryStream();
+            using var outStream = File.Create(destPath);
+            inStream.CopyTo(outStream);
         }
     }
 

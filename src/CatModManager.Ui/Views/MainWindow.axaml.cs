@@ -85,9 +85,9 @@ public partial class MainWindow : Window
 
         // Build plugin tabs whenever the collection changes or SelectedMod changes
         vm.PluginInspectorTabs.CollectionChanged += (_, _) => RebuildPluginTabs(vm);
-        vm.PropertyChanged += (_, args) =>
+        vm.ModList.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(MainWindowViewModel.SelectedMod))
+            if (args.PropertyName == nameof(ModListViewModel.SelectedMod))
                 UpdatePluginTabContents(vm);
         };
 
@@ -96,7 +96,7 @@ public partial class MainWindow : Window
         if (listBox != null)
         {
             listBox.SelectionChanged += (_, _) =>
-                vm.SelectedMods = listBox.SelectedItems?.OfType<Mod>().ToList() ?? new System.Collections.Generic.List<Mod>();
+                vm.ModList.SelectedMods = listBox.SelectedItems?.OfType<Mod>().ToList() ?? new System.Collections.Generic.List<Mod>();
         }
 
         // Initial build (in case plugins were loaded before the window)
@@ -117,7 +117,7 @@ public partial class MainWindow : Window
             tc.Items.Add(new TabItem
             {
                 Header  = tab.TabLabel,
-                Content = tab.CreateView(vm.SelectedMod != null ? new ModInfoAdapter(vm.SelectedMod) : null)
+                Content = tab.CreateView(vm.ModList.SelectedMod != null ? new ModInfoAdapter(vm.ModList.SelectedMod) : null)
             });
         }
     }
@@ -129,7 +129,7 @@ public partial class MainWindow : Window
 
         var pluginTabItems = tc.Items.OfType<TabItem>().Skip(1).ToList();
         var pluginTabs     = vm.PluginInspectorTabs.ToList();
-        IModInfo? modInfo  = vm.SelectedMod != null ? new ModInfoAdapter(vm.SelectedMod) : null;
+        IModInfo? modInfo  = vm.ModList.SelectedMod != null ? new ModInfoAdapter(vm.ModList.SelectedMod) : null;
 
         for (int i = 0; i < pluginTabItems.Count && i < pluginTabs.Count; i++)
             pluginTabItems[i].Content = pluginTabs[i].CreateView(modInfo);
@@ -178,9 +178,9 @@ public partial class MainWindow : Window
             {
                 if (DataContext is MainWindowViewModel vm)
                 {
-                    int oldIndex = vm.AllMods.IndexOf(draggedMod);
-                    int newIndex = vm.AllMods.IndexOf(targetMod);
-                    if (oldIndex != -1 && newIndex != -1 && oldIndex != newIndex) vm.MoveMod(oldIndex, newIndex);
+                    int oldIndex = vm.ModList.AllMods.IndexOf(draggedMod);
+                    int newIndex = vm.ModList.AllMods.IndexOf(targetMod);
+                    if (oldIndex != -1 && newIndex != -1 && oldIndex != newIndex) vm.ModList.MoveMod(oldIndex, newIndex);
                 }
             }
         }
@@ -202,8 +202,8 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainWindowViewModel vm) return;
         var topLevel = GetTopLevel(this);
-        var startDir = !string.IsNullOrEmpty(vm.GameExecutablePath)
-            ? System.IO.Path.GetDirectoryName(vm.GameExecutablePath) : vm.BaseFolderPath;
+        var startDir = !string.IsNullOrEmpty(vm.GameConfig.GameExecutablePath)
+            ? System.IO.Path.GetDirectoryName(vm.GameConfig.GameExecutablePath) : vm.GameConfig.BaseFolderPath;
         var files = await topLevel!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select Game Executable",
@@ -212,7 +212,7 @@ public partial class MainWindow : Window
             FileTypeFilter = new[] { new FilePickerFileType("Executables") { Patterns = new[] { "*.exe" } } }
         });
         if (files.Count >= 1)
-            vm.GameExecutablePath = files[0].Path.LocalPath;
+            vm.GameConfig.GameExecutablePath = files[0].Path.LocalPath;
     }
 
     private async void SelectBaseFolder_Click(object sender, RoutedEventArgs e)
@@ -223,10 +223,10 @@ public partial class MainWindow : Window
         {
             Title = "Select Base Game Folder",
             AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(vm.BaseFolderPath)
+            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.BaseFolderPath)
         });
         if (folders.Count >= 1)
-            vm.BaseFolderPath = folders[0].Path.LocalPath;
+            vm.GameConfig.BaseFolderPath = folders[0].Path.LocalPath;
     }
 
     private async void SelectFolder_Click(object sender, RoutedEventArgs e)
@@ -237,7 +237,7 @@ public partial class MainWindow : Window
         {
             Title = "Select Mods Folder",
             AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(vm.ModsFolderPath, vm.BaseFolderPath)
+            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.ModsFolderPath, vm.GameConfig.BaseFolderPath)
         });
         if (folders.Count >= 1)
             await vm.ScanDirectoryCommand.ExecuteAsync(folders[0].Path.LocalPath);
@@ -251,31 +251,31 @@ public partial class MainWindow : Window
         {
             Title = "Select Downloads Folder",
             AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(vm.DownloadsFolderPath, vm.BaseFolderPath)
+            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.DownloadsFolderPath, vm.GameConfig.BaseFolderPath)
         });
         if (folders.Count >= 1)
-            vm.DownloadsFolderPath = folders[0].Path.LocalPath;
+            vm.GameConfig.DownloadsFolderPath = folders[0].Path.LocalPath;
     }
 
     private async void SelectDataSubFolder_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel vm) return;
         var topLevel = GetTopLevel(this);
-        var currentFull = !string.IsNullOrEmpty(vm.BaseFolderPath) && !string.IsNullOrEmpty(vm.DataSubFolder)
-            ? System.IO.Path.Combine(vm.BaseFolderPath, vm.DataSubFolder) : null;
+        var currentFull = !string.IsNullOrEmpty(vm.GameConfig.BaseFolderPath) && !string.IsNullOrEmpty(vm.GameConfig.DataSubFolder)
+            ? System.IO.Path.Combine(vm.GameConfig.BaseFolderPath, vm.GameConfig.DataSubFolder) : null;
         var folders = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = "Select Data Subfolder (inside game folder)",
             AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(currentFull, vm.BaseFolderPath)
+            SuggestedStartLocation = await GetStartFolderAsync(currentFull, vm.GameConfig.BaseFolderPath)
         });
         if (folders.Count >= 1)
         {
             var selected = folders[0].Path.LocalPath;
-            if (!string.IsNullOrEmpty(vm.BaseFolderPath) && selected.StartsWith(vm.BaseFolderPath, StringComparison.OrdinalIgnoreCase))
-                vm.DataSubFolder = System.IO.Path.GetRelativePath(vm.BaseFolderPath, selected);
+            if (!string.IsNullOrEmpty(vm.GameConfig.BaseFolderPath) && selected.StartsWith(vm.GameConfig.BaseFolderPath, StringComparison.OrdinalIgnoreCase))
+                vm.GameConfig.DataSubFolder = System.IO.Path.GetRelativePath(vm.GameConfig.BaseFolderPath, selected);
             else
-                vm.DataSubFolder = selected;
+                vm.GameConfig.DataSubFolder = selected;
         }
     }
 

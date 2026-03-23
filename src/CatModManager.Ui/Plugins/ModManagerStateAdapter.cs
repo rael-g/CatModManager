@@ -1,48 +1,41 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Avalonia.Threading;
 using CatModManager.PluginSdk;
-using CatModManager.Ui.ViewModels;
 
 namespace CatModManager.Ui.Plugins;
 
 /// <summary>
-/// Exposes MainWindowViewModel state to plugins via IModManagerState,
-/// without leaking ViewModel or Core types into the SDK.
+/// Thin adapter over AppSessionState that satisfies IModManagerState for plugins.
+/// Has no dependency on any ViewModel type.
 /// </summary>
 public class ModManagerStateAdapter : IModManagerState
 {
-    private readonly MainWindowViewModel _vm;
+    private readonly AppSessionState _state;
 
-    public ModManagerStateAdapter(MainWindowViewModel vm)
+    public ModManagerStateAdapter(AppSessionState state) => _state = state;
+
+    public IReadOnlyList<IModInfo> ActiveMods        => _state.ActiveMods;
+    public string? DataFolderPath      => _state.DataFolderPath;
+    public string? ModsFolderPath      => _state.ModsFolderPath;
+    public string? DownloadsFolderPath => _state.DownloadsFolderPath;
+    public string? GameExecutablePath  => _state.GameExecutablePath;
+    public string? GameId              => _state.GameId;
+    public string? CurrentProfileName  => _state.CurrentProfileName;
+    public string? DataSubFolder       => _state.DataSubFolder;
+    public bool    RootSwapOnly        => _state.RootSwapOnly;
+
+    public event Action<string>?          ProfileChanged
     {
-        _vm = vm;
-        _vm.ProfileManager.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(ProfileManagerViewModel.CurrentProfileName) &&
-                _vm.ProfileManager.CurrentProfileName is { } name)
-                ProfileChanged?.Invoke(name);
-        };
-        _vm.ModInstalled += (mod, sourcePath) =>
-            ModInstalled?.Invoke(new ModInfoAdapter(mod), sourcePath);
+        add    => _state.ProfileChanged += value;
+        remove => _state.ProfileChanged -= value;
     }
 
-    public IReadOnlyList<IModInfo> ActiveMods =>
-        _vm.AllMods.Where(m => m.IsEnabled).Select(m => (IModInfo)new ModInfoAdapter(m)).ToList();
-
-    public string? DataFolderPath      => _vm.BaseFolderPath;
-    public string? ModsFolderPath      => _vm.ModsFolderPath;
-    public string? DownloadsFolderPath => _vm.DownloadsFolderPath;
-    public string? GameExecutablePath  => _vm.GameExecutablePath;
-    public string? GameId              => _vm.ActiveGameSupport?.GameId;
-    public string? CurrentProfileName  => _vm.ProfileManager.CurrentProfileName;
-    public string? DataSubFolder       => _vm.ActiveGameSupport?.DataSubFolder;
-    public bool    RootSwapOnly        => _vm.ActiveGameSupport?.RootSwapOnly ?? false;
-
-    public event Action<string>?          ProfileChanged;
-    public event Action<IModInfo, string>? ModInstalled;
+    public event Action<IModInfo, string>? ModInstalled
+    {
+        add    => _state.ModInstalled += value;
+        remove => _state.ModInstalled -= value;
+    }
 
     public void RequestInstallMod(string archivePath) =>
-        Dispatcher.UIThread.InvokeAsync(() => _vm.AddModCommand.Execute(archivePath));
+        _state.RequestInstallModAction?.Invoke(archivePath);
 }

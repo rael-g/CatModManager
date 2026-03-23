@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using CatModManager.Core.Models;
 using CatModManager.Core.Vfs;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Core.Services;
 
@@ -11,10 +14,11 @@ namespace CatModManager.Core.Services;
 /// </summary>
 public class VfsOrchestrationService : IVfsOrchestrationService
 {
-    private readonly IVirtualFileSystem _vfs;
-    private readonly IVfsStateService    _stateService;
-    private readonly IRootSwapService    _rootSwapService;
-    private readonly ILogService         _logService;
+    private readonly IVirtualFileSystem          _vfs;
+    private readonly IVfsStateService            _stateService;
+    private readonly IRootSwapService            _rootSwapService;
+    private readonly ILogService                 _logService;
+    private readonly IReadOnlyList<IVfsLifecycleHook> _vfsHooks;
 
     private string? _lastMountGameFolder;
     private bool    _rootSwapOnlyDeployed;
@@ -26,12 +30,14 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         IVfsStateService    stateService,
         IDriverService      driverService,
         ILogService         logService,
-        IRootSwapService    rootSwapService)
+        IRootSwapService    rootSwapService,
+        IReadOnlyList<IVfsLifecycleHook>? vfsHooks = null)
     {
         _vfs             = vfs;
         _stateService    = stateService;
         _rootSwapService = rootSwapService;
         _logService      = logService;
+        _vfsHooks        = vfsHooks ?? [];
     }
 
     // ── Recovery ─────────────────────────────────────────────────────────────
@@ -68,6 +74,16 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         try
         {
             _lastMountGameFolder = options.GameFolderPath;
+
+            var mountInfo = new MountInfo
+            {
+                GameFolderPath = options.GameFolderPath,
+                DataSubFolder  = options.DataSubFolder,
+                ActiveMods     = options.ActiveMods.Cast<IModInfo>().ToList()
+            };
+            foreach (var hook in _vfsHooks)
+                await hook.OnBeforeMountAsync(mountInfo);
+
             _logService.Log($"Mounting {options.ActiveMods.Count} mod(s) → {options.GameFolderPath}");
             await Task.Run(() => _vfs.Mount(
                 options.GameFolderPath!,
@@ -109,9 +125,12 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
         try
         {
+            string? mountedPath = _lastMountGameFolder;
             await Task.Run(() => _vfs.Unmount());
             _lastMountGameFolder = null;
             _logService.Log("Unmounted.");
+            foreach (var hook in _vfsHooks)
+                await hook.OnAfterUnmountAsync(mountedPath ?? string.Empty);
             return OperationResult.Success();
         }
         catch (Exception ex)

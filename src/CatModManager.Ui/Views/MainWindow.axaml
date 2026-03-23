@@ -78,7 +78,7 @@
                             <Grid ColumnDefinitions="*, Auto" Margin="12,4,12,0">
                                 <TextBlock Grid.Column="0" Text="CONFIGURATION" Classes="sidebar-section-header" Margin="0"/>
                                 <Button Grid.Column="1"
-                                        Command="{Binding AutoDetectGameCommand}"
+                                        Command="{Binding GameConfig.AutoDetectGameCommand}"
                                         Content="⊕ AUTO DETECT"
                                         FontSize="9" FontWeight="Bold"
                                         Padding="6,2"
@@ -95,8 +95,8 @@
                                                    ToolTip.Tip="Select the game support profile (auto-detected from the executable)"/>
                                         <Grid ColumnDefinitions="*, Auto">
                                             <ComboBox Grid.Column="0"
-                                                      ItemsSource="{Binding AvailableGameSupports}"
-                                                      SelectedItem="{Binding ActiveGameSupport}"
+                                                      ItemsSource="{Binding GameConfig.AvailableGameSupports}"
+                                                      SelectedItem="{Binding GameConfig.ActiveGameSupport}"
                                                       HorizontalAlignment="Stretch"
                                                       Padding="6,4"
                                                       FontSize="12">
@@ -107,7 +107,7 @@
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
                                             <Button Grid.Column="1"
-                                                    Command="{Binding DetectGameSupportCommand}"
+                                                    Command="{Binding GameConfig.DetectGameSupportCommand}"
                                                     Content="⟳"
                                                     Classes="small-icon"
                                                     ToolTip.Tip="Auto-detect from executable"/>
@@ -116,7 +116,7 @@
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="MOD INSTALLATION FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding ModsFolderPath}" IsReadOnly="True" Classes="path-field">
+                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.ModsFolderPath}" IsReadOnly="True" Classes="path-field">
                                                 <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenModsFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
@@ -126,7 +126,7 @@
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="DOWNLOADS FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding DownloadsFolderPath}" IsReadOnly="True" Classes="path-field">
+                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.DownloadsFolderPath}" IsReadOnly="True" Classes="path-field">
                                                 <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenDownloadsFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
@@ -136,7 +136,7 @@
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="EXECUTABLE" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding GameExecutablePath}" IsReadOnly="True" Classes="path-field">
+                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.GameExecutablePath}" IsReadOnly="True" Classes="path-field">
                                                 <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenGameExecutableFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open containing folder"/>
@@ -146,7 +146,7 @@
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="GAME FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding BaseFolderPath}" IsReadOnly="True" Classes="path-field">
+                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.BaseFolderPath}" IsReadOnly="True" Classes="path-field">
                                                 <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenGameFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
@@ -157,7 +157,7 @@
                                         <TextBlock Text="DATA SUBFOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"
                                                    ToolTip.Tip="Relative path inside the game folder where the VFS mounts (e.g. Data, LiesofP\Content\Paks\~mods)"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding DataSubFolder}" IsReadOnly="True" Classes="path-field">
+                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.DataSubFolder}" IsReadOnly="True" Classes="path-field">
                                                 <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenDataSubFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
@@ -227,7 +227,7 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <!-- Search -->
                                 <TextBlock Text="⌕" VerticalAlignment="Center" Foreground="{DynamicResource AccentColor}" FontSize="16" Margin="16,0,0,0"/>
-                                <TextBox Width="200" Watermark="Search mods..." Text="{Binding SearchText}" Classes="command-bar-input">
+                                <TextBox Width="200" Watermark="Search mods..." Text="{Binding ModList.SearchText}" Classes="command-bar-input">
                                     <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                 </TextBox>
 
@@ -254,7 +254,7 @@
                                 <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
 
                                 <!-- Category Filter -->
-                                <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
+                                <ComboBox ItemsSource="{Binding ModList.Categories}" SelectedItem="{Binding ModList.SelectedCategory}"
                                           Width="120" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" FontSize="11"/>
                             </StackPanel>
                         </Border>
@@ -263,7 +263,7 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,12,0">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="Args:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource TextSubtle}" Margin="0,0,8,0"/>
-                                <TextBox Text="{Binding LaunchArguments}" Watermark="-windowed..." Classes="command-bar-input" Width="140">
+                                <TextBox Text="{Binding GameConfig.LaunchArguments}" Watermark="-windowed..." Classes="command-bar-input" Width="140">
                                     <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                 </TextBox>
                             </StackPanel>
@@ -299,7 +299,7 @@
                         </Grid>
                     </Border>
 
-                    <ListBox Grid.Row="1" Name="ModsListBox" ItemsSource="{Binding DisplayedMods}" SelectedItem="{Binding SelectedMod}" SelectionMode="Single" DragDrop.AllowDrop="True">
+                    <ListBox Grid.Row="1" Name="ModsListBox" ItemsSource="{Binding ModList.DisplayedMods}" SelectedItem="{Binding ModList.SelectedMod}" SelectionMode="Single" DragDrop.AllowDrop="True">
                         <ListBox.ItemContainerTheme>
                             <!-- Full custom template — no BasedOn so FluentTheme never interferes -->
                             <ControlTheme TargetType="ListBoxItem">
@@ -378,7 +378,7 @@
             <!-- Inspector Panel -->
             <Border Grid.Column="2" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1,0,0,0">
                 <TabControl Name="InspectorTabControl" TabStripPlacement="Top" Background="Transparent" Padding="0"
-                            SelectedIndex="{Binding SelectedInspectorTab}">
+                            SelectedIndex="{Binding Inspector.SelectedTab}">
                     <TabControl.Styles>
                         <Style Selector="TabItem">
                             <Setter Property="FontSize" Value="11"/>
@@ -392,26 +392,26 @@
                     <TabItem Header="INFO">
                         <Grid RowDefinitions="*, Auto">
                             <ScrollViewer Grid.Row="0" Padding="16">
-                                <StackPanel Name="InspectorContent" Spacing="20" IsVisible="{Binding SelectedMod, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                                <StackPanel Name="InspectorContent" Spacing="20" IsVisible="{Binding ModList.SelectedMod, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="DISPLAY NAME" Classes="inspector-field-label"/>
-                                        <TextBox Text="{Binding SelectedMod.Name, UpdateSourceTrigger=LostFocus}" Classes="path-field">
+                                        <TextBox Text="{Binding ModList.SelectedMod.Name, UpdateSourceTrigger=LostFocus}" Classes="path-field">
                                             <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                         </TextBox>
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="VERSION" Classes="inspector-field-label"/>
-                                        <TextBox Text="{Binding SelectedMod.Version}" IsReadOnly="True" Classes="path-field" Foreground="{DynamicResource TextSubtle}"/>
+                                        <TextBox Text="{Binding ModList.SelectedMod.Version}" IsReadOnly="True" Classes="path-field" Foreground="{DynamicResource TextSubtle}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="CATEGORY" Classes="inspector-field-label"/>
-                                        <TextBox Text="{Binding SelectedMod.Category, UpdateSourceTrigger=LostFocus}" Classes="path-field">
+                                        <TextBox Text="{Binding ModList.SelectedMod.Category, UpdateSourceTrigger=LostFocus}" Classes="path-field">
                                             <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                         </TextBox>
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="PHYSICAL PATH" Classes="inspector-field-label"/>
-                                        <TextBlock Text="{Binding SelectedMod.RootPath}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextSubtle}" FontFamily="Consolas"/>
+                                        <TextBlock Text="{Binding ModList.SelectedMod.RootPath}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextSubtle}" FontFamily="Consolas"/>
                                     </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
@@ -449,16 +449,16 @@
                         <Grid RowDefinitions="Auto, *">
                             <Border Grid.Row="0" Background="{DynamicResource ContentBg}" Padding="8" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
                                 <Grid ColumnDefinitions="Auto, *">
-                                    <Button Grid.Column="0" Command="{Binding NavigateUpCommand}" Background="Transparent" Width="32" Height="32" Padding="0">
+                                    <Button Grid.Column="0" Command="{Binding Inspector.NavigateUpCommand}" Background="Transparent" Width="32" Height="32" Padding="0">
                                         <TextBlock Text="↑" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Button>
-                                    <TextBlock Grid.Column="1" Text="{Binding CurrentModFolderPath}" VerticalAlignment="Center" Margin="8,0" FontSize="11" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Inspector.CurrentFolderPath}" VerticalAlignment="Center" Margin="8,0" FontSize="11" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis"/>
                                 </Grid>
                             </Border>
-                            <ListBox Grid.Row="1" ItemsSource="{Binding CurrentModFiles}" Background="Transparent">
+                            <ListBox Grid.Row="1" ItemsSource="{Binding Inspector.Files}" Background="Transparent">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:ModFileItem">
-                                        <Button Command="{Binding $parent[Window].DataContext.NavigateIntoCommand}" CommandParameter="{Binding}" Background="Transparent" Padding="0" HorizontalAlignment="Stretch">
+                                        <Button Command="{Binding $parent[Window].DataContext.Inspector.NavigateIntoCommand}" CommandParameter="{Binding}" Background="Transparent" Padding="0" HorizontalAlignment="Stretch">
                                             <Grid ColumnDefinitions="24, *, Auto" Height="28">
                                                 <Panel Grid.Column="0">
                                                     <TextBlock IsVisible="{Binding IsDirectory}" Text="📁" VerticalAlignment="Center" Opacity="0.7"/>
@@ -494,7 +494,7 @@
                     <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding AllMods.Count, StringFormat='{}{0} Mods'}" FontSize="10" Foreground="{DynamicResource TextSubtle}"/>
+                    <TextBlock Text="{Binding ModList.AllMods.Count, StringFormat='{}{0} Mods'}" FontSize="10" Foreground="{DynamicResource TextSubtle}"/>
                     <TextBlock Text="·" Foreground="{DynamicResource TextSubtle}"/>
                     <TextBlock Text="{Binding SafeSwapStatusText}" Foreground="{Binding SafeSwapStatusColor}" FontSize="10" FontWeight="SemiBold"/>
                 </StackPanel>

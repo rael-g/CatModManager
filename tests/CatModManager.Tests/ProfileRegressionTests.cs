@@ -58,7 +58,8 @@ public class ProfileRegressionTests : IDisposable
             _configService,
             _gameSupportService,
             new GameDiscoveryService(_gameSupportService),
-            new NullRootSwapService()
+            new NullRootSwapService(),
+            new CatModManager.Ui.Plugins.AppSessionState()
         );
     }
 
@@ -81,18 +82,18 @@ public class ProfileRegressionTests : IDisposable
         // Setup initial profiles
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
         string profileA = vm.ProfileManager.CurrentProfileName!;
-        vm.ModsFolderPath = "PathA";
+        vm.GameConfig.ModsFolderPath = "PathA";
         await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(profileA);
 
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
         string profileB = vm.ProfileManager.CurrentProfileName!;
-        vm.ModsFolderPath = "PathB";
+        vm.GameConfig.ModsFolderPath = "PathB";
         await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(profileB);
 
         // Switch USING THE COMMAND to avoid race condition of the property setter
         await vm.ProfileManager.LoadProfileCommand.ExecuteAsync(profileA);
 
-        Assert.Equal("PathA", vm.ModsFolderPath);
+        Assert.Equal("PathA", vm.GameConfig.ModsFolderPath);
     }
 
     [Fact]
@@ -111,6 +112,7 @@ public class ProfileRegressionTests : IDisposable
         public string ProfilesPath => Path.Combine(BaseDataPath, "profiles");
         public string GameSupportsPath => Path.Combine(BaseDataPath, "game_definitions");
         public string ActiveMountsFile => Path.Combine(BaseDataPath, "active_mounts.toml");
+        public string DownloadsPath => Path.Combine(BaseDataPath, "downloads");
         public MockCatPathService(string path) => BaseDataPath = path;
         public string GetProfilePath(string n) => Path.Combine(ProfilesPath, n + ".toml");
     }

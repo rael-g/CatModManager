@@ -38,17 +38,17 @@ public class HeadlessUiTests
         }
         
         window.Show();
-        vm.SelectedMod = null; // Ensure it's null
-        
+        vm.ModList.SelectedMod = null; // Ensure it's null
+
         var inspectorContent = window.FindControl<StackPanel>("InspectorContent");
         Assert.NotNull(inspectorContent);
-        
+
         // Wait for layout/bindings
         Dispatcher.UIThread.RunJobs();
-        
+
         Assert.False(inspectorContent.IsVisible, "Inspector should be hidden when SelectedMod is null");
 
-        vm.SelectedMod = new CatModManager.Core.Models.Mod("Test", "path", 0, true, "Cat");
+        vm.ModList.SelectedMod = new CatModManager.Core.Models.Mod("Test", "path", 0, true, "Cat");
         Dispatcher.UIThread.RunJobs();
         
         Assert.True(inspectorContent.IsVisible, "Inspector should be visible when SelectedMod is set");
@@ -87,7 +87,7 @@ public class HeadlessUiTests
         // is always false at runtime; verify the ViewModel reflects this.
         var app = (App)Application.Current!;
         var vm = app.Services!.GetRequiredService<MainWindowViewModel>();
-        Assert.False(vm.IsDriverMissing);
+        Assert.False(vm.GameConfig.IsDriverMissing);
     }
 
     [AvaloniaFact]

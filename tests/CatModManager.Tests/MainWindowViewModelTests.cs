@@ -70,7 +70,8 @@ public class MainWindowViewModelTests : IDisposable
             _mockConfigService,
             _mockGameSupportService,
             new GameDiscoveryService(_mockGameSupportService),
-            new NullRootSwapService());
+            new NullRootSwapService(),
+            new CatModManager.Ui.Plugins.AppSessionState());
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public class MainWindowViewModelTests : IDisposable
     public async Task Shutdown_Cleanup_Logic()
     {
         var vm = CreateViewModel();
-        vm.BaseFolderPath = _tempDir;
+        vm.GameConfig.BaseFolderPath = _tempDir;
         
         _mockVfs.IsMounted = true;
 
@@ -124,8 +125,8 @@ public class MainWindowViewModelTests : IDisposable
     public async Task MountButton_State_WhenMounted()
     {
         var vm = CreateViewModel();
-        vm.BaseFolderPath = _tempDir;
-        vm.DataSubFolder = "Data";
+        vm.GameConfig.BaseFolderPath = _tempDir;
+        vm.GameConfig.DataSubFolder = "Data";
         
         await vm.ToggleMountCommand.ExecuteAsync(null);
         
@@ -140,10 +141,10 @@ public class MainWindowViewModelTests : IDisposable
         var mod1 = new Mod("Mod1", "Path1", 10);
         var mod2 = new Mod("Mod2", "Path2", 20);
         
-        vm.AllMods.Add(mod1);
-        vm.AllMods.Add(mod2);
+        vm.ModList.AllMods.Add(mod1);
+        vm.ModList.AllMods.Add(mod2);
 
-        var displayed = vm.DisplayedMods.ToList();
+        var displayed = vm.ModList.DisplayedMods.ToList();
         Assert.Equal("Mod2", displayed[0].Name);
         Assert.Equal("Mod1", displayed[1].Name);
     }
@@ -154,9 +155,10 @@ public class MainWindowViewModelTests : IDisposable
         public string ProfilesPath => Path.Combine(BaseDataPath, "profiles");
         public string GameSupportsPath => Path.Combine(BaseDataPath, "game_definitions");
         public string ActiveMountsFile => Path.Combine(BaseDataPath, "active_mounts.toml");
+        public string DownloadsPath => Path.Combine(BaseDataPath, "downloads");
         public string GetProfilePath(string n) => Path.Combine(ProfilesPath, n + ".toml");
     }
-    
+
     private class MockModScanner : IModScanner {
         public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) => Task.FromResult(Enumerable.Empty<Mod>());
     }

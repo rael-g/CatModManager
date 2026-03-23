@@ -110,7 +110,8 @@ public class BugReproductionTests : IDisposable
             configService,
             gameSupportService,
             new GameDiscoveryService(gameSupportService),
-            new NullRootSwapService());
+            new NullRootSwapService(),
+            new CatModManager.Ui.Plugins.AppSessionState());
 
         // ACT
         await Task.Run(() => vm.Shutdown());
@@ -125,6 +126,7 @@ public class BugReproductionTests : IDisposable
         public string ProfilesPath => Path.Combine(BaseDataPath, "profiles");
         public string GameSupportsPath => Path.Combine(BaseDataPath, "game_definitions");
         public string ActiveMountsFile => Path.Combine(BaseDataPath, "active_mounts.toml");
+        public string DownloadsPath => Path.Combine(BaseDataPath, "downloads");
         public string GetProfilePath(string name) => Path.Combine(ProfilesPath, name + ".toml");
     }
 
