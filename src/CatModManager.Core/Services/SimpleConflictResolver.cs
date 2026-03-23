@@ -53,9 +53,9 @@ public class SimpleConflictResolver : IConflictResolver
                     using var archive = ArchiveFactory.Open(mod.RootPath);
                     foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
                     {
-                        string targetPath = StripDataPrefix(NormalizePath(entry.Key), prefixesToStrip);
+                        string targetPath = StripDataPrefix(NormalizePath(entry.Key ?? ""), prefixesToStrip);
                         if (!string.IsNullOrEmpty(targetPath))
-                            finalMap[targetPath] = new ArchiveFileSource(mod.RootPath, entry.Key, (long)entry.Size, entry.LastModifiedTime ?? DateTime.Now);
+                            finalMap[targetPath] = new ArchiveFileSource(mod.RootPath, entry.Key ?? "", (long)entry.Size, entry.LastModifiedTime ?? DateTime.Now);
                     }
                 }
                 catch (Exception ex) { _logService.LogError($"Failed to read mod archive: {mod.Name}", ex); }
@@ -142,7 +142,7 @@ public class SimpleConflictResolver : IConflictResolver
                 using var archive = ArchiveFactory.Open(mod.RootPath);
                 return archive.Entries
                     .Where(e => !e.IsDirectory)
-                    .Select(e => NormalizePath(e.Key))
+                    .Select(e => NormalizePath(e.Key ?? ""))
                     .ToList();
             }
             catch { }

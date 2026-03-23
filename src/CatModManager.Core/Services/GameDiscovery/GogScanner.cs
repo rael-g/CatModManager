@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Versioning;
 using Microsoft.Win32;
 
 namespace CatModManager.Core.Services.GameDiscovery;
@@ -10,6 +11,7 @@ public static class GogScanner
 {
     private const string GogGamesKey = @"SOFTWARE\WOW6432Node\GOG.com\Games";
 
+    [SupportedOSPlatform("windows")]
     public static IEnumerable<(string ExecutablePath, string InstallFolder, string Name)> GetInstalledGames()
     {
         RegistryKey? root = null;

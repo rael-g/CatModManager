@@ -82,7 +82,7 @@ public class ModManagementService : IModManagementService
         foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
         {
             var destPath = Path.Combine(targetFolder,
-                entry.Key.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
+                (entry.Key ?? "").Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
             using var inStream  = entry.OpenEntryStream();
             using var outStream = File.Create(destPath);
@@ -108,7 +108,7 @@ public class ModManagementService : IModManagementService
 
             var allEntries = archive.Entries
                 .Where(e => !e.IsDirectory)
-                .Select(e => (key: e.Key.Replace('/', '\\').Trim('\\'), entry: e))
+                .Select(e => (key: (e.Key ?? "").Replace('/', '\\').Trim('\\'), entry: e))
                 .ToList();
 
             foreach (var (destRelative, sourceRelative) in fileMapping)

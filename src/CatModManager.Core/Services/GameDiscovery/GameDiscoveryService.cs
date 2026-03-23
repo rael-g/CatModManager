@@ -52,45 +52,51 @@ public class GameDiscoveryService : IGameDiscoveryService
             .ToDictionary(g => g.Key, g => g.First());
 
         // ── Steam ──────────────────────────────────────────────────────────
-        try
+        if (OperatingSystem.IsWindows())
         {
-            foreach (var (appId, name, installDir, commonPath) in SteamScanner.GetInstalledApps())
+            try
             {
-                ct.ThrowIfCancellationRequested();
+                foreach (var (appId, name, installDir, commonPath) in SteamScanner.GetInstalledApps())
+                {
+                    ct.ThrowIfCancellationRequested();
 
-                var gameFolder = Path.GetFullPath(Path.Combine(commonPath, installDir));
-                if (!Directory.Exists(gameFolder) || !seenFolders.Add(gameFolder)) continue;
+                    var gameFolder = Path.GetFullPath(Path.Combine(commonPath, installDir));
+                    if (!Directory.Exists(gameFolder) || !seenFolders.Add(gameFolder)) continue;
 
-                // Find the best exe for this game folder.
-                IGameSupport? knownSupport = bySteamId.GetValueOrDefault(appId);
-                var exe = FindExe(gameFolder, knownSupport, name);
-                if (exe == null || !seenExes.Add(exe)) continue;
+                    // Find the best exe for this game folder.
+                    IGameSupport? knownSupport = bySteamId.GetValueOrDefault(appId);
+                    var exe = FindExe(gameFolder, knownSupport, name);
+                    if (exe == null || !seenExes.Add(exe)) continue;
 
-                // Auto-detect game support: first by AppId, then by CanSupport.
-                var detected = knownSupport ?? supports.FirstOrDefault(s => s.CanSupport(exe));
+                    // Auto-detect game support: first by AppId, then by CanSupport.
+                    var detected = knownSupport ?? supports.FirstOrDefault(s => s.CanSupport(exe));
 
-                results.Add(new GameInstallation(name, exe, gameFolder, "Steam", detected));
+                    results.Add(new GameInstallation(name, exe, gameFolder, "Steam", detected));
+                }
             }
+            catch (OperationCanceledException) { throw; }
+            catch { /* Steam not installed or unreadable */ }
         }
-        catch (OperationCanceledException) { throw; }
-        catch { /* Steam not installed or unreadable */ }
 
         ct.ThrowIfCancellationRequested();
 
         // ── GOG ────────────────────────────────────────────────────────────
-        try
+        if (OperatingSystem.IsWindows())
         {
-            foreach (var (exe, folder, name) in GogScanner.GetInstalledGames())
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                if (!seenFolders.Add(folder) || !seenExes.Add(exe)) continue;
+                foreach (var (exe, folder, name) in GogScanner.GetInstalledGames())
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (!seenFolders.Add(folder) || !seenExes.Add(exe)) continue;
 
-                var detected = supports.FirstOrDefault(s => s.CanSupport(exe));
-                results.Add(new GameInstallation(name, exe, folder, "GOG", detected));
+                    var detected = supports.FirstOrDefault(s => s.CanSupport(exe));
+                    results.Add(new GameInstallation(name, exe, folder, "GOG", detected));
+                }
             }
+            catch (OperationCanceledException) { throw; }
+            catch { /* GOG not installed */ }
         }
-        catch (OperationCanceledException) { throw; }
-        catch { /* GOG not installed */ }
 
         ct.ThrowIfCancellationRequested();
 

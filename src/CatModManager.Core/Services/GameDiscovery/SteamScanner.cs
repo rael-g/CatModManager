@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 
 namespace CatModManager.Core.Services.GameDiscovery;
@@ -8,6 +9,7 @@ namespace CatModManager.Core.Services.GameDiscovery;
 /// <summary>Scans Steam libraries to find installed games.</summary>
 public static class SteamScanner
 {
+    [SupportedOSPlatform("windows")]
     public static IEnumerable<(int AppId, string Name, string InstallDir, string CommonPath)> GetInstalledApps()
     {
         foreach (var libraryRoot in GetLibraryRoots())
@@ -42,6 +44,7 @@ public static class SteamScanner
         }
     }
 
+    [SupportedOSPlatform("windows")]
     private static IEnumerable<string> GetLibraryRoots()
     {
         var steamPath = GetSteamPath();
@@ -67,6 +70,7 @@ public static class SteamScanner
     private static string Normalize(string path)
         => Path.GetFullPath(path.Replace('/', Path.DirectorySeparatorChar));
 
+    [SupportedOSPlatform("windows")]
     private static string? GetSteamPath()
     {
         try

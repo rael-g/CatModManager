@@ -101,7 +101,7 @@ public class ReEngineModInstaller : IModInstaller
                 var mainWindow = (Application.Current?.ApplicationLifetime
                     as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
                 picker = new ReEngineVariantPickerWindow(variantFolders);
-                picked = await picker.ShowDialog<bool?>(mainWindow);
+                picked = await picker.ShowDialog<bool?>(mainWindow!);
             });
 
             if (picked != true || picker == null || picker.SelectedVariants.Count == 0)

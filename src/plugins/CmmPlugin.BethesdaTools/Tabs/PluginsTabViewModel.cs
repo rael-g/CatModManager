@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using CatModManager.PluginSdk;
-using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Models;
 using CmmPlugin.BethesdaTools.Services;
 

@@ -4,7 +4,6 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CatModManager.PluginSdk;
-using CatModManager.PluginSdk;
 using CmmPlugin.FomodInstaller.Models;
 using CmmPlugin.FomodInstaller.Parser;
 using CmmPlugin.FomodInstaller.Wizard;
@@ -41,7 +40,7 @@ public class FomodModInstaller : IModInstaller
                 as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 
             var wizard = new FomodWizardWindow(config, _log);
-            result = await wizard.ShowDialog<InstallResult?>(mainWindow)
+            result = await wizard.ShowDialog<InstallResult?>(mainWindow!)
                      ?? InstallResult.Failure("Installation cancelled by user.");
         });
 
