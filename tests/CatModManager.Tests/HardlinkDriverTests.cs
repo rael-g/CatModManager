@@ -179,12 +179,60 @@ public class HardlinkDriverTests : IDisposable
         Assert.False(File.Exists(destFile));
     }
 
+    [WindowsFact]
+    public void Mount_CrossVolumeFallback_CopiesFileWhenHardLinkFails()
+    {
+        // Simulate a cross-volume scenario by using a driver subclass that always
+        // reports ERROR_NOT_SAME_DEVICE from CreateHardLinkW, forcing the copy path.
+        var sourceFile = Path.Combine(_modDir, "pak.pak");
+        File.WriteAllText(sourceFile, "mod content");
+
+        var driver = new CrossVolumeSimulatingDriver(_store);
+        driver.Mount(_gameDir, SingleFileFs("pak.pak", sourceFile));
+
+        var destFile = Path.Combine(_gameDir, "pak.pak");
+        Assert.True(File.Exists(destFile), "File should be deployed via copy");
+        Assert.Equal("mod content", File.ReadAllText(destFile));
+
+        driver.Unmount();
+        Assert.False(File.Exists(destFile), "Copied file should be removed on unmount");
+    }
+
+    [WindowsFact]
+    public void Mount_CrossVolumeFallback_RestoresBackupOnUnmount()
+    {
+        var gameFile = Path.Combine(_gameDir, "pak.pak");
+        File.WriteAllText(gameFile, "original");
+
+        var sourceFile = Path.Combine(_modDir, "pak.pak");
+        File.WriteAllText(sourceFile, "mod content");
+
+        var driver = new CrossVolumeSimulatingDriver(_store);
+        driver.Mount(_gameDir, SingleFileFs("pak.pak", sourceFile));
+        driver.Unmount();
+
+        Assert.True(File.Exists(gameFile));
+        Assert.Equal("original", File.ReadAllText(gameFile));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, true); } catch { }
     }
 
     // ── mocks ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Simulates a cross-volume mount by always choosing the File.Copy path
+    /// (overrides DeployFile to skip CreateHardLinkW entirely).
+    /// </summary>
+    private class CrossVolumeSimulatingDriver : HardlinkDriver
+    {
+        public CrossVolumeSimulatingDriver(IHardlinkStateStore store) : base(store) { }
+
+        internal override void DeployFile(string sourcePath, string destPath, string relPath)
+            => File.Copy(sourcePath, destPath, overwrite: true);
+    }
 
     private class MockCatPathService : ICatPathService
     {

@@ -14,21 +14,24 @@ namespace CatModManager.VirtualFileSystem.Windows;
 ///     as the source file — O(1), no bytes copied, no extra disk space.
 ///   • The game sees the file as a normal NTFS file: DRM, anti-cheat and file
 ///     verifiers (Steam/GOG) are fully transparent.
-///   • Because mods are always installed inside the game folder (same volume),
-///     the same-volume constraint of hard links is always satisfied.
+///
+/// Cross-volume fallback:
+///   If the mod folder is on a different drive than the game folder,
+///   CreateHardLinkW fails with ERROR_NOT_SAME_DEVICE. In that case the driver
+///   falls back to File.Copy. Unmount cleans up copied files exactly like links.
 ///
 /// Backup strategy:
 ///   If a game file already exists at the link destination, it is renamed to
 ///   ".<originalName>" (hidden dot-prefix) before linking. No suffix is added.
 ///   On Windows the backup is also given the Hidden attribute.
-///   On unmount the link is deleted and the backup is restored.
+///   On unmount the link/copy is deleted and the backup is restored.
 ///
 /// Crash recovery:
 ///   All deployed links are persisted via IHardlinkStateStore (SQLite-backed).
 ///   VfsOrchestrationService calls Unmount() on startup — a fresh instance with
 ///   no in-memory state will load all stale DB entries and clean them up.
 /// </summary>
-public sealed class HardlinkDriver : IFileSystemDriver
+public class HardlinkDriver : IFileSystemDriver
 {
     private readonly IHardlinkStateStore _store;
 
@@ -51,7 +54,7 @@ public sealed class HardlinkDriver : IFileSystemDriver
         _mountPoint = mountPoint;
         var entries = new List<HardlinkStateEntry>();
 
-        WalkAndLink(fileSystem, "", mountPoint, entries);
+        WalkAndLink(this, fileSystem, "", mountPoint, entries);
 
         try
         {
@@ -116,7 +119,7 @@ public sealed class HardlinkDriver : IFileSystemDriver
     // ── Link walk ────────────────────────────────────────────────────────────
 
     private static void WalkAndLink(
-        IFileSystem fs, string relDir, string mountPoint, List<HardlinkStateEntry> entries)
+        HardlinkDriver driver, IFileSystem fs, string relDir, string mountPoint, List<HardlinkStateEntry> entries)
     {
         foreach (var name in fs.ReadDirectory(relDir))
         {
@@ -126,7 +129,7 @@ public sealed class HardlinkDriver : IFileSystemDriver
 
             if (info.IsDirectory)
             {
-                WalkAndLink(fs, rel, mountPoint, entries);
+                WalkAndLink(driver, fs, rel, mountPoint, entries);
                 continue;
             }
 
@@ -150,11 +153,29 @@ public sealed class HardlinkDriver : IFileSystemDriver
                 TryHide(backupPath);
             }
 
-            if (!CreateHardLinkW(destPath, physPath, IntPtr.Zero))
-                throw new IOException(
-                    $"CreateHardLink failed for '{rel}': Win32 error {Marshal.GetLastWin32Error()}");
+            driver.DeployFile(physPath, destPath, rel);
 
             entries.Add(new HardlinkStateEntry(rel, destPath, backupPath));
+        }
+    }
+
+    // ── Deploy (overridable for testing) ─────────────────────────────────────
+
+    /// <summary>
+    /// Deploys <paramref name="sourcePath"/> to <paramref name="destPath"/>.
+    /// Tries a hard link first; falls back to File.Copy when source and destination
+    /// are on different volumes (Win32 error 17 — ERROR_NOT_SAME_DEVICE).
+    /// </summary>
+    internal virtual void DeployFile(string sourcePath, string destPath, string relPath)
+    {
+        if (!CreateHardLinkW(destPath, sourcePath, IntPtr.Zero))
+        {
+            int err = Marshal.GetLastWin32Error();
+            const int ErrorNotSameDevice = 17; // cross-volume
+            if (err == ErrorNotSameDevice)
+                File.Copy(sourcePath, destPath, overwrite: true);
+            else
+                throw new IOException($"CreateHardLink failed for '{relPath}': Win32 error {err}");
         }
     }
 
