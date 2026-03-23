@@ -41,7 +41,7 @@ public class NexusBrowseWindow : Window
     private readonly NexusDownloadService? _downloadService;
     private readonly Func<string>?        _getDownloadsFolder;
     private readonly string               _gameDomain      = null!;
-    private readonly int                  _gameId;
+    private int                           _gameId;
 
     // ── UI controls ───────────────────────────────────────────────────────────
 
@@ -55,6 +55,7 @@ public class NexusBrowseWindow : Window
     // ── State ─────────────────────────────────────────────────────────────────
 
     private BrowseSort _sort         = BrowseSort.Trending;
+    private bool       _includeAdult = false;
     private int        _offset       = 0;
     private int        _total        = 0;
     private CancellationTokenSource? _cts;
@@ -108,10 +109,10 @@ public class NexusBrowseWindow : Window
         clearBtn.Click += (_, _) => { _searchBox.Text = string.Empty; FireSearch(); };
 
         var searchRow = new DockPanel { Margin = new Thickness(10, 8, 10, 4) };
-        DockPanel.SetDock(searchBtn, Dock.Right);
         DockPanel.SetDock(clearBtn,  Dock.Right);
-        searchRow.Children.Add(searchBtn);
+        DockPanel.SetDock(searchBtn, Dock.Right);
         searchRow.Children.Add(clearBtn);
+        searchRow.Children.Add(searchBtn);
         searchRow.Children.Add(_searchBox);
 
         // ── Sort + category bar ───────────────────────────────────────────────
@@ -132,10 +133,29 @@ public class NexusBrowseWindow : Window
         };
         _categoryCombo.SelectionChanged += (_, _) => FireSearch();
 
+        var adultCheck = new CheckBox
+        {
+            Content           = "Adult content",
+            Foreground        = MutedBrush,
+            FontSize          = 11,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsChecked         = false,
+        };
+        adultCheck.IsCheckedChanged += (_, _) => { _includeAdult = adultCheck.IsChecked == true; FireSearch(); };
+
+        var rightControls = new StackPanel
+        {
+            Orientation       = Orientation.Horizontal,
+            Spacing           = 8,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        rightControls.Children.Add(adultCheck);
+        rightControls.Children.Add(_categoryCombo);
+
         var filterRow = new DockPanel { Margin = new Thickness(10, 0, 10, 8) };
-        DockPanel.SetDock(_categoryCombo, Dock.Right);
+        DockPanel.SetDock(rightControls, Dock.Right);
+        filterRow.Children.Add(rightControls);
         filterRow.Children.Add(_sortButtons);
-        filterRow.Children.Add(_categoryCombo);
 
         var topPanel = new StackPanel { Background = HeaderBrush };
         topPanel.Children.Add(searchRow);
@@ -203,6 +223,7 @@ public class NexusBrowseWindow : Window
 
     private async Task LoadCategoriesAsync()
     {
+        if (_gameId == 0) _gameId = await _api.GetGameIdAsync(_gameDomain);
         if (_gameId == 0) return;
         var names = await _api.GetCategoryNamesAsync(_gameDomain);
         // Insert blank "all" item at top (null tag = no filter)
@@ -286,7 +307,13 @@ public class NexusBrowseWindow : Window
 
         if (_gameId == 0)
         {
-            SetStatus($"Game '{_gameDomain}' not in GameDomainToId map — browse unavailable.");
+            SetStatus($"Resolving game ID for '{_gameDomain}'…");
+            _gameId = await _api.GetGameIdAsync(_gameDomain, ct);
+        }
+
+        if (_gameId == 0)
+        {
+            SetStatus($"Game '{_gameDomain}' not found on Nexus Mods — browse unavailable.");
             return;
         }
 
@@ -295,10 +322,10 @@ public class NexusBrowseWindow : Window
 
         if (string.IsNullOrEmpty(query))
             (mods, total) = await _api.GetBrowseModsAsync(
-                _gameDomain, _gameId, _sort, categoryName: category, offset: _offset, ct: ct);
+                _gameDomain, _gameId, _sort, categoryName: category, includeAdult: _includeAdult, offset: _offset, ct: ct);
         else
             (mods, total) = await _api.SearchModsAsync(
-                _gameDomain, _gameId, query, categoryName: category, offset: _offset, ct: ct);
+                _gameDomain, _gameId, query, categoryName: category, includeAdult: _includeAdult, offset: _offset, ct: ct);
 
         if (ct.IsCancellationRequested) return;
 

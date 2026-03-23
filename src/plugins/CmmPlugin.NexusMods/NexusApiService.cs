@@ -188,6 +188,25 @@ public class NexusApiService
     public static int GetGameId(string gameDomain)
         => GameDomainToId.TryGetValue(gameDomain, out var id) ? id : 0;
 
+    /// <summary>
+    /// Resolves the Nexus numeric game ID for <paramref name="gameDomain"/>.
+    /// Checks the hardcoded map first; falls back to the Nexus API (/v1/games/{domain}.json).
+    /// Result is cached so subsequent calls are free.
+    /// </summary>
+    public async Task<int> GetGameIdAsync(string gameDomain, CancellationToken ct = default)
+    {
+        if (GameDomainToId.TryGetValue(gameDomain, out var id)) return id;
+
+        // Fetch and cache via FetchGameDetailsAsync (also populates category cache)
+        var details = await FetchGameDetailsAsync(gameDomain, ct);
+        if (details?.Id > 0)
+        {
+            GameDomainToId[gameDomain] = details.Id;
+            return details.Id;
+        }
+        return 0;
+    }
+
     public async Task<string> ResolveCategoryAsync(string gameDomain, int categoryId, CancellationToken ct = default)
     {
         if (categoryId <= 0) return string.Empty;
@@ -203,6 +222,17 @@ public class NexusApiService
 
     private async Task<Dictionary<int, string>> FetchCategoriesAsync(string gameDomain, CancellationToken ct)
     {
+        var details = await FetchGameDetailsAsync(gameDomain, ct);
+        if (details == null) return new Dictionary<int, string>();
+
+        if (details.Id > 0 && !GameDomainToId.ContainsKey(gameDomain))
+            GameDomainToId[gameDomain] = details.Id;
+
+        return details.Categories.ToDictionary(c => c.CategoryId, c => c.Name);
+    }
+
+    private async Task<NexusGameDetails?> FetchGameDetailsAsync(string gameDomain, CancellationToken ct)
+    {
         try
         {
             var url = $"{BaseApiUrl}/games/{gameDomain}.json";
@@ -210,13 +240,11 @@ public class NexusApiService
             if (HasApiKey) request.Headers.Add("apikey", ApiKey);
             var response = await _http.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
-            var gameDetails = await response.Content.ReadFromJsonAsync<NexusGameDetails>(cancellationToken: ct);
-            return gameDetails?.Categories.ToDictionary(c => c.CategoryId, c => c.Name)
-                   ?? new Dictionary<int, string>();
+            return await response.Content.ReadFromJsonAsync<NexusGameDetails>(cancellationToken: ct);
         }
         catch
         {
-            return new Dictionary<int, string>();
+            return null;
         }
     }
 

@@ -29,7 +29,7 @@ public class NexusBrowseSidebarAction : ISidebarAction
 
     public void Execute()
     {
-        var gameDomain = _state.GameId ?? string.Empty;
+        var gameDomain = _state.NexusDomain ?? _state.GameId ?? string.Empty;
         var mainWindow = (Application.Current?.ApplicationLifetime
             as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 

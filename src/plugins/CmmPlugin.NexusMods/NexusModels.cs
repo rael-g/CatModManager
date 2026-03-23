@@ -317,6 +317,9 @@ public class NexusCategory
 /// <summary>Partial deserialization of GET /v1/games/{domain}.json — only the categories array is needed.</summary>
 public class NexusGameDetails
 {
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
     [JsonPropertyName("categories")]
     public List<NexusCategory> Categories { get; set; } = new();
 }
