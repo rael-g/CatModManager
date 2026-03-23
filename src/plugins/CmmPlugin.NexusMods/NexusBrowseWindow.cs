@@ -117,9 +117,14 @@ public class NexusBrowseWindow : Window
         searchRow.Children.Add(searchBtn);
         searchRow.Children.Add(_searchBox);
 
-        // ── Mode toggle (Mods | Collections) ─────────────────────────────────
+        // ── Mode toggle row (Mods | Collections) ─────────────────────────────
 
-        _modeButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        _modeButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing     = 0,
+            Margin      = new Thickness(10, 4, 10, 0),
+        };
         AddModeButton("Mods",        collections: false);
         AddModeButton("Collections", collections: true);
 
@@ -160,19 +165,14 @@ public class NexusBrowseWindow : Window
         rightControls.Children.Add(adultCheck);
         rightControls.Children.Add(_categoryCombo);
 
-        var filterRow = new DockPanel { Margin = new Thickness(10, 0, 10, 8) };
+        var filterRow = new DockPanel { Margin = new Thickness(10, 4, 10, 8) };
         DockPanel.SetDock(rightControls, Dock.Right);
         filterRow.Children.Add(rightControls);
-
-        // Mode toggle left-aligned, then sort buttons
-        var leftControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        leftControls.Children.Add(_modeButtons);
-        leftControls.Children.Add(new Border { Width = 1, Background = new SolidColorBrush(Color.Parse("#4F545C")), Margin = new Thickness(4, 4) });
-        leftControls.Children.Add(_sortButtons);
-        filterRow.Children.Add(leftControls);
+        filterRow.Children.Add(_sortButtons);
 
         var topPanel = new StackPanel { Background = HeaderBrush };
         topPanel.Children.Add(searchRow);
+        topPanel.Children.Add(_modeButtons);
         topPanel.Children.Add(filterRow);
 
         // ── Status bar ────────────────────────────────────────────────────────
