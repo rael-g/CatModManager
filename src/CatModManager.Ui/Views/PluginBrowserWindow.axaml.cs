@@ -5,6 +5,8 @@ namespace CatModManager.Ui.Views;
 
 public partial class PluginBrowserWindow : Window
 {
+    public PluginBrowserWindow() => InitializeComponent();
+
     public PluginBrowserWindow(PluginBrowserViewModel vm)
     {
         InitializeComponent();

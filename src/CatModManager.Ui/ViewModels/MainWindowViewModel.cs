@@ -120,14 +120,14 @@ public partial class MainWindowViewModel : ViewModelBase
         GameConfig.AutoSave = () => ProfileManager.AutoSave();
         GameConfig.Initialize();
 
+        Inspector = new ModInspectorViewModel(logService);
+        Inspector.SetStatusMessage = msg => StatusMessage = msg;
+
         ModList = new ModListViewModel();
         ModList.AutoSave        = () => ProfileManager.AutoSave();
         ModList.SuppressAutoSave = () => ProfileManager.SuppressAutoSave();
         ModList.SyncActiveMods  = SyncActiveModsToState;
         ModList.SelectedModChanged += mod => Inspector.OnModChanged(mod);
-
-        Inspector = new ModInspectorViewModel(logService);
-        Inspector.SetStatusMessage = msg => StatusMessage = msg;
 
         Tools = new ExternalToolsViewModel(processService, vfsOrchestrator, logService);
         Tools.IsVfsMounted  = () => IsVfsMounted;

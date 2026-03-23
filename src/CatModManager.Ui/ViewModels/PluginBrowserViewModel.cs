@@ -148,7 +148,7 @@ public partial class PluginBrowserViewModel : ObservableObject
         var nugetIds = manifest.Installed
             .ToDictionary(p => p.PackageId, p => p.Version, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var plugin in _pluginLoader.LoadedPlugins)
+        foreach (var plugin in _pluginLoader?.LoadedPlugins ?? [])
         {
             string assemblyName = plugin.GetType().Assembly.GetName().Name ?? plugin.Id;
             bool isNuGet = nugetIds.ContainsKey(assemblyName);

@@ -5,6 +5,8 @@ namespace CatModManager.Ui.Views;
 
 public partial class ConfirmDialog : Window
 {
+    public ConfirmDialog() => InitializeComponent();
+
     public ConfirmDialog(string title, string body)
     {
         InitializeComponent();
