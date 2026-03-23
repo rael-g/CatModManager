@@ -10,6 +10,7 @@ public interface IModManagementService
 {
     Task<string> InstallModAsync(string sourcePath, string targetBaseDir);
     Task<string> InstallModFromMappingAsync(string archivePath, string modName, string targetBaseDir, Dictionary<string, string> fileMapping);
+    Task<string> InstallModToRootAsync(string archivePath, string modName, string targetBaseDir);
 }
 
 public class ModManagementService : IModManagementService
@@ -79,14 +80,15 @@ public class ModManagementService : IModManagementService
     {
         Directory.CreateDirectory(targetFolder);
         using var archive = ArchiveFactory.Open(archivePath);
-        foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+        using var reader  = archive.ExtractAllEntries();
+        while (reader.MoveToNextEntry())
         {
+            if (reader.Entry.IsDirectory) continue;
             var destPath = Path.Combine(targetFolder,
-                (entry.Key ?? "").Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
+                (reader.Entry.Key ?? "").Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-            using var inStream  = entry.OpenEntryStream();
             using var outStream = File.Create(destPath);
-            inStream.CopyTo(outStream);
+            reader.WriteEntryTo(outStream);
         }
     }
 
@@ -104,47 +106,104 @@ public class ModManagementService : IModManagementService
         {
             _fileService.CreateDirectory(modFolder);
 
-            using var archive = ArchiveFactory.Open(archivePath);
-
-            var allEntries = archive.Entries
-                .Where(e => !e.IsDirectory)
-                .Select(e => (key: (e.Key ?? "").Replace('/', '\\').Trim('\\'), entry: e))
-                .ToList();
-
-            foreach (var (destRelative, sourceRelative) in fileMapping)
+            // Extract entire archive to a temp folder first (handles solid 7z archives
+            // where random-access OpenEntryStream() throws "File does not have a stream.").
+            var tempDir = Path.Combine(Path.GetTempPath(), $"cmm_extract_{Guid.NewGuid():N}");
+            try
             {
-                var normalizedDest   = destRelative.Replace('/', '\\').Trim('\\');
-                var normalizedSource = sourceRelative.Replace('/', '\\').Trim('\\');
+                ExtractArchive(archivePath, tempDir);
 
-                foreach (var (key, entry) in allEntries)
+                // Build a flat lookup of all extracted files (key = normalised relative path).
+                var extractedFiles = Directory
+                    .EnumerateFiles(tempDir, "*", SearchOption.AllDirectories)
+                    .Select(f => (
+                        key: f[tempDir.Length..].TrimStart(Path.DirectorySeparatorChar)
+                                               .Replace(Path.DirectorySeparatorChar, '\\'),
+                        path: f))
+                    .ToList();
+
+                foreach (var (destRelative, sourceRelative) in fileMapping)
                 {
-                    string? outputRelative = null;
+                    var normalizedDest   = destRelative.Replace('/', '\\').Trim('\\');
+                    var normalizedSource = sourceRelative.Replace('/', '\\').Trim('\\');
 
-                    if (key.Equals(normalizedSource, StringComparison.OrdinalIgnoreCase))
+                    foreach (var (key, filePath) in extractedFiles)
                     {
-                        outputRelative = normalizedDest;
+                        string? outputRelative = null;
+
+                        if (key.Equals(normalizedSource, StringComparison.OrdinalIgnoreCase))
+                        {
+                            outputRelative = normalizedDest;
+                        }
+                        else if (key.StartsWith(normalizedSource + "\\", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var part = key[(normalizedSource.Length + 1)..];
+                            outputRelative = string.IsNullOrEmpty(normalizedDest)
+                                ? part
+                                : normalizedDest + "\\" + part;
+                        }
+
+                        if (outputRelative == null) continue;
+
+                        var destPath = Path.Combine(modFolder, outputRelative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+                        File.Copy(filePath, destPath, overwrite: true);
                     }
-                    else if (key.StartsWith(normalizedSource + "\\", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var part = key[(normalizedSource.Length + 1)..];
-                        outputRelative = string.IsNullOrEmpty(normalizedDest)
-                            ? part
-                            : normalizedDest + "\\" + part;
-                    }
-
-                    if (outputRelative == null) continue;
-
-                    var destPath = Path.Combine(modFolder, outputRelative);
-                    Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-
-                    using var inStream  = entry.OpenEntryStream();
-                    using var outStream = File.Create(destPath);
-                    inStream.CopyTo(outStream);
                 }
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true);
             }
         });
 
         _logService.Log($"FOMOD installed: {modName} → {modFolder}");
+        return modFolder;
+    }
+
+    public async Task<string> InstallModToRootAsync(string archivePath, string modName, string targetBaseDir)
+    {
+        if (!_fileService.DirectoryExists(targetBaseDir))
+            _fileService.CreateDirectory(targetBaseDir);
+
+        var modFolder = Path.Combine(targetBaseDir, modName);
+        int suffix = 1;
+        while (_fileService.DirectoryExists(modFolder))
+            modFolder = Path.Combine(targetBaseDir, $"{modName} ({suffix++})");
+
+        var rootFolder = Path.Combine(modFolder, "Root");
+
+        await Task.Run(() =>
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), $"cmm_root_{Guid.NewGuid():N}");
+            try
+            {
+                ExtractArchive(archivePath, tempDir);
+
+                // Strip single wrapper folder (e.g. "skse64_2_02_06/") if present.
+                var topEntries = Directory.GetFileSystemEntries(tempDir);
+                var sourceDir  = topEntries.Length == 1 && Directory.Exists(topEntries[0])
+                    ? topEntries[0]
+                    : tempDir;
+
+                Directory.CreateDirectory(rootFolder);
+                foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+                {
+                    var rel  = file[sourceDir.Length..].TrimStart(Path.DirectorySeparatorChar);
+                    var dest = Path.Combine(rootFolder, rel);
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                    File.Copy(file, dest, overwrite: true);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true);
+            }
+        });
+
+        _logService.Log($"Mod installed to Root: {modName} → {rootFolder}");
         return modFolder;
     }
 }
