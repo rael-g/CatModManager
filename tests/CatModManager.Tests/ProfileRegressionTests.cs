@@ -97,6 +97,32 @@ public class ProfileRegressionTests : IDisposable
     }
 
     [Fact]
+    public async Task RenameProfile_Should_Rename_And_Update_CurrentProfileName()
+    {
+        var vm = CreateVm();
+
+        // Create a profile with a known name
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
+        string originalName = vm.ProfileManager.CurrentProfileName!;
+
+        // Set a new name and rename
+        string newName = originalName + "_Renamed";
+        vm.ProfileManager.ProfileDisplayName = newName;
+        await vm.ProfileManager.RenameProfileCommand.ExecuteAsync(null);
+
+        // CurrentProfileName must be updated
+        Assert.Equal(newName, vm.ProfileManager.CurrentProfileName);
+        Assert.Contains(newName, vm.ProfileManager.AvailableProfiles);
+        Assert.DoesNotContain(originalName, vm.ProfileManager.AvailableProfiles);
+
+        // Old file must not exist; new file must exist
+        string oldPath = _pathService.GetProfilePath(originalName);
+        string newPath = _pathService.GetProfilePath(newName);
+        Assert.False(File.Exists(oldPath), $"Old profile file should be deleted: {oldPath}");
+        Assert.True(File.Exists(newPath), $"New profile file should exist: {newPath}");
+    }
+
+    [Fact]
     public async Task NewProfile_Should_Avoid_Duplicate_Names()
     {
         var vm = CreateVm();
@@ -140,7 +166,10 @@ public class ProfileRegressionTests : IDisposable
             return Task.FromResult<Profile?>(null);
         }
 
-        public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(_storage.Keys.Select(Path.GetFileNameWithoutExtension).AsEnumerable()!);
+        public Task<IEnumerable<string>> ListProfilesAsync(string d) =>
+            Task.FromResult(Directory.Exists(d)
+                ? Directory.GetFiles(d, "*.toml").AsEnumerable()
+                : Enumerable.Empty<string>());
     }
 
     private class NullRootSwapService : IRootSwapService
@@ -158,6 +187,7 @@ public class ProfileRegressionTests : IDisposable
     private class MockModManagementService : IModManagementService {
         public Task<string> InstallModAsync(string s, string d) => Task.FromResult("");
         public Task<string> InstallModFromMappingAsync(string a, string n, string t, Dictionary<string, string> m) => Task.FromResult(t);
+        public Task<string> InstallModToRootAsync(string a, string n, string t) => Task.FromResult(t);
     }
 
     private class MockFileService : IFileService {

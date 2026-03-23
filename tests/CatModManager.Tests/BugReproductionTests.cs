@@ -156,6 +156,7 @@ public class BugReproductionTests : IDisposable
     private class MockModManagementService : IModManagementService {
         public Task<string> InstallModAsync(string s, string t) => Task.FromResult("");
         public Task<string> InstallModFromMappingAsync(string a, string n, string t, Dictionary<string, string> m) => Task.FromResult(t);
+        public Task<string> InstallModToRootAsync(string a, string n, string t) => Task.FromResult(t);
     }
     private class MockFileService : IFileService {
         public bool FileExists(string p) => true;
