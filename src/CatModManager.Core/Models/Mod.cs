@@ -1,9 +1,10 @@
 using System.IO;
+using CatModManager.PluginSdk;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatModManager.Core.Models;
 
-public partial class Mod : ObservableObject
+public partial class Mod : ObservableObject, IModInfo
 {
     [ObservableProperty]
     private string _name = string.Empty;
@@ -30,7 +31,12 @@ public partial class Mod : ObservableObject
     private bool _isSeparator;
 
     /// <summary>True if this mod has a Root/ subfolder whose files will be deployed to the game root at mount time.</summary>
-    public bool HasRootFolder => !string.IsNullOrEmpty(RootPath) && Directory.Exists(Path.Combine(RootPath, "Root"));
+    /// <remarks>Computed at runtime; the setter is intentionally a no-op so TOML round-trips don't fail.</remarks>
+    public bool HasRootFolder
+    {
+        get => !string.IsNullOrEmpty(RootPath) && Directory.Exists(Path.Combine(RootPath, "Root"));
+        set { }
+    }
 
     public Mod() { }
 

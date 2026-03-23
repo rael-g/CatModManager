@@ -49,6 +49,19 @@ public class AppDatabase
                 dest_path             TEXT NOT NULL,
                 original_backup_path  TEXT
             );
+            CREATE TABLE IF NOT EXISTS hardlink_entries (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                mount_point TEXT NOT NULL,
+                rel_path    TEXT NOT NULL,
+                dest_path   TEXT NOT NULL,
+                backup_path TEXT
+            );
+            CREATE TABLE IF NOT EXISTS plugin_settings (
+                plugin_id TEXT NOT NULL,
+                key       TEXT NOT NULL,
+                value     TEXT NOT NULL,
+                PRIMARY KEY (plugin_id, key)
+            );
             """;
         cmd.ExecuteNonQuery();
     }

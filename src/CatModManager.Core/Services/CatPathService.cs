@@ -9,6 +9,7 @@ public class CatPathService : ICatPathService
     public string ProfilesPath => Path.Combine(BaseDataPath, "profiles");
     public string GameSupportsPath => Path.Combine(BaseDataPath, "game_definitions");
     public string ActiveMountsFile => Path.Combine(BaseDataPath, "active_mounts.toml");
+    public string DownloadsPath => Path.Combine(BaseDataPath, "downloads");
 
     public CatPathService()
     {
@@ -19,6 +20,7 @@ public class CatPathService : ICatPathService
         if (!Directory.Exists(BaseDataPath)) Directory.CreateDirectory(BaseDataPath);
         if (!Directory.Exists(ProfilesPath)) Directory.CreateDirectory(ProfilesPath);
         if (!Directory.Exists(GameSupportsPath)) Directory.CreateDirectory(GameSupportsPath);
+        if (!Directory.Exists(DownloadsPath)) Directory.CreateDirectory(DownloadsPath);
     }
 
     public string GetProfilePath(string profileName) 

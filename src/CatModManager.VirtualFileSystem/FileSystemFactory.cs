@@ -5,20 +5,14 @@ namespace CatModManager.VirtualFileSystem;
 
 public static class FileSystemFactory
 {
-    public static IFileSystemDriver CreateDriver()
+    public static IFileSystemDriver CreateDriver(IHardlinkStateStore stateStore)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return new CatModManager.VirtualFileSystem.Windows.HardlinkDriver();
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
+            return new CatModManager.VirtualFileSystem.Windows.HardlinkDriver(stateStore);
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return new CatModManager.VirtualFileSystem.Linux.FuseDriver();
-        }
-        
+
         throw new PlatformNotSupportedException("No file system driver available for this platform.");
     }
 }
-
-
-

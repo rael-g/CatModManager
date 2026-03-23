@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using Xunit;
 using CatModManager.VirtualFileSystem.Windows;
 using CatModManager.VirtualFileSystem;
+using CatModManager.Core.Services;
 
 namespace CatModManager.Tests;
 
@@ -24,9 +24,10 @@ public sealed class WindowsFactAttribute : FactAttribute
 
 public class HardlinkDriverTests : IDisposable
 {
-    private readonly string _root;
-    private readonly string _gameDir;
-    private readonly string _modDir;
+    private readonly string              _root;
+    private readonly string              _gameDir;
+    private readonly string              _modDir;
+    private readonly IHardlinkStateStore _store;
 
     public HardlinkDriverTests()
     {
@@ -35,14 +36,15 @@ public class HardlinkDriverTests : IDisposable
         _modDir  = Path.Combine(_root, "Mods", "Mod1");
         Directory.CreateDirectory(_gameDir);
         Directory.CreateDirectory(_modDir);
+
+        var db = new AppDatabase(new MockCatPathService(Path.Combine(_root, "AppData")));
+        _store = new SqliteHardlinkStateStore(db);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Creates a fake IFileSystem that serves a single file at the given relative path
-    /// from the given physical source file.
-    /// </summary>
+    private HardlinkDriver NewDriver() => new(_store);
+
     private static IFileSystem SingleFileFs(string relPath, string physPath)
         => new StubFileSystem(relPath, physPath);
 
@@ -54,35 +56,34 @@ public class HardlinkDriverTests : IDisposable
         var sourceFile = Path.Combine(_modDir, "pak.pak");
         File.WriteAllText(sourceFile, "mod content");
 
-        var driver = new HardlinkDriver();
+        var driver = NewDriver();
         driver.Mount(_gameDir, SingleFileFs("pak.pak", sourceFile));
 
         Assert.True(driver.IsMounted);
         var destFile = Path.Combine(_gameDir, "pak.pak");
         Assert.True(File.Exists(destFile), "Hard link should exist in game dir");
         Assert.Equal("mod content", File.ReadAllText(destFile));
+        driver.Unmount();
     }
 
     [WindowsFact]
     public void Mount_BacksUpExistingFile_WithDotPrefix()
     {
-        // Pre-existing game file
         var gameFile = Path.Combine(_gameDir, "pak.pak");
         File.WriteAllText(gameFile, "original content");
 
         var sourceFile = Path.Combine(_modDir, "pak.pak");
         File.WriteAllText(sourceFile, "mod content");
 
-        var driver = new HardlinkDriver();
+        var driver = NewDriver();
         driver.Mount(_gameDir, SingleFileFs("pak.pak", sourceFile));
 
-        // Backup must be dot-prefixed
         var backup = Path.Combine(_gameDir, ".pak.pak");
         Assert.True(File.Exists(backup), "Backup should be dot-prefixed");
         Assert.Equal("original content", File.ReadAllText(backup));
-
-        // Link replaces original
         Assert.Equal("mod content", File.ReadAllText(gameFile));
+
+        driver.Unmount();
     }
 
     [WindowsFact]
@@ -94,25 +95,22 @@ public class HardlinkDriverTests : IDisposable
         var sourceFile = Path.Combine(_modDir, "pak.pak");
         File.WriteAllText(sourceFile, "mod");
 
-        var driver = new HardlinkDriver();
+        var driver = NewDriver();
         driver.Mount(_gameDir, SingleFileFs("pak.pak", sourceFile));
         driver.Unmount();
 
         Assert.False(driver.IsMounted);
-        // Original restored
         Assert.True(File.Exists(gameFile));
         Assert.Equal("original", File.ReadAllText(gameFile));
-        // Backup removed
         Assert.False(File.Exists(Path.Combine(_gameDir, ".pak.pak")));
-        // State file cleaned up
+        // No .cmm_hl.json should exist — state is in DB now
         Assert.False(File.Exists(Path.Combine(_gameDir, ".cmm_hl.json")));
     }
 
     [WindowsFact]
     public void Unmount_WithoutPriorMount_IsNoop()
     {
-        var driver = new HardlinkDriver();
-        // Should not throw
+        var driver = NewDriver();
         driver.Unmount();
         Assert.False(driver.IsMounted);
     }
@@ -123,21 +121,20 @@ public class HardlinkDriverTests : IDisposable
         var sourceFile = Path.Combine(_modDir, "pak.pak");
         File.WriteAllText(sourceFile, "mod");
 
-        var driver = new HardlinkDriver();
+        var driver = NewDriver();
         driver.Mount(_gameDir, SingleFileFs("pak.pak", sourceFile));
 
-        // Second mount with a different content — should be ignored
         var sourceFile2 = Path.Combine(_modDir, "other.pak");
         File.WriteAllText(sourceFile2, "other");
         driver.Mount(_gameDir, SingleFileFs("other.pak", sourceFile2));
 
-        // Only the first file should exist
         Assert.True(File.Exists(Path.Combine(_gameDir, "pak.pak")));
         Assert.False(File.Exists(Path.Combine(_gameDir, "other.pak")));
+        driver.Unmount();
     }
 
     [WindowsFact]
-    public void CrashRecovery_StateFile_AllowsUnmountOnNewInstance()
+    public void CrashRecovery_NewInstance_CleansUpStaleLinks()
     {
         var gameFile   = Path.Combine(_gameDir, "pak.pak");
         File.WriteAllText(gameFile, "original");
@@ -145,37 +142,23 @@ public class HardlinkDriverTests : IDisposable
         var sourceFile = Path.Combine(_modDir, "pak.pak");
         File.WriteAllText(sourceFile, "mod");
 
-        // Mount with instance A — simulates crash (no Unmount called)
-        var driverA = new HardlinkDriver();
+        // driverA mounts but crashes (no Unmount called)
+        var driverA = NewDriver();
         driverA.Mount(_gameDir, SingleFileFs("pak.pak", sourceFile));
+        Assert.True(driverA.IsMounted);
 
-        // State file must exist
-        var stateFile = Path.Combine(_gameDir, ".cmm_hl.json");
-        Assert.True(File.Exists(stateFile), "State file must be written for crash recovery");
+        // driverB is a fresh instance on app restart — same DB, no in-memory state
+        var driverB = NewDriver();
+        Assert.False(driverB.IsMounted);
 
-        // Instance B simulates restart recovery: reads state file and reverses
-        var driverB = new HardlinkDriver();
-        driverB.Unmount(); // nothing mounted yet — noop
+        // Crash recovery: Unmount() on fresh instance loads all stale DB entries
+        driverB.Unmount();
 
-        // Simulate the VfsOrchestrationService pattern: set mount point then unmount
-        // HardlinkDriver.Unmount reads the state file at the game root it last set.
-        // To test crash recovery we need to set _mountPoint without going through Mount.
-        // The public API for this is: just call Unmount after setting state via reflection,
-        // or (simpler) verify that a fresh driver whose game dir has .cmm_hl.json can
-        // recover via the static helper path in Unmount().
-        // The driver reads _mountPoint from the state file path — but _mountPoint is set
-        // only by Mount(). So crash recovery requires passing the path explicitly.
-        // This is handled at a higher level by VfsOrchestrationService which persists
-        // the game folder in VfsStateService and calls Unmount on a fresh driver.
-        // For the driver itself, test that the state file contains the correct entries:
-        var json    = File.ReadAllText(stateFile);
-        var entries = JsonSerializer.Deserialize<JsonElement[]>(json);
-        Assert.NotNull(entries);
-        Assert.NotEmpty(entries);
-
-        // Cleanup: unmount A
-        driverA.Unmount();
+        // Original file must be restored
+        Assert.True(File.Exists(gameFile));
         Assert.Equal("original", File.ReadAllText(gameFile));
+        // Backup removed
+        Assert.False(File.Exists(Path.Combine(_gameDir, ".pak.pak")));
     }
 
     [WindowsFact]
@@ -185,7 +168,7 @@ public class HardlinkDriverTests : IDisposable
         var sourceFile = Path.Combine(_modDir, "Data", "mesh.bin");
         File.WriteAllText(sourceFile, "mesh data");
 
-        var driver = new HardlinkDriver();
+        var driver = NewDriver();
         driver.Mount(_gameDir, SingleFileFs(@"Data\mesh.bin", sourceFile));
 
         var destFile = Path.Combine(_gameDir, "Data", "mesh.bin");
@@ -199,6 +182,19 @@ public class HardlinkDriverTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, true); } catch { }
+    }
+
+    // ── mocks ─────────────────────────────────────────────────────────────────
+
+    private class MockCatPathService : ICatPathService
+    {
+        public string BaseDataPath { get; }
+        public string ProfilesPath     => Path.Combine(BaseDataPath, "profiles");
+        public string GameSupportsPath => Path.Combine(BaseDataPath, "game_definitions");
+        public string ActiveMountsFile => Path.Combine(BaseDataPath, "active_mounts.toml");
+        public string DownloadsPath    => Path.Combine(BaseDataPath, "downloads");
+        public MockCatPathService(string path) => BaseDataPath = path;
+        public string GetProfilePath(string n) => Path.Combine(ProfilesPath, n + ".toml");
     }
 
     // ── stub ─────────────────────────────────────────────────────────────────
@@ -220,7 +216,6 @@ public class HardlinkDriverTests : IDisposable
             if (normalized == _relPath)
                 return new FileSystemNodeInfo { IsDirectory = false };
 
-            // parent directories
             if (_relPath.StartsWith(normalized + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 return new FileSystemNodeInfo { IsDirectory = true };
 

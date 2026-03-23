@@ -43,15 +43,11 @@ public class ConfigService : IConfigService
         try
         {
             using var conn = _db.Open();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT INTO app_config (key, value) VALUES (@key, @value)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                """;
 
             void Upsert(string key, string value)
             {
-                cmd.Parameters.Clear();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "INSERT INTO app_config (key, value) VALUES (@key, @value) ON CONFLICT(key) DO UPDATE SET value = excluded.value";
                 cmd.Parameters.AddWithValue("@key",   key);
                 cmd.Parameters.AddWithValue("@value", value);
                 cmd.ExecuteNonQuery();
@@ -60,6 +56,6 @@ public class ConfigService : IConfigService
             Upsert("LastProfileName", _current.LastProfileName ?? string.Empty);
             Upsert("Theme",           _current.Theme           ?? "Dark");
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ConfigService.Save error: {ex}"); }
     }
 }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 
 namespace CatModManager.VirtualFileSystem.Windows;
 
@@ -25,18 +24,23 @@ namespace CatModManager.VirtualFileSystem.Windows;
 ///   On unmount the link is deleted and the backup is restored.
 ///
 /// Crash recovery:
-///   All deployed links are recorded in ".cmm_hl.json" at the game root.
-///   The file is hidden. VfsOrchestrationService calls Unmount() on startup
-///   when IsMounted is still true, which reads and reverses the state file.
+///   All deployed links are persisted via IHardlinkStateStore (SQLite-backed).
+///   VfsOrchestrationService calls Unmount() on startup — a fresh instance with
+///   no in-memory state will load all stale DB entries and clean them up.
 /// </summary>
 public sealed class HardlinkDriver : IFileSystemDriver
 {
-    private const string StateFileName = ".cmm_hl.json";
+    private readonly IHardlinkStateStore _store;
 
     private string? _mountPoint;
     private bool    _isMounted;
 
-    public bool IsMounted          => _isMounted;
+    public bool IsMounted => _isMounted;
+
+    public HardlinkDriver(IHardlinkStateStore store)
+    {
+        _store = store;
+    }
 
     // ── IFileSystemDriver ────────────────────────────────────────────────────
 
@@ -45,25 +49,48 @@ public sealed class HardlinkDriver : IFileSystemDriver
         if (_isMounted) return;
 
         _mountPoint = mountPoint;
-        var entries = new List<HardlinkEntry>();
+        var entries = new List<HardlinkStateEntry>();
 
         WalkAndLink(fileSystem, "", mountPoint, entries);
 
-        var statePath = Path.Combine(mountPoint, StateFileName);
-        File.WriteAllText(statePath, JsonSerializer.Serialize(entries,
-            new JsonSerializerOptions { WriteIndented = false }));
-        TryHide(statePath);
+        try
+        {
+            _store.Save(mountPoint, entries);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            foreach (var e in entries)
+            {
+                try
+                {
+                    if (File.Exists(e.DestPath)) File.Delete(e.DestPath);
+                    if (e.BackupPath != null && File.Exists(e.BackupPath))
+                        File.Move(e.BackupPath, e.DestPath, overwrite: true);
+                }
+                catch { }
+            }
+            throw new IOException(
+                $"Cannot persist crash-recovery state for '{mountPoint}'. " +
+                $"Run CMM as administrator or move the game outside of Program Files. ({ex.Message})", ex);
+        }
 
         _isMounted = true;
     }
 
     public void Unmount()
     {
-        if (!_isMounted && _mountPoint == null) return;
+        IReadOnlyList<HardlinkStateEntry> entries;
 
-        var root      = _mountPoint!;
-        var statePath = Path.Combine(root, StateFileName);
-        var entries   = LoadState(statePath);
+        if (!_isMounted && _mountPoint == null)
+        {
+            // Crash recovery: clean up any stale links from a previous session.
+            entries = _store.Load(null);
+            if (entries.Count == 0) return;
+        }
+        else
+        {
+            entries = _store.Load(_mountPoint);
+        }
 
         foreach (var e in entries)
         {
@@ -75,10 +102,10 @@ public sealed class HardlinkDriver : IFileSystemDriver
                 if (e.BackupPath != null && File.Exists(e.BackupPath))
                     File.Move(e.BackupPath, e.DestPath, overwrite: true);
             }
-            catch { /* best-effort: leave the state file for manual recovery */ }
+            catch { /* best-effort */ }
         }
 
-        try { File.Delete(statePath); } catch { }
+        _store.Clear(_mountPoint); // null → clears all
 
         _isMounted  = false;
         _mountPoint = null;
@@ -89,7 +116,7 @@ public sealed class HardlinkDriver : IFileSystemDriver
     // ── Link walk ────────────────────────────────────────────────────────────
 
     private static void WalkAndLink(
-        IFileSystem fs, string relDir, string mountPoint, List<HardlinkEntry> entries)
+        IFileSystem fs, string relDir, string mountPoint, List<HardlinkStateEntry> entries)
     {
         foreach (var name in fs.ReadDirectory(relDir))
         {
@@ -104,12 +131,15 @@ public sealed class HardlinkDriver : IFileSystemDriver
             }
 
             var physPath = fs.GetPhysicalPath(rel);
-            if (physPath == null) continue; // archive-backed — skipped
+            if (physPath == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HardlinkDriver] Skipping archive-backed file '{rel}' — extract the mod to a folder to deploy it.");
+                continue;
+            }
 
             var destPath = Path.Combine(mountPoint, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
 
-            // Backup any existing game file with a hidden dot-prefixed name
             string? backupPath = null;
             if (File.Exists(destPath))
             {
@@ -124,21 +154,8 @@ public sealed class HardlinkDriver : IFileSystemDriver
                 throw new IOException(
                     $"CreateHardLink failed for '{rel}': Win32 error {Marshal.GetLastWin32Error()}");
 
-            entries.Add(new HardlinkEntry(rel, destPath, backupPath));
+            entries.Add(new HardlinkStateEntry(rel, destPath, backupPath));
         }
-    }
-
-    // ── State file ───────────────────────────────────────────────────────────
-
-    private static List<HardlinkEntry> LoadState(string statePath)
-    {
-        try
-        {
-            if (!File.Exists(statePath)) return [];
-            return JsonSerializer.Deserialize<List<HardlinkEntry>>(
-                       File.ReadAllText(statePath)) ?? [];
-        }
-        catch { return []; }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -156,11 +173,4 @@ public sealed class HardlinkDriver : IFileSystemDriver
         string lpFileName,
         string lpExistingFileName,
         IntPtr lpSecurityAttributes);
-
-    // ── State record ─────────────────────────────────────────────────────────
-
-    private record HardlinkEntry(
-        string  RelPath,
-        string  DestPath,
-        string? BackupPath);
 }

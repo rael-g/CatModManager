@@ -5,7 +5,6 @@ using CatModManager.Ui.ViewModels;
 using CatModManager.Ui.Views;
 using CatModManager.Ui.Plugins;
 using CatModManager.Ui.Services;
-using CatModManager.Ui.Services;
 using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
@@ -95,7 +94,8 @@ public partial class App : Application
         services.AddSingleton<IRootSwapService, RootSwapService>();
 
         services.AddSingleton<IConflictResolver, SimpleConflictResolver>();
-        services.AddSingleton<IFileSystemDriver>(_ => FileSystemFactory.CreateDriver());
+        services.AddSingleton<IHardlinkStateStore>(sp => new SqliteHardlinkStateStore(sp.GetRequiredService<AppDatabase>()));
+        services.AddSingleton<IFileSystemDriver>(sp => FileSystemFactory.CreateDriver(sp.GetRequiredService<IHardlinkStateStore>()));
         // ISafeSwapStrategy: NoBaseSwapStrategy (HardlinkDriver/Windows) or
         //                    PassthroughSwapStrategy (FuseDriver/Linux).
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -104,17 +104,27 @@ public partial class App : Application
             services.AddSingleton<ISafeSwapStrategy, PassthroughSwapStrategy>();
         services.AddSingleton<IVirtualFileSystem, CatVirtualFileSystem>();
 
-        services.AddSingleton<IVfsOrchestrationService, VfsOrchestrationService>();
-        services.AddSingleton<IGameLaunchService, GameLaunchService>();
+        services.AddSingleton<IVfsOrchestrationService>(sp => new VfsOrchestrationService(
+            sp.GetRequiredService<IVirtualFileSystem>(),
+            sp.GetRequiredService<IVfsStateService>(),
+            sp.GetRequiredService<IDriverService>(),
+            sp.GetRequiredService<ILogService>(),
+            sp.GetRequiredService<IRootSwapService>(),
+            sp.GetRequiredService<UiExtensionHost>().VfsHooks));
+        services.AddSingleton<IGameLaunchService>(sp => new GameLaunchService(
+            sp.GetRequiredService<IProcessService>(),
+            sp.GetRequiredService<ILogService>(),
+            sp.GetRequiredService<UiExtensionHost>().LaunchHooks));
 
         services.AddSingleton<IEventBus, EventBus>();
         services.AddSingleton<UiExtensionHost>();
         services.AddSingleton<IPluginRegistrar>(sp => sp.GetRequiredService<UiExtensionHost>());
         services.AddSingleton<IPluginLogger>(sp => new LogServiceAdapter(sp.GetRequiredService<ILogService>()));
         services.AddSingleton<CmmSettingsFactory>(sp =>
-            new CmmSettingsFactory(sp.GetRequiredService<ICatPathService>().BaseDataPath));
+            new CmmSettingsFactory(sp.GetRequiredService<AppDatabase>()));
+        services.AddSingleton<AppSessionState>();
         services.AddSingleton<IModManagerState>(sp =>
-            new ModManagerStateAdapter(sp.GetRequiredService<MainWindowViewModel>()));
+            new ModManagerStateAdapter(sp.GetRequiredService<AppSessionState>()));
         services.AddSingleton<PluginLoader>();
 
         services.AddSingleton<NuGetPluginService>();

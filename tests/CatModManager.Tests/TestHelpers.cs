@@ -17,6 +17,7 @@ public class MockCatPathService : ICatPathService
     public string ProfilesPath => Path.Combine(BaseDataPath, "profiles");
     public string GameSupportsPath => Path.Combine(BaseDataPath, "game_definitions");
     public string ActiveMountsFile => Path.Combine(BaseDataPath, "active_mounts.toml");
+    public string DownloadsPath => Path.Combine(BaseDataPath, "downloads");
 
     public MockCatPathService(string baseDataPath)
     {

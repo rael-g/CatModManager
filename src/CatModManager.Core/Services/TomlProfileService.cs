@@ -30,8 +30,9 @@ public class TomlProfileService : IProfileService
                 
             return profile;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[TomlProfileService] LoadProfileAsync failed for '{filePath}': {ex}");
             return null;
         }
     }

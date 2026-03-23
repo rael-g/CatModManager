@@ -1,82 +1,79 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text.Json;
+using CatModManager.Core.Services;
 using CatModManager.PluginSdk;
 
 namespace CatModManager.Ui.Services;
 
 /// <summary>
-/// ICmmSettings implementation backed by a JSON file on disk.
-/// Each plugin receives an isolated instance pointed at its own file
-/// (AppDataPath/plugin_settings/{pluginId}.json).
+/// ICmmSettings backed by the SQLite plugin_settings table.
+/// Each plugin gets an isolated namespace via its plugin ID.
+/// Values are stored as JSON text to preserve type information.
 /// </summary>
-public class JsonCmmSettings : ICmmSettings
+public class SqliteCmmSettings : ICmmSettings
 {
-    private readonly string _filePath;
-    private Dictionary<string, JsonElement> _data = new(StringComparer.OrdinalIgnoreCase);
+    private readonly AppDatabase _db;
+    private readonly string      _pluginId;
 
-    private static readonly JsonSerializerOptions _opts = new()
-    {
-        WriteIndented = true
-    };
+    private static readonly JsonSerializerOptions _opts = new() { WriteIndented = false };
 
-    public JsonCmmSettings(string filePath)
+    public SqliteCmmSettings(AppDatabase db, string pluginId)
     {
-        _filePath = filePath;
-        Load();
+        _db       = db;
+        _pluginId = pluginId;
     }
 
     public T? Get<T>(string key)
     {
-        if (!_data.TryGetValue(key, out var element)) return default;
-        try { return element.Deserialize<T>(_opts); }
+        try
+        {
+            using var conn = _db.Open();
+            using var cmd  = conn.CreateCommand();
+            cmd.CommandText = "SELECT value FROM plugin_settings WHERE plugin_id = @pid AND key = @key";
+            cmd.Parameters.AddWithValue("@pid", _pluginId);
+            cmd.Parameters.AddWithValue("@key", key);
+            var raw = cmd.ExecuteScalar() as string;
+            if (raw == null) return default;
+            return JsonSerializer.Deserialize<T>(raw, _opts);
+        }
         catch { return default; }
     }
 
-    public void Set<T>(string value, T data)
-    {
-        _data[value] = JsonSerializer.SerializeToElement(data, _opts);
-    }
-
-    public void Save()
+    public void Set<T>(string key, T data)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(_data, _opts));
+            var json = JsonSerializer.Serialize(data, _opts);
+            using var conn = _db.Open();
+            using var cmd  = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO plugin_settings (plugin_id, key, value) VALUES (@pid, @key, @val)
+                ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value
+                """;
+            cmd.Parameters.AddWithValue("@pid", _pluginId);
+            cmd.Parameters.AddWithValue("@key", key);
+            cmd.Parameters.AddWithValue("@val", json);
+            cmd.ExecuteNonQuery();
         }
-        catch { /* best-effort */ }
+        catch { }
     }
 
-    private void Load()
-    {
-        if (!File.Exists(_filePath)) return;
-        try
-        {
-            var json = File.ReadAllText(_filePath);
-            _data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, _opts)
-                    ?? new(StringComparer.OrdinalIgnoreCase);
-        }
-        catch { _data = new(StringComparer.OrdinalIgnoreCase); }
-    }
+    /// <summary>No-op: SqliteCmmSettings writes on every Set call.</summary>
+    public void Save() { }
 }
 
 /// <summary>
-/// Creates per-plugin JsonCmmSettings instances scoped by plugin ID.
+/// Creates per-plugin SqliteCmmSettings instances scoped by plugin ID.
 /// </summary>
 public class CmmSettingsFactory
 {
-    private readonly string _baseDataPath;
+    private readonly AppDatabase _db;
 
-    public CmmSettingsFactory(string baseDataPath)
+    public CmmSettingsFactory(AppDatabase db)
     {
-        _baseDataPath = baseDataPath;
+        _db = db;
     }
 
     public ICmmSettings CreateForPlugin(string pluginId)
-    {
-        var filePath = Path.Combine(_baseDataPath, "plugin_settings", pluginId + ".json");
-        return new JsonCmmSettings(filePath);
-    }
+        => new SqliteCmmSettings(_db, pluginId);
 }
