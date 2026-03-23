@@ -21,6 +21,9 @@ public class GameDefinition
 
     public string[] RequiredFiles { get; set; } = Array.Empty<string>();
 
+    /// <summary>Optional glob pattern for locating save files (used by SaveManager plugin).</summary>
+    public string SaveFolderPattern { get; set; } = "";
+
     /// <summary>
     /// When true the VFS is skipped; mods deploy exclusively via RootSwap.
     /// Set to true for RE Engine games (exe cannot run from virtual filesystem).

@@ -9,4 +9,4 @@ RequiredFiles = ["re2.exe"]
 DataSubFolder = ""
 RootSwapOnly  = true
 
-SaveFolderPattern = "%APPDATA%\RE2"
+SaveFolderPattern = '%APPDATA%\RE2'

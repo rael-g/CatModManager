@@ -8,4 +8,4 @@ RequiredFiles = ["bin\\x64\\Cyberpunk2077.exe"]
 
 DataSubFolder = "archive\\pc\\mod"
 
-SaveFolderPattern = "%USERPROFILE%\Saved Games\CD Projekt Red\Cyberpunk 2077"
+SaveFolderPattern = '%USERPROFILE%\Saved Games\CD Projekt Red\Cyberpunk 2077'
