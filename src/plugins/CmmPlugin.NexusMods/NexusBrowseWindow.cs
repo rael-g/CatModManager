@@ -51,13 +51,15 @@ public class NexusBrowseWindow : Window
     private readonly StackPanel  _sortButtons   = null!;
     private readonly ComboBox    _categoryCombo = null!;
     private readonly Button      _loadMoreBtn   = null!;
+    private readonly StackPanel  _modeButtons   = null!;
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    private BrowseSort _sort         = BrowseSort.Trending;
-    private bool       _includeAdult = false;
-    private int        _offset       = 0;
-    private int        _total        = 0;
+    private BrowseSort _sort              = BrowseSort.Trending;
+    private bool       _includeAdult      = false;
+    private bool       _browseCollections = false;
+    private int        _offset            = 0;
+    private int        _total             = 0;
     private CancellationTokenSource? _cts;
 
     // ── AVLN3001 parameterless constructor ────────────────────────────────────
@@ -115,6 +117,12 @@ public class NexusBrowseWindow : Window
         searchRow.Children.Add(searchBtn);
         searchRow.Children.Add(_searchBox);
 
+        // ── Mode toggle (Mods | Collections) ─────────────────────────────────
+
+        _modeButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        AddModeButton("Mods",        collections: false);
+        AddModeButton("Collections", collections: true);
+
         // ── Sort + category bar ───────────────────────────────────────────────
 
         _sortButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
@@ -155,7 +163,13 @@ public class NexusBrowseWindow : Window
         var filterRow = new DockPanel { Margin = new Thickness(10, 0, 10, 8) };
         DockPanel.SetDock(rightControls, Dock.Right);
         filterRow.Children.Add(rightControls);
-        filterRow.Children.Add(_sortButtons);
+
+        // Mode toggle left-aligned, then sort buttons
+        var leftControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        leftControls.Children.Add(_modeButtons);
+        leftControls.Children.Add(new Border { Width = 1, Background = new SolidColorBrush(Color.Parse("#4F545C")), Margin = new Thickness(4, 4) });
+        leftControls.Children.Add(_sortButtons);
+        filterRow.Children.Add(leftControls);
 
         var topPanel = new StackPanel { Background = HeaderBrush };
         topPanel.Children.Add(searchRow);
@@ -234,6 +248,44 @@ public class NexusBrowseWindow : Window
         _categoryCombo.SelectedIndex = 0;
     }
 
+    // ── Mode buttons (Mods | Collections) ────────────────────────────────────
+
+    private void AddModeButton(string label, bool collections)
+    {
+        var btn = new Button
+        {
+            Content         = label,
+            Tag             = collections,
+            Padding         = new Thickness(10, 4),
+            FontSize        = 11,
+            BorderThickness = new Thickness(0),
+            CornerRadius    = new CornerRadius(3),
+            Cursor          = new Cursor(StandardCursorType.Hand),
+        };
+        btn.Click += (_, _) =>
+        {
+            _browseCollections = collections;
+            _searchBox.Text    = string.Empty;
+            // Show sort + category only in Mods mode
+            _sortButtons.IsVisible   = !_browseCollections;
+            _categoryCombo.IsVisible = !_browseCollections;
+            RefreshModeButtons();
+            FireSearch();
+        };
+        _modeButtons.Children.Add(btn);
+        RefreshModeButtons();
+    }
+
+    private void RefreshModeButtons()
+    {
+        foreach (var child in _modeButtons.Children.OfType<Button>())
+        {
+            bool active = child.Tag is bool b && b == _browseCollections;
+            child.Background = active ? AccentBrush : new SolidColorBrush(Color.Parse("#4F545C"));
+            child.Foreground = WhiteBrush;
+        }
+    }
+
     // ── Sort buttons ──────────────────────────────────────────────────────────
 
     private void AddSortButton(string label, BrowseSort sort)
@@ -299,11 +351,17 @@ public class NexusBrowseWindow : Window
             _loadMoreBtn.IsVisible = false;
         }
 
-        var query    = (_searchBox?.Text ?? "").Trim();
-        var category = SelectedCategory;
-
         SetStatus("Loading…");
         _loadMoreBtn.IsEnabled = false;
+
+        if (_browseCollections)
+        {
+            await LoadCollectionsAsync(reset, ct);
+            return;
+        }
+
+        var query    = (_searchBox?.Text ?? "").Trim();
+        var category = SelectedCategory;
 
         if (_gameId == 0)
         {
@@ -350,6 +408,41 @@ public class NexusBrowseWindow : Window
         var label = string.IsNullOrEmpty(query)
             ? $"Showing {_offset:N0} of {total:N0} mods"
             : $"{_offset:N0} of {total:N0} results for '{query}'";
+        SetStatus(label);
+    }
+
+    private async Task LoadCollectionsAsync(bool reset, CancellationToken ct)
+    {
+        var query = (_searchBox?.Text ?? "").Trim();
+
+        var (collections, total) = await _api.GetBrowseCollectionsAsync(
+            _gameDomain,
+            nameFilter: string.IsNullOrEmpty(query) ? null : query,
+            count: PageSize, offset: _offset, ct: ct);
+
+        if (ct.IsCancellationRequested) return;
+
+        _total   = total;
+        _offset += collections.Count;
+
+        if (collections.Count == 0 && reset)
+        {
+            SetStatus(string.IsNullOrEmpty(query)
+                ? $"No collections found for '{_gameDomain}'."
+                : $"No collections matching '{query}'.");
+            return;
+        }
+
+        foreach (var col in collections)
+            _resultsPanel.Children.Add(BuildCollectionCard(col));
+
+        _loadMoreBtn.IsVisible = _offset < total;
+        _loadMoreBtn.IsEnabled = true;
+        _loadMoreBtn.Content   = $"Load More ({_offset:N0} / {total:N0})";
+
+        var label = string.IsNullOrEmpty(query)
+            ? $"Showing {_offset:N0} of {total:N0} collections"
+            : $"{_offset:N0} of {total:N0} collections for '{query}'";
         SetStatus(label);
     }
 
@@ -427,6 +520,87 @@ public class NexusBrowseWindow : Window
             dlBtn.Click += async (_, _) => await QueueBestFileAsync(mod, dlBtn);
             btnPanel.Children.Add(dlBtn);
         }
+
+        var card = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(btnPanel, Dock.Right);
+        card.Children.Add(btnPanel);
+        card.Children.Add(infoStack);
+
+        var border = new Border
+        {
+            Background   = CardBrush,
+            CornerRadius = new CornerRadius(5),
+            Padding      = new Thickness(12, 10),
+            Child        = card,
+            Cursor       = new Cursor(StandardCursorType.Hand),
+        };
+
+        border.PointerEntered += (_, _) => border.Background = CardHover;
+        border.PointerExited  += (_, _) => border.Background = CardBrush;
+        border.Tapped         += (_, _) => OpenUrl(nexusUrl);
+
+        return border;
+    }
+
+    // ── Collection card builder ───────────────────────────────────────────────
+
+    private Control BuildCollectionCard(NexusBrowseCollection col)
+    {
+        var nexusUrl = $"https://www.nexusmods.com/{col.GameDomain}/collections/{col.Slug}";
+
+        var nameLabel = new TextBlock
+        {
+            Text         = col.Name,
+            FontSize     = 13,
+            FontWeight   = FontWeight.Bold,
+            Foreground   = WhiteBrush,
+            TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+
+        var metaParts = new List<string>();
+        if (!string.IsNullOrEmpty(col.Author))   metaParts.Add($"by {col.Author}");
+        if (!string.IsNullOrEmpty(col.Category)) metaParts.Add(col.Category);
+        if (col.Revision > 0)                    metaParts.Add($"rev {col.Revision}");
+        if (col.ModCount > 0)                    metaParts.Add($"{col.ModCount} mods");
+        var metaLabel = new TextBlock
+        {
+            Text       = string.Join("  ·  ", metaParts),
+            FontSize   = 11,
+            Foreground = MutedBrush,
+        };
+
+        var summaryLabel = new TextBlock
+        {
+            Text         = col.Summary,
+            FontSize     = 11,
+            Foreground   = DimBrush,
+            TextWrapping = TextWrapping.Wrap,
+            MaxHeight    = 34,
+            Margin       = new Thickness(0, 2, 0, 4),
+        };
+
+        var statsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
+        statsPanel.Children.Add(StatChip("↓", FormatNumber(col.Downloads),    GoldBrush));
+        statsPanel.Children.Add(StatChip("♥", FormatNumber(col.Endorsements), new SolidColorBrush(Color.Parse("#ED4245"))));
+
+        var infoStack = new StackPanel { Spacing = 2 };
+        infoStack.Children.Add(nameLabel);
+        infoStack.Children.Add(metaLabel);
+        infoStack.Children.Add(summaryLabel);
+        infoStack.Children.Add(statsPanel);
+
+        var openBtn = MakeBtn("Open ↗", AccentBrush);
+        openBtn.Click += (_, _) => OpenUrl(nexusUrl);
+
+        var btnPanel = new StackPanel
+        {
+            Orientation       = Orientation.Vertical,
+            Spacing           = 4,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(8, 0, 0, 0),
+        };
+        btnPanel.Children.Add(openBtn);
 
         var card = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(btnPanel, Dock.Right);

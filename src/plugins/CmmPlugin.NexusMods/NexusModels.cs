@@ -330,6 +330,72 @@ public class NexusGameDetails
 
 public enum BrowseSort { Trending, LatestAdded, LatestUpdated }
 
+// ── Collection browse models ─────────────────────────────────────────────────
+
+/// <summary>Unified collection record for the browse window.</summary>
+public class NexusBrowseCollection
+{
+    public int    Id           { get; set; }
+    public string Slug         { get; set; } = string.Empty;
+    public string Name         { get; set; } = string.Empty;
+    public string Summary      { get; set; } = string.Empty;
+    public string Author       { get; set; } = string.Empty;
+    public string Category     { get; set; } = string.Empty;
+    public long   Endorsements { get; set; }
+    public long   Downloads    { get; set; }
+    public int    Revision     { get; set; }
+    public int    ModCount     { get; set; }
+    public string GameDomain   { get; set; } = string.Empty;
+    public int    TotalCount   { get; set; }
+}
+
+public class NexusCollectionsV2GraphQlResponse
+{
+    [JsonPropertyName("data")]   public NexusCollectionsV2GraphQlData?         Data   { get; set; }
+    [JsonPropertyName("errors")] public List<System.Text.Json.JsonElement>? Errors { get; set; }
+}
+
+public class NexusCollectionsV2GraphQlData
+{
+    [JsonPropertyName("collectionsV2")] public NexusCollectionsV2Connection? CollectionsV2 { get; set; }
+}
+
+public class NexusCollectionsV2Connection
+{
+    [JsonPropertyName("nodes")]      public List<NexusCollectionV2Node> Nodes      { get; set; } = new();
+    [JsonPropertyName("totalCount")] public int                         TotalCount { get; set; }
+}
+
+public class NexusCollectionV2Node
+{
+    [JsonPropertyName("id")]                      public int                         Id                      { get; set; }
+    [JsonPropertyName("slug")]                    public string                      Slug                    { get; set; } = string.Empty;
+    [JsonPropertyName("name")]                    public string                      Name                    { get; set; } = string.Empty;
+    [JsonPropertyName("summary")]                 public string                      Summary                 { get; set; } = string.Empty;
+    [JsonPropertyName("endorsements")]            public long                        Endorsements            { get; set; }
+    [JsonPropertyName("totalDownloads")]          public long                        TotalDownloads          { get; set; }
+    [JsonPropertyName("latestPublishedRevision")] public NexusCollectionRevisionInfo? LatestPublishedRevision { get; set; }
+    [JsonPropertyName("user")]                    public NexusCollectionUserInfo?    User                    { get; set; }
+    [JsonPropertyName("category")]                public NexusCollectionCategoryInfo? Category               { get; set; }
+}
+
+public class NexusCollectionRevisionInfo
+{
+    [JsonPropertyName("revision")] public int Revision { get; set; }
+    [JsonPropertyName("modCount")] public int ModCount { get; set; }
+}
+
+public class NexusCollectionUserInfo
+{
+    [JsonPropertyName("name")]     public string Name     { get; set; } = string.Empty;
+    [JsonPropertyName("memberId")] public int    MemberId { get; set; }
+}
+
+public class NexusCollectionCategoryInfo
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+}
+
 /// <summary>Unified mod record for the browse window.</summary>
 public class NexusBrowseMod
 {

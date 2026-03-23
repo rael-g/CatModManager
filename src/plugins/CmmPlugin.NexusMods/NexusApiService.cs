@@ -413,6 +413,90 @@ public class NexusApiService
 
     private const string GraphQlUrl = "https://api.nexusmods.com/v2/graphql";
 
+    // ── Collections browse (v2 GraphQL) ──────────────────────────────────────
+
+    private const string CollectionsGqlQuery = """
+        query Collections($filter: CollectionFilter, $count: Int, $offset: Int) {
+          collectionsV2(filter: $filter, count: $count, offset: $offset) {
+            nodes {
+              id slug name summary endorsements totalDownloads
+              latestPublishedRevision { revision modCount }
+              user { name memberId }
+              category { name }
+            }
+            totalCount
+          }
+        }
+        """;
+
+    /// <summary>
+    /// Returns collections for the given game domain, sorted by downloads (most popular first).
+    /// No API key required.
+    /// </summary>
+    public Task<(List<NexusBrowseCollection> Collections, int Total)> GetBrowseCollectionsAsync(
+        string gameDomain, string? nameFilter = null,
+        int count = 20, int offset = 0, CancellationToken ct = default)
+    {
+        object filter = string.IsNullOrEmpty(nameFilter)
+            ? new { gameDomain = new { value = gameDomain, op = "EQUALS" } }
+            : new { gameDomain = new { value = gameDomain, op = "EQUALS" }, name = new { value = nameFilter, op = "MATCHES" } };
+
+        return QueryCollectionsAsync(gameDomain, filter, count, offset, ct);
+    }
+
+    private async Task<(List<NexusBrowseCollection> Collections, int Total)> QueryCollectionsAsync(
+        string gameDomain, object filter, int count, int offset, CancellationToken ct)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                query     = CollectionsGqlQuery,
+                variables = new { filter, count, offset }
+            });
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, GraphQlUrl)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+            req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
+            if (HasApiKey) req.Headers.Add("apikey", ApiKey);
+
+            var resp = await _http.SendAsync(req, ct);
+            resp.EnsureSuccessStatusCode();
+
+            var result = await resp.Content.ReadFromJsonAsync<NexusCollectionsV2GraphQlResponse>(cancellationToken: ct);
+
+            if (result?.Errors is { Count: > 0 } errors)
+                foreach (var err in errors)
+                    Console.Error.WriteLine($"[NexusApiService] Collections GraphQL error: {err}");
+
+            var nodes = result?.Data?.CollectionsV2?.Nodes ?? new List<NexusCollectionV2Node>();
+            var total = result?.Data?.CollectionsV2?.TotalCount ?? 0;
+
+            return (nodes.Select(n => new NexusBrowseCollection
+            {
+                Id           = n.Id,
+                Slug         = n.Slug,
+                Name         = n.Name,
+                Summary      = n.Summary,
+                Author       = n.User?.Name ?? string.Empty,
+                Category     = n.Category?.Name ?? string.Empty,
+                Endorsements = n.Endorsements,
+                Downloads    = n.TotalDownloads,
+                Revision     = n.LatestPublishedRevision?.Revision ?? 0,
+                ModCount     = n.LatestPublishedRevision?.ModCount ?? 0,
+                GameDomain   = gameDomain,
+                TotalCount   = total
+            }).ToList(), total);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.Error.WriteLine($"[NexusApiService] QueryCollectionsAsync error: {ex.Message}");
+            return (new List<NexusBrowseCollection>(), 0);
+        }
+    }
+
     /// <summary>
     /// Queries the Nexus v2 GraphQL API for the mod files in a collection revision.
     /// No API key required — same approach used by the MO2 NexusCollections plugin.
