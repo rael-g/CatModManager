@@ -249,6 +249,117 @@ public class NexusApiService
         }
     }
 
+    // ── Browse / search (v2 GraphQL) ─────────────────────────────────────────
+
+    private const string ModsGqlQuery = """
+        query Mods($filter: ModsFilter, $sort: [ModsSort!], $count: Int, $offset: Int) {
+          mods(filter: $filter, sort: $sort, count: $count, offset: $offset) {
+            nodes {
+              modId name summary author category
+              downloads endorsements version pictureUrl
+            }
+            totalCount
+          }
+        }
+        """;
+
+    /// <summary>
+    /// Full-text mod search via v2 GraphQL. Uses <c>nameStemmed: MATCHES</c> which performs
+    /// stemmed word matching across mod names. No API key required.
+    /// </summary>
+    public Task<(List<NexusBrowseMod> Mods, int Total)> SearchModsAsync(
+        string gameDomain, int gameId, string query,
+        bool includeAdult = false, int count = 30, int offset = 0, CancellationToken ct = default)
+    {
+        var filter = new Dictionary<string, object>
+        {
+            ["gameId"]      = new[] { new { op = "EQUALS", value = gameId.ToString() } },
+            ["nameStemmed"] = new[] { new { op = "MATCHES", value = query } },
+            ["op"]          = "AND"
+        };
+        if (!includeAdult)
+            filter["adultContent"] = new[] { new { op = "EQUALS", value = "false" } };
+
+        return QueryModsAsync(gameDomain, filter,
+            sort: new[] { new Dictionary<string, object> { ["relevance"] = new { direction = "DESC" } } },
+            count, offset, ct);
+    }
+
+    /// <summary>
+    /// Returns trending / latest-added / latest-updated mods for a game via v2 GraphQL.
+    /// No API key required.
+    /// </summary>
+    public Task<(List<NexusBrowseMod> Mods, int Total)> GetBrowseModsAsync(
+        string gameDomain, int gameId, BrowseSort sort = BrowseSort.Trending,
+        bool includeAdult = false, int count = 30, int offset = 0, CancellationToken ct = default)
+    {
+        var sortField = sort switch
+        {
+            BrowseSort.LatestAdded   => "createdAt",
+            BrowseSort.LatestUpdated => "updatedAt",
+            _                        => "downloads"
+        };
+
+        var filter = new Dictionary<string, object>
+        {
+            ["gameId"] = new[] { new { op = "EQUALS", value = gameId.ToString() } },
+            ["op"]     = "AND"
+        };
+        if (!includeAdult)
+            filter["adultContent"] = new[] { new { op = "EQUALS", value = "false" } };
+
+        return QueryModsAsync(gameDomain, filter,
+            sort: new[] { new Dictionary<string, object> { [sortField] = new { direction = "DESC" } } },
+            count, offset, ct);
+    }
+
+    private async Task<(List<NexusBrowseMod> Mods, int Total)> QueryModsAsync(
+        string gameDomain, object filter, object sort, int count, int offset, CancellationToken ct)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                query     = ModsGqlQuery,
+                variables = new { filter, sort, count, offset }
+            });
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, GraphQlUrl)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+            // v2 GraphQL works without an API key but requires a browser-like UA
+            req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
+            if (HasApiKey) req.Headers.Add("apikey", ApiKey);
+
+            var resp = await _http.SendAsync(req, ct);
+            resp.EnsureSuccessStatusCode();
+
+            var result = await resp.Content.ReadFromJsonAsync<NexusModsGraphQlResponse>(cancellationToken: ct);
+            var nodes  = result?.Data?.Mods?.Nodes ?? new List<NexusGraphQlMod>();
+            var total  = result?.Data?.Mods?.TotalCount ?? 0;
+
+            return (nodes.Select(m => new NexusBrowseMod
+            {
+                ModId            = m.ModId,
+                Name             = m.Name,
+                Summary          = m.Summary,
+                Author           = m.Author,
+                CategoryName     = m.Category,
+                DownloadCount    = m.Downloads,
+                EndorsementCount = m.Endorsements,
+                Version          = m.Version,
+                GameDomain       = gameDomain,
+                TotalCount       = total
+            }).ToList(), total);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.Error.WriteLine($"[NexusApiService] QueryModsAsync error: {ex.Message}");
+            return (new List<NexusBrowseMod>(), 0);
+        }
+    }
+
     private const string GraphQlUrl = "https://api.nexusmods.com/v2/graphql";
 
     /// <summary>

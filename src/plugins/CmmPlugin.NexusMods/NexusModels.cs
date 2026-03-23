@@ -321,3 +321,56 @@ public class NexusGameDetails
     public List<NexusCategory> Categories { get; set; } = new();
 }
 
+// ---------------------------------------------------------------------------
+// Browse / search models  (v2 GraphQL)
+// ---------------------------------------------------------------------------
+
+public enum BrowseSort { Trending, LatestAdded, LatestUpdated }
+
+/// <summary>Unified mod record for the browse window.</summary>
+public class NexusBrowseMod
+{
+    public int    ModId            { get; set; }
+    public string Name             { get; set; } = string.Empty;
+    public string Summary          { get; set; } = string.Empty;
+    public string Author           { get; set; } = string.Empty;
+    public string CategoryName     { get; set; } = string.Empty;
+    public long   DownloadCount    { get; set; }
+    public long   EndorsementCount { get; set; }
+    public string Version          { get; set; } = string.Empty;
+    public string GameDomain       { get; set; } = string.Empty;
+    public int    TotalCount       { get; set; }
+}
+
+// ── v2 GraphQL mods query response ──────────────────────────────────────────
+
+public class NexusModsGraphQlResponse
+{
+    [JsonPropertyName("data")]   public NexusModsGraphQlData?   Data   { get; set; }
+    [JsonPropertyName("errors")] public List<System.Text.Json.JsonElement>? Errors { get; set; }
+}
+
+public class NexusModsGraphQlData
+{
+    [JsonPropertyName("mods")] public NexusModsConnection? Mods { get; set; }
+}
+
+public class NexusModsConnection
+{
+    [JsonPropertyName("nodes")]      public List<NexusGraphQlMod> Nodes      { get; set; } = new();
+    [JsonPropertyName("totalCount")] public int                   TotalCount { get; set; }
+}
+
+public class NexusGraphQlMod
+{
+    [JsonPropertyName("modId")]        public int    ModId        { get; set; }
+    [JsonPropertyName("name")]         public string Name         { get; set; } = string.Empty;
+    [JsonPropertyName("summary")]      public string Summary      { get; set; } = string.Empty;
+    [JsonPropertyName("author")]       public string Author       { get; set; } = string.Empty;
+    [JsonPropertyName("category")]     public string Category     { get; set; } = string.Empty;
+    [JsonPropertyName("downloads")]    public long   Downloads    { get; set; }
+    [JsonPropertyName("endorsements")] public long   Endorsements { get; set; }
+    [JsonPropertyName("version")]      public string Version      { get; set; } = string.Empty;
+    [JsonPropertyName("pictureUrl")]   public string PictureUrl   { get; set; } = string.Empty;
+}
+
