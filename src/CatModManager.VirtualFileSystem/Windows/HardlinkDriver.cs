@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace CatModManager.VirtualFileSystem.Windows;
@@ -95,6 +96,8 @@ public class HardlinkDriver : IFileSystemDriver
             entries = _store.Load(_mountPoint);
         }
 
+        var dirsToCheck = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var e in entries)
         {
             try
@@ -104,6 +107,25 @@ public class HardlinkDriver : IFileSystemDriver
 
                 if (e.BackupPath != null && File.Exists(e.BackupPath))
                     File.Move(e.BackupPath, e.DestPath, overwrite: true);
+            }
+            catch { /* best-effort */ }
+
+            // Collect parent directories for empty-dir cleanup
+            var dir = Path.GetDirectoryName(e.DestPath);
+            while (!string.IsNullOrEmpty(dir))
+            {
+                dirsToCheck.Add(dir);
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+
+        // Remove empty directories that were created for mod files, deepest first
+        foreach (var dir in dirsToCheck.OrderByDescending(d => d.Length))
+        {
+            try
+            {
+                if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any())
+                    Directory.Delete(dir);
             }
             catch { /* best-effort */ }
         }
