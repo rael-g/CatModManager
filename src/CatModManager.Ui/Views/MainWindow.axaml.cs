@@ -108,8 +108,9 @@ public partial class MainWindow : Window
         var tc = this.FindControl<TabControl>("InspectorTabControl");
         if (tc == null) return;
 
-        // Remove all plugin tabs (index 0 = INFO tab, keep it)
-        while (tc.Items.Count > 1)
+        // Remove all plugin tabs (0=INFO, 1=FILES, 2=TOOLS are static — keep them)
+        const int StaticTabCount = 3;
+        while (tc.Items.Count > StaticTabCount)
             tc.Items.RemoveAt(tc.Items.Count - 1);
 
         foreach (var tab in vm.PluginInspectorTabs)
@@ -298,6 +299,24 @@ public partial class MainWindow : Window
             var folderResult = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select Mod Folder" });
             if (folderResult.Count > 0) await vm.AddModCommand.ExecuteAsync(folderResult[0].Path.LocalPath);
         }
+    }
+
+    private async void AddTool_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var topLevel = GetTopLevel(this);
+        var files = await topLevel!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select Tool Executable",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Executables") { Patterns = new[] { "*.exe" } },
+                new FilePickerFileType("All Files")   { Patterns = new[] { "*.*"   } }
+            }
+        });
+        if (files.Count >= 1)
+            vm.Tools.AddToolFromPath(files[0].Path.LocalPath);
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();

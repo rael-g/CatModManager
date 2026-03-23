@@ -2,6 +2,14 @@ using System.Collections.Generic;
 
 namespace CatModManager.Core.Models;
 
+public class ExternalTool
+{
+    public string Name            { get; set; } = "";
+    public string ExecutablePath  { get; set; } = "";
+    public string Arguments       { get; set; } = "";
+    public bool   MountBeforeLaunch { get; set; } = false;
+}
+
 public class Profile
 {
     public string Name { get; set; } = "Default";
@@ -19,7 +27,8 @@ public class Profile
 
     public string DownloadsFolderPath { get; set; } = "";
 
-    public List<Mod> Mods { get; set; } = new();
+    public List<Mod>          Mods          { get; set; } = new();
+    public List<ExternalTool> ExternalTools { get; set; } = new();
 }
 
 

@@ -49,6 +49,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public GameConfigViewModel      GameConfig     { get; }
     public ModListViewModel         ModList        { get; }
     public ModInspectorViewModel    Inspector      { get; }
+    public ExternalToolsViewModel   Tools          { get; }
 
     // ── Observable state ──────────────────────────────────────────────────────
 
@@ -128,6 +129,15 @@ public partial class MainWindowViewModel : ViewModelBase
         Inspector = new ModInspectorViewModel(logService);
         Inspector.SetStatusMessage = msg => StatusMessage = msg;
 
+        Tools = new ExternalToolsViewModel(processService, vfsOrchestrator, logService);
+        Tools.IsVfsMounted  = () => IsVfsMounted;
+        Tools.EnsureMounted = async () =>
+        {
+            if (IsVfsMounted) return OperationResult.Success();
+            return await ToggleMountInternal();
+        };
+        Tools.AutoSave = () => ProfileManager.AutoSave();
+
         // Wire AppSessionState
         _sessionState.RequestInstallModAction = archivePath =>
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => AddModCommand.Execute(archivePath));
@@ -164,7 +174,8 @@ public partial class MainWindowViewModel : ViewModelBase
         GameSupportId      = GameConfig.ActiveGameSupport.GameId,
         LaunchArguments    = GameConfig.LaunchArguments     ?? "",
         DownloadsFolderPath = GameConfig.DownloadsFolderPath ?? "",
-        Mods               = ModList.AllMods.ToList()
+        Mods               = ModList.AllMods.ToList(),
+        ExternalTools      = Tools.GetTools()
     };
 
     private void ApplyLoadedProfile(Profile p)
@@ -195,6 +206,7 @@ public partial class MainWindowViewModel : ViewModelBase
         GameConfig.AutoSave = savedAutoSave;
         ModList.UpdateCategories();
         ModList.RebuildDisplayedMods();
+        Tools.LoadTools(p.ExternalTools);
     }
 
     private void AutoSave() => ProfileManager.AutoSave();
