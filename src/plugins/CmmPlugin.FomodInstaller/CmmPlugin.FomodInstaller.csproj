@@ -4,23 +4,22 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>CmmPlugin.SaveManager</AssemblyName>
+    <AssemblyName>CmmPlugin.FomodInstaller</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.6" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="Nett" Version="0.15.0" />
+    <PackageReference Include="SharpCompress" Version="0.39.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CatModManager.PluginSdk\CatModManager.PluginSdk.csproj" />
+    <ProjectReference Include="..\..\CatModManager.PluginSdk\CatModManager.PluginSdk.csproj" />
   </ItemGroup>
 
-  <!-- Copy plugin DLL next to the Ui output so PluginLoader can find it at runtime -->
   <Target Name="CopyToAppPlugins" AfterTargets="Build">
     <PropertyGroup>
-      <PluginOutputDir>$(MSBuildProjectDirectory)\..\CatModManager.Ui\bin\$(Configuration)\$(TargetFramework)\plugins\$(AssemblyName)\</PluginOutputDir>
+      <PluginOutputDir>$(MSBuildProjectDirectory)\..\..\CatModManager.Ui\bin\$(Configuration)\$(TargetFramework)\plugins\$(AssemblyName)\</PluginOutputDir>
     </PropertyGroup>
     <MakeDir Directories="$(PluginOutputDir)" />
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
