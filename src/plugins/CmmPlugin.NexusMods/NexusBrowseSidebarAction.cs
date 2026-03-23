@@ -1,34 +1,39 @@
+using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using CatModManager.PluginSdk;
 
 namespace CmmPlugin.NexusMods;
 
-/// <summary>
-/// Sidebar button that opens the Nexus Mods browse / search window.
-/// </summary>
 public class NexusBrowseSidebarAction : ISidebarAction
 {
-    private readonly NexusApiService   _api;
-    private readonly IModManagerState  _state;
+    private readonly NexusApiService      _api;
+    private readonly IModManagerState     _state;
+    private readonly NexusDownloadService? _downloadService;
+    private readonly Func<string>?        _getDownloadsFolder;
 
     public string Label => "BROWSE NEXUS";
     public string Icon  => "⬡";
 
-    public NexusBrowseSidebarAction(NexusApiService api, IModManagerState state)
+    public NexusBrowseSidebarAction(
+        NexusApiService api,
+        IModManagerState state,
+        NexusDownloadService? downloadService = null,
+        Func<string>? getDownloadsFolder = null)
     {
-        _api   = api;
-        _state = state;
+        _api                = api;
+        _state              = state;
+        _downloadService    = downloadService;
+        _getDownloadsFolder = getDownloadsFolder;
     }
 
     public void Execute()
     {
         var gameDomain = _state.GameId ?? string.Empty;
-
         var mainWindow = (Application.Current?.ApplicationLifetime
             as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 
-        var window = new NexusBrowseWindow(_api, gameDomain);
+        var window = new NexusBrowseWindow(_api, gameDomain, _downloadService, _getDownloadsFolder);
         if (mainWindow != null)
             window.Show(mainWindow);
         else

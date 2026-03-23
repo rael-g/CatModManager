@@ -268,8 +268,8 @@ public class NexusApiService
     /// stemmed word matching across mod names. No API key required.
     /// </summary>
     public Task<(List<NexusBrowseMod> Mods, int Total)> SearchModsAsync(
-        string gameDomain, int gameId, string query,
-        bool includeAdult = false, int count = 30, int offset = 0, CancellationToken ct = default)
+        string gameDomain, int gameId, string query, string? categoryName = null,
+        bool includeAdult = false, int count = 20, int offset = 0, CancellationToken ct = default)
     {
         var filter = new Dictionary<string, object>
         {
@@ -279,6 +279,8 @@ public class NexusApiService
         };
         if (!includeAdult)
             filter["adultContent"] = new[] { new { op = "EQUALS", value = false } };
+        if (!string.IsNullOrEmpty(categoryName))
+            filter["categoryName"] = new[] { new { op = "EQUALS", value = categoryName } };
 
         return QueryModsAsync(gameDomain, filter,
             sort: new[] { new Dictionary<string, object> { ["relevance"] = new { direction = "DESC" } } },
@@ -291,7 +293,8 @@ public class NexusApiService
     /// </summary>
     public Task<(List<NexusBrowseMod> Mods, int Total)> GetBrowseModsAsync(
         string gameDomain, int gameId, BrowseSort sort = BrowseSort.Trending,
-        bool includeAdult = false, int count = 30, int offset = 0, CancellationToken ct = default)
+        string? categoryName = null, bool includeAdult = false,
+        int count = 20, int offset = 0, CancellationToken ct = default)
     {
         var sortField = sort switch
         {
@@ -307,10 +310,23 @@ public class NexusApiService
         };
         if (!includeAdult)
             filter["adultContent"] = new[] { new { op = "EQUALS", value = false } };
+        if (!string.IsNullOrEmpty(categoryName))
+            filter["categoryName"] = new[] { new { op = "EQUALS", value = categoryName } };
 
         return QueryModsAsync(gameDomain, filter,
             sort: new[] { new Dictionary<string, object> { [sortField] = new { direction = "DESC" } } },
             count, offset, ct);
+    }
+
+    /// <summary>Returns category names for a game, sorted alphabetically. Cached after first call.</summary>
+    public async Task<IReadOnlyList<string>> GetCategoryNamesAsync(string gameDomain, CancellationToken ct = default)
+    {
+        if (!_categoryCache.TryGetValue(gameDomain, out var map))
+        {
+            map = await FetchCategoriesAsync(gameDomain, ct);
+            _categoryCache[gameDomain] = map;
+        }
+        return map.Values.OrderBy(v => v).Distinct().ToList();
     }
 
     private async Task<(List<NexusBrowseMod> Mods, int Total)> QueryModsAsync(
