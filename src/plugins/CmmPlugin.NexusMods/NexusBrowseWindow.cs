@@ -45,13 +45,14 @@ public class NexusBrowseWindow : Window
 
     // ── UI controls ───────────────────────────────────────────────────────────
 
-    private readonly TextBox     _searchBox     = null!;
-    private readonly StackPanel  _resultsPanel  = null!;
-    private readonly TextBlock   _statusText    = null!;
-    private readonly StackPanel  _sortButtons   = null!;
-    private readonly ComboBox    _categoryCombo = null!;
-    private readonly Button      _loadMoreBtn   = null!;
-    private readonly StackPanel  _modeButtons   = null!;
+    private readonly TextBox     _searchBox          = null!;
+    private readonly StackPanel  _resultsPanel       = null!;
+    private readonly TextBlock   _statusText         = null!;
+    private readonly StackPanel  _sortButtons        = null!;
+    private readonly ComboBox    _categoryCombo      = null!;
+    private readonly Button      _loadMoreBtn        = null!;
+    private readonly StackPanel  _modeButtons        = null!;
+    private readonly Border      _collectionsNotice  = null!;
 
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,26 @@ public class NexusBrowseWindow : Window
         AddModeButton("Mods",        collections: false);
         AddModeButton("Collections", collections: true);
 
+        // ── Collections premium notice ────────────────────────────────────────
+
+        var noticeText = new TextBlock
+        {
+            Text         = "Collections are a Nexus Premium feature. Click \"Open ↗\" on a collection, then click \"Add Collection\" on the website — CMM will handle the nxm:// link automatically.",
+            FontSize     = 11,
+            Foreground   = new SolidColorBrush(Color.Parse("#FFA500")),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0),
+        };
+        _collectionsNotice = new Border
+        {
+            Background    = new SolidColorBrush(Color.Parse("#2A2200")),
+            BorderBrush   = new SolidColorBrush(Color.Parse("#FFA500")),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding       = new Thickness(12, 6),
+            Child         = noticeText,
+            IsVisible     = false,
+        };
+
         // ── Sort + category bar ───────────────────────────────────────────────
 
         _sortButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
@@ -173,6 +194,7 @@ public class NexusBrowseWindow : Window
         var topPanel = new StackPanel { Background = HeaderBrush };
         topPanel.Children.Add(searchRow);
         topPanel.Children.Add(_modeButtons);
+        topPanel.Children.Add(_collectionsNotice);
         topPanel.Children.Add(filterRow);
 
         // ── Status bar ────────────────────────────────────────────────────────
@@ -267,8 +289,9 @@ public class NexusBrowseWindow : Window
             _browseCollections = collections;
             _searchBox.Text    = string.Empty;
             // Show sort + category only in Mods mode
-            _sortButtons.IsVisible   = !_browseCollections;
-            _categoryCombo.IsVisible = !_browseCollections;
+            _sortButtons.IsVisible        = !_browseCollections;
+            _categoryCombo.IsVisible      = !_browseCollections;
+            _collectionsNotice.IsVisible  = _browseCollections;
             RefreshModeButtons();
             FireSearch();
         };
@@ -546,7 +569,7 @@ public class NexusBrowseWindow : Window
 
     private Control BuildCollectionCard(NexusBrowseCollection col)
     {
-        var nexusUrl = $"https://www.nexusmods.com/{col.GameDomain}/collections/{col.Slug}";
+        var nexusUrl = $"https://www.nexusmods.com/games/{col.GameDomain}/collections/{col.Slug}";
 
         var nameLabel = new TextBlock
         {
@@ -602,6 +625,13 @@ public class NexusBrowseWindow : Window
         };
         btnPanel.Children.Add(openBtn);
 
+        if (_downloadService != null && _api.HasApiKey && !string.IsNullOrEmpty(col.DownloadLink))
+        {
+            var dlBtn = MakeBtn("⬇ Download", GreenBrush);
+            dlBtn.Click += async (_, _) => await QueueCollectionAsync(col, dlBtn);
+            btnPanel.Children.Add(dlBtn);
+        }
+
         var card = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(btnPanel, Dock.Right);
         card.Children.Add(btnPanel);
@@ -621,6 +651,29 @@ public class NexusBrowseWindow : Window
         border.Tapped         += (_, _) => OpenUrl(nexusUrl);
 
         return border;
+    }
+
+    // ── Collection download ───────────────────────────────────────────────────
+
+    private async Task QueueCollectionAsync(NexusBrowseCollection col, Button btn)
+    {
+        btn.IsEnabled = false;
+        btn.Content   = "…";
+
+        var url = await _api.GetCollectionDownloadUrlAsync(col.DownloadLink);
+        if (url == null)
+        {
+            btn.Content   = "Failed";
+            btn.IsEnabled = true;
+            SetStatus("Collection download failed — check your API key.");
+            return;
+        }
+
+        var folder = _getDownloadsFolder?.Invoke() ?? System.IO.Path.GetTempPath();
+        _downloadService!.QueueCollectionDownload(col.Name, col.Slug, col.Revision, url, folder);
+
+        btn.Content = "✓ Queued";
+        SetStatus($"Queued collection: {col.Name}");
     }
 
     // ── Direct download ───────────────────────────────────────────────────────

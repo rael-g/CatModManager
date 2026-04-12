@@ -22,6 +22,8 @@ public class NexusModsPlugin : ICmmPlugin
     private string?                   _currentProfileName;
     private NexusDatabase?            _nexusDb;
     private readonly System.Collections.Generic.List<NxmLinkEvent> _pendingNxmLinks = new();
+    private System.Threading.CancellationTokenSource? _saveCts;
+    private Action<string, CatModManager.PluginSdk.FomodPreset?>? _installCallback;
 
     public void Initialize(IPluginContext ctx)
     {
@@ -47,13 +49,16 @@ public class NexusModsPlugin : ICmmPlugin
             if (args.Action == NotifyCollectionChangedAction.Remove && args.OldItems != null)
                 foreach (DownloadEntry e in args.OldItems)
                     e.PropertyChanged -= OnEntryChanged;
-            SaveDownloadsForProfile(ctx.State.CurrentProfileName);
+            DebounceSave(ctx.State.CurrentProfileName);
         };
 
         void OnEntryChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is nameof(DownloadEntry.IsActive) or nameof(DownloadEntry.HasFailed))
-                SaveDownloadsForProfile(ctx.State.CurrentProfileName);
+            {
+                // Save immediately on state change to prevent data loss
+                SaveDownloadsForProfile(_currentProfileName);
+            }
         }
 
         ctx.State.ProfileChanged += profileName =>
@@ -72,10 +77,12 @@ public class NexusModsPlugin : ICmmPlugin
         {
             if (_trackingService == null) return;
 
-            // Re-track under the installed folder path so the NEXUS tab appears.
+            // Re-track under the installed folder path, preserving the source archive path
+            // so that "Reinstall (Nexus)" can locate the archive later.
             var trackEntry = _trackingService.GetEntryBySourcePath(sourcePath);
             if (trackEntry != null)
-                _trackingService.Track(mod.RootPath, trackEntry.ModId, trackEntry.FileId, trackEntry.Version, trackEntry.GameDomain);
+                _trackingService.Track(mod.RootPath, trackEntry.ModId, trackEntry.FileId,
+                    trackEntry.Version, trackEntry.GameDomain, trackEntry.SourceArchivePath);
 
             // Enrich mod metadata from the download entry so the profile stores the real name/version/category.
             var download = _downloadService?.Downloads
@@ -90,17 +97,60 @@ public class NexusModsPlugin : ICmmPlugin
 
         ctx.Events.Subscribe<NxmLinkEvent>(OnNxmLink);
 
-        void InstallCallback(string archivePath, CatModManager.PluginSdk.FomodPreset? preset) =>
-            ctx.State.RequestInstallMod(archivePath, preset);
-        void InstallToRootCallback(string archivePath) =>
-            ctx.State.RequestInstallModToRoot(archivePath);
+        _installCallback = InstallCallback;
 
-        ctx.Ui.RegisterInspectorTab(new NexusDownloadsTab(_downloadService, _api, InstallCallback, GetDownloadsFolder, InstallToRootCallback));
-        ctx.Ui.RegisterInspectorTab(new NexusModInspectorTab(_trackingService, _api));
+        void InstallCallback(string archivePath, CatModManager.PluginSdk.FomodPreset? preset)
+        {
+            // Match on ModId + FileId: same file = update in place.
+            // Different FileId = separate variant (e.g. different race body), install as new mod.
+            var downloadEntry = _downloadService?.Downloads
+                .FirstOrDefault(d => string.Equals(d.LocalPath, archivePath, StringComparison.OrdinalIgnoreCase));
+
+            int modId  = downloadEntry?.ModId  ?? 0;
+            int fileId = downloadEntry?.FileId ?? 0;
+
+            if (modId > 0 && fileId > 0)
+            {
+                var existing = _trackingService?.GetEntryByModIdAndFileId(modId, fileId);
+                if (existing != null && System.IO.Directory.Exists(existing.ModFolderPath))
+                {
+                    ctx.Log.Log($"[Nexus] Updating '{System.IO.Path.GetFileName(existing.ModFolderPath)}' (ModId {modId}, FileId {fileId}) in place.");
+                    ctx.State.SetInstallFolderHint(existing.ModFolderPath);
+                }
+            }
+            else
+            {
+                // Fallback: look up by the archive path recorded at download time
+                var trackEntry = _trackingService?.GetEntryBySourcePath(archivePath);
+                if (trackEntry != null)
+                {
+                    var existing = _trackingService?.GetEntryByModIdAndFileId(trackEntry.ModId, trackEntry.FileId);
+                    if (existing != null && System.IO.Directory.Exists(existing.ModFolderPath))
+                    {
+                        ctx.Log.Log($"[Nexus] Reinstalling '{System.IO.Path.GetFileName(existing.ModFolderPath)}' (ModId {trackEntry.ModId}, FileId {trackEntry.FileId}) in place.");
+                        ctx.State.SetInstallFolderHint(existing.ModFolderPath);
+                    }
+                }
+            }
+            ctx.State.RequestInstallMod(archivePath, preset);
+        }
+        ctx.Ui.RegisterInspectorTab(new NexusDownloadsTab(_downloadService, _api, InstallCallback, GetDownloadsFolder));
         ctx.Ui.RegisterSidebarAction(new NexusBrowseSidebarAction(_api, ctx.State, _downloadService, GetDownloadsFolder));
+        ctx.Ui.RegisterModContextAction(new NexusCheckUpdateAction(_trackingService, _api, ctx.Log));
+        ctx.Ui.RegisterModContextAction(new NexusReinstallAction(_trackingService, InstallCallback, ctx.Log));
+
+        ctx.State.SetActiveDownloadCheck(() => _downloadService?.Downloads.Any(d => d.IsActive) ?? false);
 
 
         ctx.Log.Log($"[{DisplayName}] Initialized — Nexus Mods integration ready.");
+    }
+
+    public Task ShutdownAsync()
+    {
+        _saveCts?.Cancel();
+        _downloadService?.Shutdown();
+        SaveDownloadsForProfile(_currentProfileName);
+        return Task.CompletedTask;
     }
 
     // -----------------------------------------------------------------------
@@ -114,6 +164,21 @@ public class NexusModsPlugin : ICmmPlugin
         SaveDownloadsForProfile(_currentProfileName);
         _downloadService.LoadDownloads(NormalizeProfileName(profileName));
         _currentProfileName = profileName;
+    }
+
+    /// <summary>
+    /// Coalesces rapid successive save requests (e.g. 100+ adds during collection install)
+    /// into a single write 400ms after the last change.
+    /// </summary>
+    private void DebounceSave(string? profileName)
+    {
+        _saveCts?.Cancel();
+        _saveCts = new System.Threading.CancellationTokenSource();
+        var cts = _saveCts;
+        _ = System.Threading.Tasks.Task.Delay(400, cts.Token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled) SaveDownloadsForProfile(profileName);
+        }, System.Threading.Tasks.TaskScheduler.Default);
     }
 
     private void SaveDownloadsForProfile(string? profileName)

@@ -347,6 +347,8 @@ public class NexusBrowseCollection
     public int    ModCount     { get; set; }
     public string GameDomain   { get; set; } = string.Empty;
     public int    TotalCount   { get; set; }
+    /// <summary>Relative path from GraphQL, e.g. /v2/collections/{id}/revisions/{revId}/download_link. Requires API key.</summary>
+    public string DownloadLink { get; set; } = string.Empty;
 }
 
 public class NexusCollectionsV2GraphQlResponse
@@ -381,8 +383,9 @@ public class NexusCollectionV2Node
 
 public class NexusCollectionRevisionInfo
 {
-    [JsonPropertyName("revision")] public int Revision { get; set; }
-    [JsonPropertyName("modCount")] public int ModCount { get; set; }
+    [JsonPropertyName("revision")]     public int    Revision     { get; set; }
+    [JsonPropertyName("modCount")]     public int    ModCount     { get; set; }
+    [JsonPropertyName("downloadLink")] public string DownloadLink { get; set; } = string.Empty;
 }
 
 public class NexusCollectionUserInfo

@@ -80,4 +80,80 @@ public class NexusModTrackingService
     }
 
     public bool IsTracked(string modFolderPath) => GetEntry(modFolderPath) != null;
+
+    /// <summary>Returns the tracked installed-folder entry matching both ModId and FileId.
+    /// Used to detect true same-file reinstalls vs. different variant files of the same mod.</summary>
+    public NexusTrackEntry? GetEntryByModIdAndFileId(int modId, int fileId)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT mod_folder_path, version, game_domain, source_archive_path
+            FROM tracks WHERE mod_id = @modId AND file_id = @fileId
+            """;
+        cmd.Parameters.AddWithValue("@modId",  modId);
+        cmd.Parameters.AddWithValue("@fileId", fileId);
+        using var reader = cmd.ExecuteReader();
+
+        var archiveExts = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { ".zip", ".7z", ".rar" };
+
+        NexusTrackEntry? fallback = null;
+        while (reader.Read())
+        {
+            var path = reader.GetString(0);
+            var entry = new NexusTrackEntry
+            {
+                ModFolderPath     = path,
+                ModId             = modId,
+                FileId            = fileId,
+                Version           = reader.GetString(1),
+                GameDomain        = reader.GetString(2),
+                SourceArchivePath = reader.IsDBNull(3) ? null : reader.GetString(3),
+            };
+            if (!archiveExts.Contains(System.IO.Path.GetExtension(path)))
+                return entry;
+            fallback ??= entry;
+        }
+        return fallback;
+    }
+
+    /// <summary>Returns the tracked entry with the given Nexus mod ID that corresponds to the
+    /// installed mod folder (preferred over download-archive rows). Optionally excludes a path.</summary>
+    public NexusTrackEntry? GetEntryByModId(int modId, string? excludeFolderPath = null)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT mod_folder_path, file_id, version, game_domain, source_archive_path
+            FROM tracks WHERE mod_id = @modId
+            """;
+        cmd.Parameters.AddWithValue("@modId", modId);
+        using var reader = cmd.ExecuteReader();
+
+        var archiveExts = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { ".zip", ".7z", ".rar" };
+
+        NexusTrackEntry? fallback = null; // archive-path row, used only if no dir row found
+        while (reader.Read())
+        {
+            var path = reader.GetString(0);
+            if (excludeFolderPath != null && string.Equals(path, excludeFolderPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+            var entry = new NexusTrackEntry
+            {
+                ModFolderPath     = path,
+                ModId             = modId,
+                FileId            = reader.GetInt32(1),
+                Version           = reader.GetString(2),
+                GameDomain        = reader.GetString(3),
+                SourceArchivePath = reader.IsDBNull(4) ? null : reader.GetString(4),
+            };
+            // Prefer rows whose path is a mod folder (not an archive file)
+            if (!archiveExts.Contains(System.IO.Path.GetExtension(path)))
+                return entry;
+            fallback ??= entry;
+        }
+        return fallback;
+    }
 }

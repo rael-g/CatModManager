@@ -24,6 +24,51 @@ public class NexusDownloadService
     /// <summary>Limits concurrent HTTP downloads to avoid flooding the Nexus API.</summary>
     private readonly SemaphoreSlim _concurrentDownloads = new(3, 3);
 
+    // ── Collection queue (free-user page-by-page flow) ─────────────────────
+    private record PendingCollectionMod(int ModId, int FileId, string Domain, DownloadEntry Entry);
+    private readonly Queue<PendingCollectionMod> _collectionQueue = new();
+    private PendingCollectionMod? _currentCollectionMod;
+    private bool                  _collectionPageOpen;
+    private bool                  _collectionPaused;
+    private readonly object       _collectionLock = new();
+
+    /// <summary>Fired whenever the number of pending collection mods changes. Arg is the new count.</summary>
+    public event Action<int>? CollectionQueueCountChanged;
+
+    private void NotifyQueueCount()
+    {
+        int count;
+        lock (_collectionLock)
+            count = _collectionQueue.Count + (_currentCollectionMod != null ? 1 : 0);
+        CollectionQueueCountChanged?.Invoke(count);
+    }
+
+    public bool IsCollectionQueuePaused => _collectionPaused;
+
+    public void PauseCollectionQueue()  { _collectionPaused = true;  NotifyQueueCount(); }
+
+    public void ResumeCollectionQueue()
+    {
+        _collectionPaused = false;
+        NotifyQueueCount();
+        OpenNextCollectionMod();
+    }
+
+    public void CancelCollectionQueue()
+    {
+        List<DownloadEntry> toCancel;
+        lock (_collectionLock)
+        {
+            toCancel = _collectionQueue.Select(m => m.Entry).ToList();
+            if (_currentCollectionMod != null) { toCancel.Add(_currentCollectionMod.Entry); _currentCollectionMod = null; }
+            _collectionQueue.Clear();
+            _collectionPageOpen = false;
+            _collectionPaused   = false;
+        }
+        Dispatcher.UIThread.Post(() => { foreach (var e in toCancel) { e.HasFailed = true; e.Status = "Cancelled"; } });
+        NotifyQueueCount();
+    }
+
     public ObservableCollection<DownloadEntry> Downloads { get; } = new();
 
     public NexusDownloadService(NexusApiService api, IPluginLogger log, NexusModTrackingService tracking, NexusDatabase db)
@@ -54,6 +99,10 @@ public class NexusDownloadService
                 while (reader.Read())
                 {
                     bool hasFailed = reader.GetInt32(8) != 0;
+                    var path = reader.GetString(2);
+                    // Entries with no local path and no failure flag were interrupted mid-download
+                    // (app closed while queued/downloading). Show as failed so user knows to retry.
+                    bool interrupted = !hasFailed && string.IsNullOrEmpty(path);
                     var entry = new DownloadEntry
                     {
                         ModName    = reader.GetString(0),
@@ -63,12 +112,11 @@ public class NexusDownloadService
                         GameDomain = reader.GetString(5),
                         Version    = reader.GetString(6),
                         Category   = reader.GetString(7),
-                        HasFailed  = hasFailed,
+                        HasFailed  = hasFailed || interrupted,
                         IsActive   = false,
-                        Progress   = hasFailed ? 0 : 100,
-                        Status     = hasFailed ? "Failed" : "Done"
+                        Progress   = (hasFailed || interrupted) ? 0 : 100,
+                        Status     = hasFailed ? "Failed" : interrupted ? "Interrupted" : "Done"
                     };
-                    var path = reader.GetString(2);
                     entry.LocalPath = string.IsNullOrEmpty(path) ? null : path;
                     loaded.Add(entry);
                 }
@@ -128,7 +176,24 @@ public class NexusDownloadService
 
     public void QueueDownloadFromNxm(NxmLink link, string modName, string downloadsFolder)
     {
-        var entry = new DownloadEntry
+        // If this nxm:// matches the collection mod we opened in the browser, reuse that entry
+        // instead of creating a duplicate. This is the core of the free-user collection flow.
+        bool isCollectionMod = false;
+        DownloadEntry? collectionEntry = null;
+        lock (_collectionLock)
+        {
+            if (_currentCollectionMod != null &&
+                _currentCollectionMod.ModId == link.ModId &&
+                _currentCollectionMod.FileId == link.FileId)
+            {
+                collectionEntry     = _currentCollectionMod.Entry;
+                _currentCollectionMod = null;
+                _collectionPageOpen   = false;
+                isCollectionMod     = true;
+            }
+        }
+
+        var entry = collectionEntry ?? new DownloadEntry
         {
             ModName    = modName,
             FileName   = $"mod_{link.ModId}_file_{link.FileId}",
@@ -138,8 +203,14 @@ public class NexusDownloadService
             GameDomain = link.GameDomain
         };
 
-        // Always marshal to UI thread — this method may be called from background threads.
-        Dispatcher.UIThread.Post(() => Downloads.Add(entry));
+        // Only add to list if it's not already there (collection entries are added during resolution).
+        // Also guard against duplicate NXM arrivals for the same mod+file (e.g. after Premium redirect).
+        if (collectionEntry == null)
+        {
+            bool alreadyQueued = Downloads.Any(d => d.ModId == link.ModId && d.FileId == link.FileId && !d.HasFailed);
+            if (alreadyQueued) return;
+            Dispatcher.UIThread.Post(() => Downloads.Add(entry));
+        }
 
         _ = Task.Run(async () =>
         {
@@ -148,7 +219,7 @@ public class NexusDownloadService
             {
                 if (!_api.HasApiKey)
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         entry.HasFailed = true;
                         entry.IsActive  = false;
@@ -157,7 +228,7 @@ public class NexusDownloadService
                     return;
                 }
 
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     entry.IsActive = true;
                     entry.Status   = "Getting download link...";
@@ -167,10 +238,24 @@ public class NexusDownloadService
                 if (details != null)
                 {
                     var resolvedCategory = await _api.ResolveCategoryAsync(link.GameDomain, details.CategoryId, entry.Cts.Token);
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+
+                    // Prefer the file-specific version (NexusFile.Version) over the mod-page version
+                    // (NexusModDetails.Version). Mod authors sometimes upload "v1.2.1" as a new file
+                    // but forget to update the mod page version, which would still show "1.2".
+                    string fileVersion = details.Version;
+                    try
+                    {
+                        var filesResp = await _api.GetFilesAsync(link.GameDomain, link.ModId, entry.Cts.Token);
+                        var matchedFile = filesResp.Files.FirstOrDefault(f => f.FileId == link.FileId);
+                        if (matchedFile != null && !string.IsNullOrEmpty(matchedFile.Version))
+                            fileVersion = matchedFile.Version;
+                    }
+                    catch { /* best-effort; fall back to mod-page version */ }
+
+                    Dispatcher.UIThread.Post(() =>
                     {
                         entry.ModName = details.Name;
-                        entry.Version = details.Version;
+                        entry.Version = fileVersion;
                         if (!string.IsNullOrEmpty(resolvedCategory)) entry.Category = resolvedCategory;
                     });
                 }
@@ -181,7 +266,7 @@ public class NexusDownloadService
 
                 if (links.Count == 0)
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         entry.HasFailed = true;
                         entry.IsActive  = false;
@@ -194,7 +279,7 @@ public class NexusDownloadService
             }
             catch (OperationCanceledException)
             {
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     entry.IsActive = false;
                     entry.Status   = "Cancelled";
@@ -203,7 +288,7 @@ public class NexusDownloadService
             catch (Exception ex)
             {
                 _log.LogError($"[NexusMods] Download failed for mod {link.ModId}", ex);
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     entry.HasFailed = true;
                     entry.IsActive  = false;
@@ -213,6 +298,8 @@ public class NexusDownloadService
             finally
             {
                 _concurrentDownloads.Release();
+                // Advance to the next collection mod (if this was a collection entry)
+                if (isCollectionMod) OpenNextCollectionMod();
             }
         });
     }
@@ -242,7 +329,7 @@ public class NexusDownloadService
             {
                 if (!_api.HasApiKey)
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         entry.HasFailed = true;
                         entry.IsActive  = false;
@@ -251,7 +338,7 @@ public class NexusDownloadService
                     return;
                 }
 
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     entry.IsActive = true;
                     entry.Status   = "Getting download link...";
@@ -261,7 +348,7 @@ public class NexusDownloadService
                 if (details != null)
                 {
                     var resolvedCategory = await _api.ResolveCategoryAsync(gameDomain, details.CategoryId, entry.Cts.Token);
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         if (string.IsNullOrEmpty(entry.Version)) entry.Version = details.Version;
                         if (!string.IsNullOrEmpty(resolvedCategory)) entry.Category = resolvedCategory;
@@ -273,7 +360,7 @@ public class NexusDownloadService
 
                 if (links.Count == 0)
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         entry.HasFailed = true;
                         entry.IsActive  = false;
@@ -286,16 +373,26 @@ public class NexusDownloadService
             }
             catch (OperationCanceledException)
             {
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     entry.IsActive = false;
                     entry.Status   = "Cancelled";
                 });
             }
+            catch (UnauthorizedAccessException)
+            {
+                // Nexus Premium required — remove the entry and open the mod page so user can
+                // click the NXM button to download as a free user.
+                Dispatcher.UIThread.Post(() => Downloads.Remove(entry));
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                    $"https://www.nexusmods.com/{gameDomain}/mods/{modId}?tab=files")
+                { UseShellExecute = true });
+                _log.Log($"[NexusMods] Premium required for mod {modId} — opened Nexus page in browser.");
+            }
             catch (Exception ex)
             {
                 _log.LogError($"[NexusMods] Download failed for mod {modId}", ex);
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     entry.HasFailed = true;
                     entry.IsActive  = false;
@@ -309,11 +406,55 @@ public class NexusDownloadService
         });
     }
 
+    /// <summary>Removes a failed entry and re-queues a fresh attempt using its existing mod/file IDs.</summary>
+    public void RetryDownload(DownloadEntry entry, string downloadsFolder)
+    {
+        if (entry.IsActive) return;
+        // Remove the stale failed entry first, then queue a fresh one
+        Dispatcher.UIThread.Post(() => Downloads.Remove(entry));
+        QueueDownloadDirect(entry.GameDomain, entry.ModId, entry.FileId, entry.ModName, downloadsFolder, entry.Version, entry.Category);
+    }
+
+    /// <summary>Queues a collection archive download given a pre-resolved download URL.</summary>
+    public void QueueCollectionDownload(string collectionName, string slug, int revision, string downloadUrl, string downloadsFolder)
+    {
+        var entry = new DownloadEntry
+        {
+            ModName    = collectionName,
+            FileName   = $"{slug}_rev{revision}.zip",
+            Status     = "Queued",
+            GameDomain = string.Empty,
+            Version    = $"rev{revision}",
+            Category   = "Collection",
+        };
+
+        Dispatcher.UIThread.Post(() => Downloads.Add(entry));
+
+        _ = Task.Run(async () =>
+        {
+            await _concurrentDownloads.WaitAsync(entry.Cts.Token);
+            try
+            {
+                Dispatcher.UIThread.Post(() => { entry.IsActive = true; entry.Status = $"Downloading {entry.FileName}..."; });
+                await DownloadAndSave(entry, downloadUrl, downloadsFolder);
+            }
+            catch (OperationCanceledException)
+            {
+                Dispatcher.UIThread.Post(() => { entry.IsActive = false; entry.Status = "Cancelled"; });
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.UIThread.Post(() => { entry.HasFailed = true; entry.IsActive = false; entry.Status = $"Failed: {ex.Message}"; });
+            }
+            finally { _concurrentDownloads.Release(); }
+        });
+    }
+
     private async Task DownloadAndSave(DownloadEntry entry, string? downloadUri, string downloadsFolder)
     {
         if (string.IsNullOrWhiteSpace(downloadUri))
         {
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 entry.HasFailed = true;
                 entry.IsActive  = false;
@@ -326,35 +467,34 @@ public class NexusDownloadService
         if (string.IsNullOrWhiteSpace(fileName))
             fileName = $"nexus_mod_{entry.ModId}_file_{entry.FileId}.zip";
 
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             entry.FileName = fileName;
             entry.Status   = $"Downloading {fileName}...";
         });
 
+        Directory.CreateDirectory(downloadsFolder);
+        var destPath = Path.Combine(downloadsFolder, fileName);
+
         var progress = new Progress<double>(p =>
-            Dispatcher.UIThread.InvokeAsync(() => entry.Progress = p));
+            Dispatcher.UIThread.Post(() => entry.Progress = p));
 
-        var bytes = await _api.GetBytesAsync(downloadUri, progress, entry.Cts.Token);
+        bool ok = await _api.DownloadToFileAsync(downloadUri, destPath, progress, entry.Cts.Token);
 
-        if (bytes.Length == 0)
+        if (!ok)
         {
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 entry.HasFailed = true;
                 entry.IsActive  = false;
-                entry.Status    = "Failed: Download returned empty data";
+                entry.Status    = "Failed: Download error";
             });
             return;
         }
 
-        Directory.CreateDirectory(downloadsFolder);
-        var destPath = Path.Combine(downloadsFolder, fileName);
-        await File.WriteAllBytesAsync(destPath, bytes, entry.Cts.Token);
-
         _tracking.Track(destPath, entry.ModId, entry.FileId, entry.Version, entry.GameDomain, sourceArchivePath: destPath);
 
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             entry.LocalPath = destPath;
             entry.Progress  = 100;
@@ -394,7 +534,7 @@ public class NexusDownloadService
         {
             try
             {
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     collectionEntry.IsActive = true;
                     collectionEntry.Status   = "Resolving collection via Nexus API…";
@@ -407,7 +547,7 @@ public class NexusDownloadService
                 var modFiles = gql?.Data?.CollectionRevision?.ModFiles;
                 if (modFiles == null || modFiles.Count == 0)
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         collectionEntry.HasFailed = true;
                         collectionEntry.IsActive  = false;
@@ -422,7 +562,7 @@ public class NexusDownloadService
                     .ToDictionary(f => ((int)f.File!.Mod!.ModId, (int)f.FileId));
 
                 // ── Step 2: collection.json — try to get phase + FOMOD choices ────────
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                     collectionEntry.Status = "Fetching collection manifest…");
 
                 NexusCollectionManifest? manifest = null;
@@ -492,23 +632,49 @@ public class NexusDownloadService
                     }
                 }
 
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     collectionEntry.Progress = 100;
                     collectionEntry.IsActive = false;
                     collectionEntry.Status   = manifest != null
-                        ? $"Done — queued {orderedMods.Count} mod(s) in phase order."
-                        : $"Done — queued {orderedMods.Count} mod(s) for download.";
+                        ? $"Ready — {orderedMods.Count} mod(s) in phase order. Opening pages…"
+                        : $"Ready — {orderedMods.Count} mod(s). Opening pages…";
                 });
 
-                // ── Step 4: Queue individual downloads ────────────────────────────────
-                foreach (var (modId, fileId, domain, name, version, choices) in orderedMods)
-                    QueueDownloadDirect(domain, modId, fileId, name, downloadsFolder, version,
-                        fomodPreset: ConvertToFomodPreset(choices));
+                // ── Step 4: Page-by-page flow (works for free and premium users) ──────
+                // Add all mod entries as "Waiting" items and open Nexus pages one at a time.
+                // When the user clicks Download on a page, the nxm:// link is intercepted
+                // by QueueDownloadFromNxm which routes it to the matching waiting entry.
+                var modEntries = orderedMods.Select(m => new DownloadEntry
+                {
+                    ModName     = m.Name,
+                    FileName    = $"mod_{m.ModId}_file_{m.FileId}",
+                    Status      = "Waiting — Nexus page will open",
+                    ModId       = m.ModId,
+                    FileId      = m.FileId,
+                    GameDomain  = m.Domain,
+                    Version     = m.Version,
+                    Category    = "Uncategorized",
+                    FomodPreset = ConvertToFomodPreset(m.Choices)
+                }).ToList();
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    foreach (var e in modEntries) Downloads.Add(e);
+                });
+
+                lock (_collectionLock)
+                {
+                    foreach (var (entry, mod) in modEntries.Zip(orderedMods))
+                        _collectionQueue.Enqueue(new PendingCollectionMod(mod.ModId, mod.FileId, mod.Domain, entry));
+                }
+                NotifyQueueCount();
+
+                OpenNextCollectionMod();
             }
             catch (OperationCanceledException)
             {
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     collectionEntry.IsActive = false;
                     collectionEntry.Status   = "Cancelled";
@@ -517,7 +683,7 @@ public class NexusDownloadService
             catch (Exception ex)
             {
                 _log.LogError($"[NexusMods] Collection download failed: {link.Slug}", ex);
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     collectionEntry.HasFailed = true;
                     collectionEntry.IsActive  = false;
@@ -527,7 +693,48 @@ public class NexusDownloadService
         });
     }
 
+    /// <summary>
+    /// Opens the next pending collection mod page in the system browser.
+    /// No-ops if paused, the queue is empty, or a page is already open.
+    /// Thread-safe.
+    /// </summary>
+    private void OpenNextCollectionMod()
+    {
+        PendingCollectionMod? next;
+        lock (_collectionLock)
+        {
+            if (_collectionPageOpen || _collectionPaused) return;
+
+            // Skip entries that were already cancelled
+            do
+            {
+                if (!_collectionQueue.TryDequeue(out next)) { NotifyQueueCount(); return; }
+            } while (next.Entry.HasFailed || next.Entry.Status == "Cancelled");
+
+            _currentCollectionMod = next;
+            _collectionPageOpen   = true;
+        }
+
+        NotifyQueueCount();
+        Dispatcher.UIThread.Post(() => next.Entry.Status = "Click Download on the Nexus page ↗");
+
+        var url = $"https://www.nexusmods.com/{next.Domain}/mods/{next.ModId}?tab=files&file_id={next.FileId}&nmm=1";
+        _log.Log($"[NexusMods] Opening browser for collection mod: {next.Entry.ModName}");
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = url, UseShellExecute = true }); }
+        catch (Exception ex) { _log.LogError("[NexusMods] Failed to open browser", ex); }
+    }
+
     public void Cancel(DownloadEntry entry) => entry.Cts.Cancel();
+
+    public void Shutdown()
+    {
+        _log.Log("[NexusMods] Shutdown detected. Cancelling all downloads...");
+        CancelCollectionQueue();
+        foreach (var entry in Downloads.Where(d => d.IsActive).ToList())
+        {
+            try { entry.Cts.Cancel(); } catch { }
+        }
+    }
 
     private static CatModManager.PluginSdk.FomodPreset? ConvertToFomodPreset(NexusCollectionFomodChoices? choices)
     {

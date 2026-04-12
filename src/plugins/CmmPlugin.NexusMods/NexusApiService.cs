@@ -120,24 +120,53 @@ public class NexusApiService
                 response.EnsureSuccessStatusCode();
             }
 
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                throw new UnauthorizedAccessException("Nexus Premium required to download this file.");
+
             response.EnsureSuccessStatusCode();
             ApiKeyValidityChanged?.Invoke(true);
 
             var result = await response.Content.ReadFromJsonAsync<List<NexusDownloadLink>>(cancellationToken: ct);
             return result ?? new List<NexusDownloadLink>();
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
         {
             Console.Error.WriteLine($"[NexusApiService] GetDownloadLinksAsync error: {ex.Message}");
             return new List<NexusDownloadLink>();
         }
     }
 
-    public async Task<byte[]> GetBytesAsync(
+    /// <summary>
+    /// Downloads a URL to a byte array. Only use for small payloads (e.g. collection manifests).
+    /// For large files, prefer <see cref="DownloadToFileAsync"/>.
+    /// </summary>
+    public async Task<byte[]> GetBytesAsync(string url, CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsByteArrayAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[NexusApiService] GetBytesAsync error: {ex.Message}");
+            return Array.Empty<byte>();
+        }
+    }
+
+    /// <summary>
+    /// Downloads a URL directly to a file on disk. Streams in 80KB chunks — no full-file MemoryStream.
+    /// Progress reports are throttled to ≥1% change to avoid flooding the UI thread.
+    /// Returns true on success; false (and deletes the partial file) on failure.
+    /// </summary>
+    public async Task<bool> DownloadToFileAsync(
         string url,
+        string destPath,
         IProgress<double>? progress = null,
         CancellationToken ct = default)
     {
+        string tempPath = destPath + ".tmp";
         try
         {
             using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -145,27 +174,49 @@ public class NexusApiService
 
             var totalBytes = response.Content.Headers.ContentLength;
             using var contentStream = await response.Content.ReadAsStreamAsync(ct);
-            using var memStream = new System.IO.MemoryStream();
 
-            var buffer = new byte[81920];
-            long bytesRead = 0;
-            int read;
-
-            while ((read = await contentStream.ReadAsync(buffer, ct)) > 0)
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(destPath)!);
+            
+            // Download to .tmp file
+            using (var fileStream = new System.IO.FileStream(tempPath, System.IO.FileMode.Create, System.IO.FileAccess.Write, System.IO.FileShare.None, 81920, useAsync: true))
             {
-                await memStream.WriteAsync(buffer.AsMemory(0, read), ct);
-                bytesRead += read;
+                var buffer = new byte[81920];
+                long bytesRead = 0;
+                double lastReported = -1;
+                int read;
 
-                if (progress != null && totalBytes.HasValue && totalBytes.Value > 0)
-                    progress.Report((double)bytesRead / totalBytes.Value * 100.0);
+                while ((read = await contentStream.ReadAsync(buffer, ct)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer.AsMemory(0, read), ct);
+                    bytesRead += read;
+
+                    if (progress != null && totalBytes.HasValue && totalBytes.Value > 0)
+                    {
+                        double pct = (double)bytesRead / totalBytes.Value * 100.0;
+                        if (pct - lastReported >= 1.0)
+                        {
+                            progress.Report(pct);
+                            lastReported = pct;
+                        }
+                    }
+                }
             }
 
-            return memStream.ToArray();
+            // Success: rename .tmp to actual file (overwrite if exists)
+            if (System.IO.File.Exists(destPath))
+                System.IO.File.Delete(destPath);
+            
+            System.IO.File.Move(tempPath, destPath);
+
+            return true;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[NexusApiService] GetBytesAsync error: {ex.Message}");
-            return Array.Empty<byte>();
+            if (ex is not OperationCanceledException)
+                Console.Error.WriteLine($"[NexusApiService] DownloadToFileAsync error: {ex.Message}");
+            
+            try { if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath); } catch { }
+            return false;
         }
     }
 
@@ -292,8 +343,8 @@ public class NexusApiService
         """;
 
     /// <summary>
-    /// Full-text mod search via v2 GraphQL. Uses <c>nameStemmed: MATCHES</c> which performs
-    /// stemmed word matching across mod names. No API key required.
+    /// Full-text mod search via v2 GraphQL. Uses <c>name: MATCHES</c> for direct word matching
+    /// across mod names. No API key required.
     /// </summary>
     public Task<(List<NexusBrowseMod> Mods, int Total)> SearchModsAsync(
         string gameDomain, int gameId, string query, string? categoryName = null,
@@ -301,9 +352,9 @@ public class NexusApiService
     {
         var filter = new Dictionary<string, object>
         {
-            ["gameId"]      = new[] { new { op = "EQUALS", value = gameId.ToString() } },
-            ["nameStemmed"] = new[] { new { op = "MATCHES", value = query } },
-            ["op"]          = "AND"
+            ["gameId"] = new[] { new { op = "EQUALS", value = gameId.ToString() } },
+            ["name"]   = new[] { new { op = "MATCHES", value = query } },
+            ["op"]     = "AND"
         };
         if (!includeAdult)
             filter["adultContent"] = new[] { new { op = "EQUALS", value = false } };
@@ -414,45 +465,45 @@ public class NexusApiService
     private const string GraphQlUrl = "https://api.nexusmods.com/v2/graphql";
 
     // ── Collections browse (v2 GraphQL) ──────────────────────────────────────
-
-    private const string CollectionsGqlQuery = """
-        query Collections($filter: CollectionFilter, $count: Int, $offset: Int) {
-          collectionsV2(filter: $filter, count: $count, offset: $offset) {
-            nodes {
-              id slug name summary endorsements totalDownloads
-              latestPublishedRevision { revision modCount }
-              user { name memberId }
-              category { name }
-            }
-            totalCount
-          }
-        }
-        """;
+    // collectionsV2 does not expose a named filter input type, so the filter
+    // must be inlined directly into the query string rather than passed as a variable.
 
     /// <summary>
-    /// Returns collections for the given game domain, sorted by downloads (most popular first).
+    /// Returns collections for the given game domain.
+    /// When nameFilter is provided, uses WILDCARD op for partial name matching.
     /// No API key required.
     /// </summary>
     public Task<(List<NexusBrowseCollection> Collections, int Total)> GetBrowseCollectionsAsync(
         string gameDomain, string? nameFilter = null,
         int count = 20, int offset = 0, CancellationToken ct = default)
-    {
-        object filter = string.IsNullOrEmpty(nameFilter)
-            ? new { gameDomain = new { value = gameDomain, op = "EQUALS" } }
-            : new { gameDomain = new { value = gameDomain, op = "EQUALS" }, name = new { value = nameFilter, op = "MATCHES" } };
-
-        return QueryCollectionsAsync(gameDomain, filter, count, offset, ct);
-    }
+        => QueryCollectionsAsync(gameDomain, nameFilter, count, offset, ct);
 
     private async Task<(List<NexusBrowseCollection> Collections, int Total)> QueryCollectionsAsync(
-        string gameDomain, object filter, int count, int offset, CancellationToken ct)
+        string gameDomain, string? nameFilter, int count, int offset, CancellationToken ct)
     {
         try
         {
+            // Build filter inline — no named variable type exists in the schema for collectionsV2
+            var filterStr = string.IsNullOrEmpty(nameFilter)
+                ? $"{{gameDomain: {{value: \"{gameDomain}\", op: EQUALS}}}}"
+                : $"{{gameDomain: {{value: \"{gameDomain}\", op: EQUALS}}, name: {{value: \"{nameFilter}\", op: WILDCARD}}}}";
+
+            var query = $@"query Collections($count: Int, $offset: Int) {{
+  collectionsV2(filter: {filterStr}, sort: {{endorsements: {{direction: DESC}}}}, count: $count, offset: $offset) {{
+    nodes {{
+      id slug name summary endorsements totalDownloads
+      latestPublishedRevision {{ revision modCount downloadLink }}
+      user {{ name memberId }}
+      category {{ name }}
+    }}
+    totalCount
+  }}
+}}";
+
             var payload = JsonSerializer.Serialize(new
             {
-                query     = CollectionsGqlQuery,
-                variables = new { filter, count, offset }
+                query,
+                variables = new { count, offset }
             });
 
             using var req = new HttpRequestMessage(HttpMethod.Post, GraphQlUrl)
@@ -487,7 +538,8 @@ public class NexusApiService
                 Revision     = n.LatestPublishedRevision?.Revision ?? 0,
                 ModCount     = n.LatestPublishedRevision?.ModCount ?? 0,
                 GameDomain   = gameDomain,
-                TotalCount   = total
+                TotalCount   = total,
+                DownloadLink = n.LatestPublishedRevision?.DownloadLink ?? string.Empty
             }).ToList(), total);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -495,6 +547,27 @@ public class NexusApiService
             Console.Error.WriteLine($"[NexusApiService] QueryCollectionsAsync error: {ex.Message}");
             return (new List<NexusBrowseCollection>(), 0);
         }
+    }
+
+    /// <summary>
+    /// Resolves a collection download URL from the relative path returned by GraphQL.
+    /// Requires an API key. Returns null on failure or if no key is set.
+    /// </summary>
+    public async Task<string?> GetCollectionDownloadUrlAsync(string downloadLinkPath, CancellationToken ct = default)
+    {
+        if (!HasApiKey || string.IsNullOrEmpty(downloadLinkPath)) return null;
+        try
+        {
+            var url = $"https://api.nexusmods.com{downloadLinkPath}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Add("apikey", ApiKey);
+            req.Headers.TryAddWithoutValidation("User-Agent", "CatModManager/1.0");
+            var resp = await _http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            var links = await resp.Content.ReadFromJsonAsync<List<NexusDownloadLink>>(cancellationToken: ct);
+            return links?.FirstOrDefault()?.URI;
+        }
+        catch { return null; }
     }
 
     /// <summary>

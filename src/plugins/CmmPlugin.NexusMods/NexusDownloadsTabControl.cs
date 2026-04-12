@@ -22,12 +22,14 @@ public class NexusDownloadsTabControl : UserControl
     private readonly NexusDownloadService _downloadService;
     private readonly NexusApiService _api;
     private readonly Action<string, FomodPreset?>? _installCallback;
-    private readonly Action<string>? _installToRootCallback;
     private readonly Func<string>? _getDownloadsFolder;
     private readonly StackPanel _activePanel;
     private readonly StackPanel _completedPanel;
-    private readonly TextBlock _activeCountBadge;
-    private readonly Border _completedSection;
+    private readonly TextBlock  _activeCountBadge;
+    private readonly Border     _completedSection;
+    private readonly Border     _collectionBanner;
+    private readonly TextBlock  _collectionBannerText;
+    private readonly Button     _pauseResumeBtn;
     private Button? _nxmBtn;
 
     private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.Parse("#36393F"));
@@ -42,14 +44,12 @@ public class NexusDownloadsTabControl : UserControl
         NexusDownloadService downloadService,
         NexusApiService api,
         Action<string, FomodPreset?>? installCallback = null,
-        Func<string>? getDownloadsFolder = null,
-        Action<string>? installToRootCallback = null)
+        Func<string>? getDownloadsFolder = null)
     {
-        _downloadService      = downloadService;
-        _api                  = api;
-        _installCallback      = installCallback;
-        _installToRootCallback = installToRootCallback;
-        _getDownloadsFolder   = getDownloadsFolder;
+        _downloadService    = downloadService;
+        _api                = api;
+        _installCallback    = installCallback;
+        _getDownloadsFolder = getDownloadsFolder;
         Background = BackgroundBrush;
 
         // Active section header
@@ -250,9 +250,78 @@ public class NexusDownloadsTabControl : UserControl
             VerticalScrollBarVisibility   = ScrollBarVisibility.Auto
         };
 
+        // ── Collection queue banner ───────────────────────────────────────────
+
+        _collectionBannerText = new TextBlock
+        {
+            FontSize          = 11,
+            Foreground        = new SolidColorBrush(Color.Parse("#FFA500")),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        _pauseResumeBtn = new Button
+        {
+            Padding         = new Thickness(8, 3),
+            Background      = Brushes.Transparent,
+            BorderBrush     = new SolidColorBrush(Color.Parse("#FFA500")),
+            Foreground      = new SolidColorBrush(Color.Parse("#FFA500")),
+            BorderThickness = new Thickness(1),
+            FontSize        = 10,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _pauseResumeBtn.Click += (_, _) =>
+        {
+            if (_downloadService.IsCollectionQueuePaused) _downloadService.ResumeCollectionQueue();
+            else                                          _downloadService.PauseCollectionQueue();
+        };
+
+        var cancelQueueBtn = new Button
+        {
+            Content         = "Cancel Queue",
+            Padding         = new Thickness(8, 3),
+            Background      = Brushes.Transparent,
+            BorderBrush     = RedBrush,
+            Foreground      = RedBrush,
+            BorderThickness = new Thickness(1),
+            FontSize        = 10,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        cancelQueueBtn.Click += (_, _) => _downloadService.CancelCollectionQueue();
+
+        var bannerBtns = new StackPanel
+        {
+            Orientation       = Orientation.Horizontal,
+            Spacing           = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        bannerBtns.Children.Add(_pauseResumeBtn);
+        bannerBtns.Children.Add(cancelQueueBtn);
+
+        var bannerRow = new DockPanel { Margin = new Thickness(0) };
+        DockPanel.SetDock(bannerBtns, Dock.Right);
+        bannerRow.Children.Add(bannerBtns);
+        bannerRow.Children.Add(_collectionBannerText);
+
+        _collectionBanner = new Border
+        {
+            Background      = new SolidColorBrush(Color.Parse("#2A2200")),
+            BorderBrush     = new SolidColorBrush(Color.Parse("#FFA500")),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding         = new Thickness(12, 6),
+            IsVisible       = false,
+            Child           = bannerRow,
+        };
+
+        _downloadService.CollectionQueueCountChanged += count =>
+            Dispatcher.UIThread.Post(() => UpdateCollectionBanner(count));
+
+        // ── Root layout ───────────────────────────────────────────────────────
+
         var root = new DockPanel();
-        DockPanel.SetDock(activeHeader, Dock.Top);
+        DockPanel.SetDock(activeHeader,      Dock.Top);
+        DockPanel.SetDock(_collectionBanner, Dock.Top);
         root.Children.Add(activeHeader);
+        root.Children.Add(_collectionBanner);
         root.Children.Add(scrollViewer);
 
         Content = root;
@@ -558,11 +627,30 @@ public class NexusDownloadsTabControl : UserControl
             Foreground = WhiteBrush
         };
 
+        // Retry button — only visible on failed non-active entries
+        var retryBtn = new Button
+        {
+            Content         = "↺ Retry",
+            Padding         = new Thickness(8, 3),
+            Background      = new SolidColorBrush(Color.Parse("#40444B")),
+            Foreground      = WhiteBrush,
+            BorderThickness = new Thickness(0),
+            FontSize        = 10,
+            IsVisible       = entry.HasFailed && !entry.IsActive,
+            Margin          = new Thickness(0, 4, 0, 0)
+        };
+        retryBtn.Click += (_, _) =>
+        {
+            var folder = _getDownloadsFolder?.Invoke() ?? Path.GetTempPath();
+            _downloadService.RetryDownload(entry, folder);
+        };
+
         var infoStack = new StackPanel { Spacing = 3 };
         infoStack.Children.Add(modNameText);
         infoStack.Children.Add(fileNameText);
         infoStack.Children.Add(progressBar);
         infoStack.Children.Add(statusText);
+        infoStack.Children.Add(retryBtn);
 
         var cardDock = new DockPanel { LastChildFill = true };
         cardDock.Children.Add(cancelOrDeleteBtn);
@@ -589,29 +677,22 @@ public class NexusDownloadsTabControl : UserControl
         }
 
         // Right-click context menu on completed cards
-        if (!entry.IsActive && (_installCallback != null || _installToRootCallback != null))
+        if (!entry.IsActive && _installCallback != null)
         {
             var menu = new ContextMenu();
-            if (_installCallback != null)
+
+            var installItem = new MenuItem { Header = "Install" };
+            installItem.Click += (_, _) =>
             {
-                var installItem = new MenuItem { Header = "Install" };
-                installItem.Click += (_, _) =>
-                {
-                    if (entry.LocalPath != null && File.Exists(entry.LocalPath))
-                        _installCallback(entry.LocalPath, entry.FomodPreset);
-                };
-                menu.Items.Add(installItem);
-            }
-            if (_installToRootCallback != null)
-            {
-                var installRootItem = new MenuItem { Header = "Install to Root" };
-                installRootItem.Click += (_, _) =>
-                {
-                    if (entry.LocalPath != null && File.Exists(entry.LocalPath))
-                        _installToRootCallback(entry.LocalPath);
-                };
-                menu.Items.Add(installRootItem);
-            }
+                if (entry.LocalPath != null && File.Exists(entry.LocalPath))
+                    _installCallback(entry.LocalPath, entry.FomodPreset);
+            };
+            menu.Items.Add(installItem);
+
+            // Disable install item at open-time if the archive file no longer exists on disk
+            menu.Opening += (_, _) =>
+                installItem.IsEnabled = entry.LocalPath != null && File.Exists(entry.LocalPath);
+
             cardBorder.ContextMenu = menu;
         }
 
@@ -639,6 +720,7 @@ public class NexusDownloadsTabControl : UserControl
                         break;
                     case nameof(DownloadEntry.HasFailed):
                         statusText.Foreground = GetStatusBrush(entry);
+                        retryBtn.IsVisible = entry.HasFailed && !entry.IsActive;
                         break;
                 }
             }
@@ -655,6 +737,22 @@ public class NexusDownloadsTabControl : UserControl
         if (entry.HasFailed) return RedBrush;
         if (!entry.IsActive && entry.Status == "Done") return GreenBrush;
         return MutedBrush;
+    }
+
+    private void UpdateCollectionBanner(int count)
+    {
+        if (count == 0)
+        {
+            _collectionBanner.IsVisible = false;
+            return;
+        }
+
+        bool paused = _downloadService.IsCollectionQueuePaused;
+        _collectionBannerText.Text = paused
+            ? $"Collection queue paused — {count} mod(s) remaining"
+            : $"Collection queue — {count} mod(s) remaining (opening pages one at a time)";
+        _pauseResumeBtn.Content = paused ? "Resume" : "Pause";
+        _collectionBanner.IsVisible = true;
     }
 
 }
