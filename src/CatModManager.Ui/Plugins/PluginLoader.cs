@@ -60,11 +60,11 @@ public class PluginLoader
         }
     }
 
-    public async Task ShutdownAllAsync()
+    public virtual async Task ShutdownAllAsync()
     {
         foreach (var plugin in _loaded)
         {
-            try   { await plugin.ShutdownAsync(); }
+            try { await plugin.ShutdownAsync(); }
             catch (Exception ex) { _log.LogError($"Plugin shutdown error: {plugin.DisplayName}", ex); }
         }
         _loaded.Clear();

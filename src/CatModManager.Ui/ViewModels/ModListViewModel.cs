@@ -9,7 +9,7 @@ using CatModManager.Core.Models;
 
 namespace CatModManager.Ui.ViewModels;
 
-public partial class ModListViewModel : ViewModelBase
+public partial class ModListViewModel : ObservableObject
 {
     // Callbacks wired by MainWindowViewModel
     public Action?           AutoSave         { get; set; }
@@ -29,10 +29,27 @@ public partial class ModListViewModel : ViewModelBase
     public System.Collections.Generic.List<Mod> SelectedMods { get; set; } = new();
 
     private bool _isRebuilding;
+    private int  _updateSuppressCount;
 
     public ModListViewModel()
     {
         AllMods.CollectionChanged += OnAllModsChanged;
+    }
+
+    public IDisposable SuppressUpdates()
+    {
+        _updateSuppressCount++;
+        return new UpdateSuppressor(this);
+    }
+
+    private void EndSuppress()
+    {
+        _updateSuppressCount = Math.Max(0, _updateSuppressCount - 1);
+        if (_updateSuppressCount == 0)
+        {
+            UpdatePriorities();
+            RebuildDisplayedMods();
+        }
     }
 
     // ── Property changed handlers ─────────────────────────────────────────────
@@ -42,7 +59,7 @@ public partial class ModListViewModel : ViewModelBase
 
     partial void OnSelectedModChanged(Mod? value)
     {
-        if (_isRebuilding) return;
+        if (_isRebuilding || _updateSuppressCount > 0) return;
         SelectedModChanged?.Invoke(value);
     }
 
@@ -50,6 +67,8 @@ public partial class ModListViewModel : ViewModelBase
 
     public void RebuildDisplayedMods()
     {
+        if (_updateSuppressCount > 0) return;
+
         var savedMod = SelectedMod;
         _isRebuilding = true;
         try
@@ -78,6 +97,10 @@ public partial class ModListViewModel : ViewModelBase
 
     public void UpdatePriorities()
     {
+        if (_updateSuppressCount > 0) return;
+
+        // Index 0 = Highest Priority (Count - 1)
+        // Last Index = Lowest Priority (0)
         for (int i = 0; i < AllMods.Count; i++)
             AllMods[i].Priority = AllMods.Count - 1 - i;
     }
@@ -121,11 +144,16 @@ public partial class ModListViewModel : ViewModelBase
 
     private void OnAllModsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.NewItems != null) foreach (Mod mod in e.NewItems) mod.PropertyChanged += OnModPropertyChanged;
+        if (e.NewItems != null) 
+        {
+            foreach (Mod mod in e.NewItems) mod.PropertyChanged += OnModPropertyChanged;
+            if (_updateSuppressCount == 0) UpdatePriorities();
+        }
         if (e.OldItems != null) foreach (Mod mod in e.OldItems) mod.PropertyChanged -= OnModPropertyChanged;
+        
         SyncActiveMods?.Invoke();
         AutoSave?.Invoke();
-        RebuildDisplayedMods();
+        if (_updateSuppressCount == 0) RebuildDisplayedMods();
     }
 
     private void OnModPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -135,9 +163,19 @@ public partial class ModListViewModel : ViewModelBase
             if (e.PropertyName == nameof(Mod.IsEnabled)) SyncActiveMods?.Invoke();
             AutoSave?.Invoke();
             if (e.PropertyName == nameof(Mod.Category)) UpdateCategories();
-            RebuildDisplayedMods();
+            
+            if (_updateSuppressCount == 0) RebuildDisplayedMods();
         }
     }
+
+    private class UpdateSuppressor : IDisposable
+    {
+        private readonly ModListViewModel _vm;
+        public UpdateSuppressor(ModListViewModel vm) => _vm = vm;
+        public void Dispose() => _vm.DisposeUpdateSuppressor();
+    }
+
+    private void DisposeUpdateSuppressor() => EndSuppress();
 
     // Minimal IDisposable to satisfy 'using' when no suppressor is wired in tests.
     private sealed class NullDisposable : IDisposable

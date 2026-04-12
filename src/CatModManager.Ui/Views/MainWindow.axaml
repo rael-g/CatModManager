@@ -10,6 +10,7 @@
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="850"
         x:Class="CatModManager.Ui.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
+        Name="RootWindow"
         Icon="/Assets/icon.ico"
         Title="The Schrödinger Cat Mod Manager"
         Background="{DynamicResource AppBackground}"
@@ -154,17 +155,6 @@
                                         </Grid>
                                     </StackPanel>
                                     <StackPanel Spacing="2">
-                                        <TextBlock Text="DATA SUBFOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"
-                                                   ToolTip.Tip="Relative path inside the game folder where the VFS mounts (e.g. Data, LiesofP\Content\Paks\~mods)"/>
-                                        <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.DataSubFolder}" IsReadOnly="True" Classes="path-field">
-                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                            </TextBox>
-                                            <Button Grid.Column="1" Command="{Binding OpenDataSubFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                            <Button Grid.Column="2" Click="SelectDataSubFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
-                                        </Grid>
-                                    </StackPanel>
-                                    <StackPanel Spacing="2">
                                         <TextBlock Text="APP DATA" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
                                             <TextBox Grid.Column="0" Text="{Binding AppDataPath}" IsReadOnly="True" Classes="path-field"/>
@@ -172,6 +162,81 @@
                                             <Button Grid.Column="2" Classes="small-icon" Opacity="0" IsHitTestVisible="False" Content="..."/>
                                         </Grid>
                                     </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- MOUNT POINTS section -->
+                            <Grid ColumnDefinitions="*, Auto" Margin="12,8,12,0">
+                                <TextBlock Grid.Column="0" Text="MOUNT POINTS" Classes="sidebar-section-header" Margin="0"/>
+                                <Button Grid.Column="1" Click="AddMountPoint_Click"
+                                        Content="+"
+                                        FontSize="11" FontWeight="Bold"
+                                        Padding="6,2"
+                                        Background="Transparent"
+                                        BorderBrush="{DynamicResource BorderColor}"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        ToolTip.Tip="Add a custom mount point"/>
+                            </Grid>
+                            <Border Padding="12,6,12,8">
+                                <StackPanel Spacing="4">
+                                    <!-- Default mount point (from DataSubFolder) — editable, predefined -->
+                                    <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6">
+                                        <Grid ColumnDefinitions="*, Auto, Auto, Auto">
+                                            <StackPanel Grid.Column="0" Spacing="1">
+                                                <TextBlock Text="Default" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource AccentColor}"/>
+                                                <TextBlock Text="{Binding GameConfig.DefaultMountPointAbsolutePath}"
+                                                           FontSize="10" FontFamily="Cascadia Code, Consolas, monospace"
+                                                           Foreground="{DynamicResource TextSubtle}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding GameConfig.DefaultMountPointAbsolutePath}"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Command="{Binding OpenDataSubFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                            <Button Grid.Column="2" Click="SelectDataSubFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
+                                            <Button Grid.Column="3" Content="⊘" Classes="small-icon" IsHitTestVisible="False" Opacity="0.4" ToolTip.Tip="Predefined (read-only)"/>
+                                        </Grid>
+                                    </Border>
+                                    <!-- Game-defined mount points (read-only, resolved absolute paths) -->
+                                    <ItemsControl ItemsSource="{Binding GameConfig.ResolvedGameDefinedMountPoints}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:MountPointDef">
+                                                <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6" Margin="0,4,0,0">
+                                                    <Grid ColumnDefinitions="*, Auto, Auto, Auto">
+                                                        <StackPanel Grid.Column="0" Spacing="1">
+                                                            <TextBlock Text="{Binding Name}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMuted}"/>
+                                                            <TextBlock Text="{Binding Path}" FontSize="10" FontFamily="Cascadia Code, Consolas, monospace" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                                        <Button Grid.Column="2" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                                        <Button Grid.Column="3" Content="⊘" Classes="small-icon" IsHitTestVisible="False" Opacity="0.4" ToolTip.Tip="Predefined (read-only)"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <!-- User-defined mount points (editable + deletable) -->
+                                    <ItemsControl ItemsSource="{Binding GameConfig.UserMountPoints}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:MountPointDef">
+                                                <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6" Margin="0,4,0,0">
+                                                    <Grid ColumnDefinitions="*, Auto, Auto, Auto">
+                                                        <StackPanel Grid.Column="0" Spacing="1">
+                                                            <TextBlock Text="{Binding Name}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMuted}"/>
+                                                            <TextBlock Text="{Binding Path}" FontSize="10" FontFamily="Cascadia Code, Consolas, monospace" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                                        <Button Grid.Column="2" Tag="{Binding}" Click="EditMountPoint_Click" Content="..." Classes="small-icon" ToolTip.Tip="Edit mount point"/>
+                                                        <Button Grid.Column="3"
+                                                                Command="{Binding $parent[Window].DataContext.DeleteMountPointCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="✕" Classes="small-icon"
+                                                                Foreground="{DynamicResource StatusDanger}"
+                                                                ToolTip.Tip="Remove mount point"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -290,12 +355,12 @@
                 <!-- Mod List Area -->
                 <Grid Grid.Row="1" RowDefinitions="32, *">
                     <Border Grid.Row="0" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="44, 32, *, 130, 70">
+                        <Grid ColumnDefinitions="44, 32, *, 100, 70">
                             <TextBlock Grid.Column="0" Text="✓" Classes="col-header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="1" Text="#" Classes="col-header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="2" Text="MOD NAME" Classes="col-header" VerticalAlignment="Center" Margin="8,0"/>
                             <TextBlock Grid.Column="3" Text="CATEGORY" Classes="col-header" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="4" Text="VERSION" Classes="col-header" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="VERSION" Classes="col-header" VerticalAlignment="Center" Margin="8,0,0,0"/>
                         </Grid>
                     </Border>
 
@@ -342,30 +407,90 @@
                                 <MenuItem Header="Refresh" Command="{Binding RefreshCommand}"/>
                                 <MenuItem Header="Open Folder" Command="{Binding OpenSelectedModFolderCommand}"/>
                                 <Separator/>
+                                <MenuItem Header="Change Mount Point" Click="ChangeMountPoint_Click"/>
+                                <Separator/>
                                 <MenuItem Header="Remove Mod" Command="{Binding RemoveModCommand}"/>
                             </ContextMenu>
                         </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:Mod">
-                                <Grid ColumnDefinitions="44, 32, *, 130, 70" Background="Transparent">
-                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsEnabled, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Priority}" VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.4" FontSize="11" FontFamily="Consolas"/>
-                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
-                                        <TextBlock Text="{Binding RootPath}" FontSize="10" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" FontFamily="Cascadia Code, Consolas, monospace"/>
-                                    </StackPanel>
-                                    <Border Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <Border Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,2">
-                                                <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"/>
-                                            </Border>
-                                            <Border Background="{DynamicResource AccentColor}" CornerRadius="3" Padding="8,2" Opacity="0.8"
-                                                    IsVisible="{Binding HasRootFolder}">
-                                                <TextBlock Text="Root/" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
+                                <Grid Background="Transparent">
+                                    <!-- Discreet Progress Overlay (Bottom Edge) -->
+                                    <ProgressBar IsVisible="{Binding IsInstalling}" 
+                                                 Value="{Binding InstallProgress}" Maximum="100" 
+                                                 Height="2" VerticalAlignment="Bottom" 
+                                                 Background="Transparent" Foreground="{DynamicResource AccentColor}"
+                                                 BorderThickness="0" ZIndex="1"/>
+
+                                    <!-- Main Row Layout -->
+                                    <Grid ColumnDefinitions="44, 32, *, 100, 70" Height="44">
+                                        <!-- Column 0: Checkbox / Cancel Button -->
+                                        <Panel Grid.Column="0">
+                                            <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center" 
+                                                      IsVisible="{Binding !IsInstalling}"/>
+                                            
+                                            <Button Command="{Binding CancelInstallCommand}" 
+                                                    IsVisible="{Binding IsInstalling}"
+                                                    Padding="4" Background="Transparent" BorderThickness="0"
+                                                    Width="32" Height="32"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    ToolTip.Tip="Cancel installation">
+                                                <TextBlock Text="✕" FontSize="14" Foreground="{DynamicResource StatusDanger}" FontWeight="Black"/>
+                                            </Button>
+
+                                            <TextBlock Text="⚠️" HorizontalAlignment="Center" VerticalAlignment="Center" 
+                                                       IsVisible="{Binding IsBroken}" 
+                                                       ToolTip.Tip="Incomplete installation! Remove and try again."/>
+                                        </Panel>
+                                        
+                                        <!-- Column 1: Priority / Progress % -->
+                                        <Panel Grid.Column="1">
+                                            <TextBlock Text="{Binding Priority}" VerticalAlignment="Center" HorizontalAlignment="Center" 
+                                                       Opacity="0.4" FontSize="11" FontFamily="Cascadia Code, Consolas" 
+                                                       IsVisible="{Binding !IsInstalling}"/>
+                                            
+                                            <TextBlock Text="{Binding InstallProgress, StringFormat='{}{0:F0}%'}" 
+                                                       IsVisible="{Binding IsInstalling}"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Center" 
+                                                       FontSize="9" Foreground="{DynamicResource AccentColor}" FontWeight="Black"/>
+                                        </Panel>
+
+                                        <!-- Column 2: Name and Path/MountPoint -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" 
+                                                           Foreground="{Binding IsBroken, Converter={x:Static conv:ObjectConverters.IsNotNull}, ConverterParameter='Red'}"/>
+                                                <Border Background="{DynamicResource StatusDanger}" CornerRadius="2" Padding="4,0" VerticalAlignment="Center" IsVisible="{Binding IsBroken}">
+                                                    <TextBlock Text="INCOMPLETE" FontSize="8" FontWeight="Black" Foreground="White"/>
+                                                </Border>
+                                            </StackPanel>
+                                            
+                                            <Panel>
+                                                <TextBlock Text="{Binding RootPath}" FontSize="10" Foreground="{DynamicResource TextSubtle}" 
+                                                           TextTrimming="CharacterEllipsis" FontFamily="Cascadia Code, Consolas, monospace" 
+                                                           IsVisible="{Binding !IsInstalling}"/>
+                                                <TextBlock Text="Installing archive..." FontSize="10" Foreground="{DynamicResource AccentColor}" 
+                                                           FontStyle="Italic" IsVisible="{Binding IsInstalling}"/>
+                                            </Panel>
+
+                                            <Border IsVisible="{Binding MountPointDisplayName, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"
+                                                    Background="{DynamicResource SurfaceBg}" CornerRadius="2" Padding="4,1" Margin="0,2,0,0" HorizontalAlignment="Left">
+                                                <TextBlock Text="{Binding MountPointDisplayName}" FontSize="9" FontWeight="SemiBold" 
+                                                           Foreground="{DynamicResource AccentColor}" FontFamily="Cascadia Code, Consolas, monospace"/>
                                             </Border>
                                         </StackPanel>
-                                    </Border>
-                                    <TextBlock Grid.Column="4" Text="{Binding Version}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSubtle}"/>
+
+                                        <!-- Column 3: Category -->
+                                        <Border Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left" 
+                                                Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,2">
+                                            <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"/>
+                                        </Border>
+
+                                        <!-- Column 4: Version -->
+                                        <TextBlock Grid.Column="4" Text="{Binding Version}" FontSize="11" VerticalAlignment="Center" 
+                                                   Foreground="{DynamicResource TextSubtle}" Margin="8,0,0,0"/>
+                                    </Grid>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -399,13 +524,24 @@
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="VERSION" Classes="inspector-field-label"/>
-                                        <TextBox Text="{Binding ModList.SelectedMod.Version}" IsReadOnly="True" Classes="path-field" Foreground="{DynamicResource TextSubtle}"/>
+                                        <TextBox Text="{Binding ModList.SelectedMod.Version, UpdateSourceTrigger=LostFocus}" Classes="path-field">
+                                            <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                        </TextBox>
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="CATEGORY" Classes="inspector-field-label"/>
                                         <TextBox Text="{Binding ModList.SelectedMod.Category, UpdateSourceTrigger=LostFocus}" Classes="path-field">
                                             <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                         </TextBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="MOUNT POINT" Classes="inspector-field-label"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <Border Grid.Column="0" Background="{DynamicResource SurfaceBg}" CornerRadius="3" Padding="8,5" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding SelectedModMountPointName}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentColor}"/>
+                                            </Border>
+                                            <Button Grid.Column="1" Click="ChangeMountPoint_Click" Content="↺" Classes="small-icon" ToolTip.Tip="Change mount point" Margin="6,0,0,0"/>
+                                        </Grid>
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="PHYSICAL PATH" Classes="inspector-field-label"/>
@@ -542,7 +678,10 @@
         <Border Grid.Row="2" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Padding="12,0">
             <Grid ColumnDefinitions="*, Auto">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="●" Foreground="{Binding MountButtonColor}" FontSize="8" VerticalAlignment="Center"/>
+                    <TextBlock Text="●" Foreground="{Binding MountButtonColor}" FontSize="8" VerticalAlignment="Center" IsVisible="{Binding !IsInstalling}"/>
+                    <ProgressBar Value="{Binding TotalInstallProgress}" Maximum="100" Width="40" Height="4" IsVisible="{Binding IsInstalling}" 
+                                 IsIndeterminate="{Binding IsTotalProgressIndeterminate}"
+                                 VerticalAlignment="Center" Background="{DynamicResource BorderColor}" Foreground="{DynamicResource AccentColor}"/>
                     <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">

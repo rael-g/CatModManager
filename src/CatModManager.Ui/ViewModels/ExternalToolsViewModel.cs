@@ -66,7 +66,7 @@ public partial class ExternalToolsViewModel : ViewModelBase
 
         StatusMessage = $"Launching {tool.Name}…";
         _logService.Log($"[Tools] Launching: {tool.ExecutablePath} {tool.Arguments}");
-        await _processService.StartProcessAsync(tool.ExecutablePath, tool.Arguments);
+        await _processService.StartProcessAsync(tool.ExecutablePath, tool.Arguments, waitForChildren: false);
         StatusMessage = "";
     }
 

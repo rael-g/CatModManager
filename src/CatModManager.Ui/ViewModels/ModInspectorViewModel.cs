@@ -55,6 +55,7 @@ public partial class ModInspectorViewModel : ViewModelBase
     private void NavigateInto(ModFileItem item)
     {
         if (!item.IsDirectory || _currentMod == null) return;
+        if (item.Name == "..") { NavigateUp(); return; }
         string rel = string.IsNullOrEmpty(CurrentFolderPath)
             ? item.Name
             : Path.Combine(CurrentFolderPath, item.Name);

@@ -8,25 +8,17 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia.Media;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
-using CatModManager.Core.Vfs;
 using CatModManager.PluginSdk;
 using CatModManager.Ui.Plugins;
-using Avalonia.Media;
-using Nett;
 
 namespace CatModManager.Ui.ViewModels;
 
-public enum InspectorTab { Info, Files }
-public record ModFileItem(string Name, bool IsDirectory, long Size);
-
-public partial class MainWindowViewModel : ViewModelBase
+public partial class MainWindowViewModel : ObservableObject
 {
-    private static readonly IBrush _mountedBrush   = Brush.Parse("#3BA55D");
-    private static readonly IBrush _unmountedBrush = Brush.Parse("#80848E");
-
     // ── Dependencies ──────────────────────────────────────────────────────────
 
     private readonly IModScanner              _modScanner;
@@ -39,9 +31,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ICatPathService          _pathService;
     private readonly ILogService              _logService;
     private readonly IConfigService           _configService;
+    private readonly AppSessionState          _sessionState;
+    private readonly PluginLoader             _pluginLoader;
     private readonly UiExtensionHost?         _uiExtensionHost;
     private readonly PluginBrowserViewModel?  _pluginBrowserVm;
-    private readonly AppSessionState          _sessionState;
 
     // ── Sub-ViewModels ────────────────────────────────────────────────────────
 
@@ -54,12 +47,20 @@ public partial class MainWindowViewModel : ViewModelBase
     // ── Observable state ──────────────────────────────────────────────────────
 
     [ObservableProperty] private bool _isVfsMounted;
+    [ObservableProperty] private bool _isInstalling;
     [ObservableProperty] private string _statusMessage = "Ready";
     [ObservableProperty] private ObservableCollection<string> _logs = new();
-    public ObservableCollection<IInspectorTab>  PluginInspectorTabs  { get; } = new();
-    public ObservableCollection<ISidebarAction> PluginSidebarActions { get; } = new();
+    public ObservableCollection<IInspectorTab>   PluginInspectorTabs   { get; } = new();
+    public ObservableCollection<ISidebarAction>  PluginSidebarActions  { get; } = new();
+    public IReadOnlyList<IModContextAction>      PluginModContextActions => _uiExtensionHost?.ModContextActions ?? System.Array.Empty<IModContextAction>();
 
     partial void OnIsVfsMountedChanged(bool value) => UpdateMountButtonState();
+    
+    partial void OnIsInstallingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TotalInstallProgress));
+        OnPropertyChanged(nameof(IsTotalProgressIndeterminate));
+    }
 
     public string MountButtonText  => IsVfsMounted ? "Unmount" : "Mount";
     public string MountButtonIcon  => IsVfsMounted ? "◉" : "○";
@@ -70,12 +71,50 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public string AppDataPath => _pathService.BaseDataPath;
 
-    // ── Events ────────────────────────────────────────────────────────────────
+    public void NotifySelectedModMountPointChanged() => OnPropertyChanged(nameof(SelectedModMountPointName));
+
+    public void RefreshModMountPointDisplayNames()
+    {
+        var points = GameConfig.EffectiveMountPoints;
+        foreach (var mod in ModList.AllMods)
+        {
+            var id = mod.MountPointId;
+            mod.MountPointDisplayName = string.IsNullOrEmpty(id)
+                ? null
+                : points.FirstOrDefault(mp => string.Equals(mp.Id, id, StringComparison.OrdinalIgnoreCase))?.Name ?? id;
+        }
+    }
+
+    public string SelectedModMountPointName
+    {
+        get
+        {
+            var id = ModList.SelectedMod?.MountPointId;
+            if (string.IsNullOrEmpty(id))
+                return GameConfig.EffectiveMountPoints.FirstOrDefault()?.Name ?? "Default";
+            return GameConfig.EffectiveMountPoints.FirstOrDefault(mp =>
+                string.Equals(mp.Id, id, StringComparison.OrdinalIgnoreCase))?.Name ?? id;
+        }
+    }
+
+    public bool HasActiveDownloads => _sessionState.CheckHasActiveDownloads?.Invoke() ?? false;
+
+    public double TotalInstallProgress
+    {
+        get
+        {
+            var installing = ModList.AllMods.Where(m => m.IsInstalling).ToList();
+            if (installing.Count == 0) return 0;
+            return installing.Average(m => m.InstallProgress);
+        }
+    }
+
+    public bool IsTotalProgressIndeterminate => IsInstalling && TotalInstallProgress <= 0;
+
+    private readonly List<Task> _activeInstallTasks = new();
 
     public event Action? RequestClearFocus;
     public event Action<Mod, string>? ModInstalled;
-
-    // ── Constructor ───────────────────────────────────────────────────────────
 
     public MainWindowViewModel(
         IModScanner              modScanner,
@@ -93,6 +132,7 @@ public partial class MainWindowViewModel : ViewModelBase
         IGameDiscoveryService    gameDiscoveryService,
         IRootSwapService         rootSwapService,
         AppSessionState          sessionState,
+        PluginLoader             pluginLoader,
         UiExtensionHost?         uiExtensionHost = null,
         PluginBrowserViewModel?  pluginBrowserVm = null)
     {
@@ -107,10 +147,10 @@ public partial class MainWindowViewModel : ViewModelBase
         _configService        = configService;
         _rootSwapService      = rootSwapService;
         _sessionState         = sessionState;
+        _pluginLoader         = pluginLoader;
         _uiExtensionHost      = uiExtensionHost;
         _pluginBrowserVm      = pluginBrowserVm;
 
-        // Sub-ViewModels
         ProfileManager = new ProfileManagerViewModel(profileService, pathService, fileService, configService, logService);
         ProfileManager.BuildSaveData  = BuildCurrentProfile;
         ProfileManager.IsVfsMounted   = () => IsVfsMounted;
@@ -127,7 +167,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ModList.AutoSave        = () => ProfileManager.AutoSave();
         ModList.SuppressAutoSave = () => ProfileManager.SuppressAutoSave();
         ModList.SyncActiveMods  = SyncActiveModsToState;
-        ModList.SelectedModChanged += mod => Inspector.OnModChanged(mod);
+        ModList.SelectedModChanged += mod => { Inspector.OnModChanged(mod); OnPropertyChanged(nameof(SelectedModMountPointName)); };
 
         Tools = new ExternalToolsViewModel(processService, vfsOrchestrator, logService);
         Tools.IsVfsMounted  = () => IsVfsMounted;
@@ -138,22 +178,15 @@ public partial class MainWindowViewModel : ViewModelBase
         };
         Tools.AutoSave = () => ProfileManager.AutoSave();
 
-        // Wire AppSessionState
         _sessionState.RequestInstallModAction = (archivePath, _) =>
-            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => AddModCommand.Execute(archivePath));
-        _sessionState.RequestInstallModToRootAction = archivePath =>
-            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => AddModToRootCommand.Execute(archivePath));
-        GameConfig.PropertyChanged += (_, _) => SyncGameConfigToState();
-        ProfileManager.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ProfileManagerViewModel.CurrentProfileName))
+            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {
-                _sessionState.CurrentProfileName = ProfileManager.CurrentProfileName;
-                if (ProfileManager.CurrentProfileName is { } name)
-                    _sessionState.NotifyProfileChanged(name);
-            }
+                try { await AddModCommand.ExecuteAsync(archivePath); }
+                catch (OperationCanceledException) { }
+                catch (Exception ex) { _logService.LogError("Mod install via SDK failed", ex); }
+            });
         };
-        ModInstalled += (mod, sourcePath) => _sessionState.NotifyModInstalled(mod, sourcePath);
 
         _logService.OnLog += AddLog;
         _vfsOrchestrator.RecoverStaleMounts();
@@ -161,107 +194,121 @@ public partial class MainWindowViewModel : ViewModelBase
         var lastProfile = _configService.Current.LastProfileName;
         _ = ProfileManager.LoadInitialProfile(lastProfile);
 
-        _logService.Log("Cat Mod Manager initialized.");
+        UpdateMountButtonState();
     }
 
-    // ── Profile integration ───────────────────────────────────────────────────
-
-    private Profile BuildCurrentProfile() => new Profile
+    private Profile BuildCurrentProfile()
     {
-        Name               = ProfileManager.CurrentProfileName ?? "",
-        ModsFolderPath     = GameConfig.ModsFolderPath     ?? "",
-        BaseDataPath       = GameConfig.BaseFolderPath      ?? "",
-        GameExecutablePath = GameConfig.GameExecutablePath  ?? "",
-        DataSubFolder      = GameConfig.DataSubFolder       ?? "",
-        GameSupportId      = GameConfig.ActiveGameSupport.GameId,
-        LaunchArguments    = GameConfig.LaunchArguments     ?? "",
-        DownloadsFolderPath = GameConfig.DownloadsFolderPath ?? "",
-        Mods               = ModList.AllMods.ToList(),
-        ExternalTools      = Tools.GetTools()
-    };
-
-    private void ApplyLoadedProfile(Profile p)
-    {
-        // Suppress GameConfig autosave during bulk-load; ProfileManager suppression
-        // covers AllMods changes via its own counter.
-        var savedAutoSave = GameConfig.AutoSave;
-        GameConfig.AutoSave = null;
-        using (ProfileManager.SuppressAutoSave())
+        return new Profile
         {
-            GameConfig.ModsFolderPath      = p.ModsFolderPath;
-            GameConfig.BaseFolderPath      = p.BaseDataPath;
-            GameConfig.GameExecutablePath  = p.GameExecutablePath;
-            GameConfig.DataSubFolder       = p.DataSubFolder;
-            GameConfig.DownloadsFolderPath = string.IsNullOrEmpty(p.DownloadsFolderPath)
-                ? _pathService.DownloadsPath
-                : p.DownloadsFolderPath;
+            Name = ProfileManager.CurrentProfileName ?? "Untitled",
+            Mods = ModList.AllMods.ToList(),
+            GameSupportId = GameConfig.ActiveGameSupport?.GameId ?? "generic",
+            LaunchArguments = GameConfig.LaunchArguments ?? "",
+            ModsFolderPath = GameConfig.ModsFolderPath ?? "",
+            BaseDataPath = GameConfig.BaseFolderPath ?? "",
+            GameExecutablePath = GameConfig.GameExecutablePath ?? "",
+            DownloadsFolderPath = GameConfig.DownloadsFolderPath ?? "",
+            DataSubFolder = GameConfig.DataSubFolder ?? "",
+            UserMountPoints = GameConfig.UserMountPoints.ToList()
+        };
+    }
+
+    private void ApplyLoadedProfile(Profile profile)
+    {
+        using (ModList.SuppressAutoSave())
+        using (ModList.SuppressUpdates())
+        {
+            GameConfig.ModsFolderPath = profile.ModsFolderPath;
+            GameConfig.BaseFolderPath = profile.BaseDataPath;
+            GameConfig.GameExecutablePath = profile.GameExecutablePath;
+            GameConfig.DownloadsFolderPath = profile.DownloadsFolderPath;
+            GameConfig.DataSubFolder = profile.DataSubFolder;
+            GameConfig.LaunchArguments = profile.LaunchArguments;
+
+            GameConfig.UserMountPoints.Clear();
+            foreach (var mp in profile.UserMountPoints) GameConfig.UserMountPoints.Add(mp);
+
+            if (!string.IsNullOrEmpty(profile.GameSupportId))
+            {
+                var game = GameConfig.AvailableGameSupports.FirstOrDefault(g => g.GameId == profile.GameSupportId);
+                if (game != null) GameConfig.ActiveGameSupport = game;
+            }
 
             ModList.AllMods.Clear();
-            foreach (var m in p.Mods) ModList.AllMods.Add(m);
-
-            GameConfig.ActiveGameSupport = GameConfig.AvailableGameSupports.FirstOrDefault(s => s.GameId == p.GameSupportId)
-                ?? GameConfig.AvailableGameSupports.FirstOrDefault(s => s.CanSupport(p.GameExecutablePath))
-                ?? GameConfig.AvailableGameSupports.FirstOrDefault()
-                ?? GameConfig.ActiveGameSupport;
-            GameConfig.LaunchArguments = p.LaunchArguments;
+            foreach (var m in profile.Mods) ModList.AllMods.Add(m);
         }
-        GameConfig.AutoSave = savedAutoSave;
-        ModList.UpdateCategories();
-        ModList.RebuildDisplayedMods();
-        Tools.LoadTools(p.ExternalTools);
+        
+        RefreshModMountPointDisplayNames();
+        SyncActiveModsToState();
+        
+        // Notify SDK/Plugins that the profile has changed (Fixes Nexus persistence/names)
+        _sessionState.NotifyProfileChanged(profile.Name);
+
+        _logService.Log($"Profile '{profile.Name}' applied with {profile.Mods.Count} mods.");
     }
 
-    private void AutoSave() => ProfileManager.AutoSave();
-    private IDisposable SuppressAutoSave() => ProfileManager.SuppressAutoSave();
-
-    // ── AppSessionState sync ──────────────────────────────────────────────────
-
-    private void SyncGameConfigToState()
+    private void SyncActiveModsToState()
     {
-        _sessionState.DataFolderPath      = GameConfig.BaseFolderPath;
-        _sessionState.ModsFolderPath      = GameConfig.ModsFolderPath;
+        var active = ModList.AllMods
+            .Where(m => m.IsEnabled && !m.IsBroken && !m.IsInstalling)
+            .OrderBy(m => m.Priority)
+            .ToList();
+        
+        _sessionState.ActiveMods = active;
+        _sessionState.NexusDomain = GameConfig.ActiveGameSupport?.NexusDomain;
+        _sessionState.GameId = GameConfig.ActiveGameSupport?.GameId;
+        _sessionState.ModsFolderPath = GameConfig.ModsFolderPath;
+        _sessionState.DataFolderPath = GameConfig.BaseFolderPath;
         _sessionState.DownloadsFolderPath = GameConfig.DownloadsFolderPath;
-        _sessionState.GameExecutablePath  = GameConfig.GameExecutablePath;
-        _sessionState.GameId              = GameConfig.ActiveGameSupport?.GameId;
-        _sessionState.NexusDomain        = GameConfig.ActiveGameSupport?.NexusDomain;
-        _sessionState.DataSubFolder       = GameConfig.ActiveGameSupport?.DataSubFolder;
-        _sessionState.RootSwapOnly        = GameConfig.ActiveGameSupport?.RootSwapOnly ?? false;
+        _sessionState.GameExecutablePath = GameConfig.GameExecutablePath;
+        _sessionState.CurrentProfileName = ProfileManager.CurrentProfileName;
+        _sessionState.DataSubFolder = GameConfig.DataSubFolder;
     }
-
-    private void SyncActiveModsToState() =>
-        _sessionState.ActiveMods = ModList.AllMods.Where(m => m.IsEnabled).Cast<IModInfo>().ToList();
-
-    // ── Mount / launch ────────────────────────────────────────────────────────
 
     [RelayCommand]
     private async Task ToggleMount()
     {
-        RequestClearFocus?.Invoke();
-        var result = await ToggleMountInternal();
-        StatusMessage = result.IsSuccess ? "Ready" : result.ErrorMessage ?? "Operation Failed";
+        var res = await ToggleMountInternal();
+        if (!res.IsSuccess) StatusMessage = res.ErrorMessage;
     }
 
     private async Task<OperationResult> ToggleMountInternal()
     {
-        StatusMessage = IsVfsMounted ? "Unmounting..." : "Mounting...";
-        OperationResult result;
         if (IsVfsMounted)
         {
-            result = await _vfsOrchestrator.UnmountAsync();
+            StatusMessage = "Unmounting...";
+            var res = await _vfsOrchestrator.UnmountAsync();
+            if (res.IsSuccess)
+            {
+                IsVfsMounted = false;
+                StatusMessage = "Unmounted successfully.";
+            }
+            return res;
         }
         else
         {
-            result = await _vfsOrchestrator.MountAsync(new MountOptions
+            if (GameConfig.ActiveGameSupport == null) return OperationResult.Failure("No game selected.");
+            if (string.IsNullOrEmpty(GameConfig.BaseFolderPath)) return OperationResult.Failure("Game folder not set.");
+
+            StatusMessage = "Mounting Virtual File System...";
+            SyncActiveModsToState();
+            var res = await _vfsOrchestrator.MountAsync(new MountOptions
             {
                 GameFolderPath = GameConfig.BaseFolderPath,
                 DataSubFolder  = GameConfig.DataSubFolder,
                 RootSwapOnly   = GameConfig.ActiveGameSupport?.RootSwapOnly ?? false,
-                ActiveMods     = ModList.AllMods.Where(m => m.IsEnabled).ToList()
+                ActiveMods     = ModList.AllMods.Where(m => m.IsEnabled && !m.IsBroken).ToList(),
+                MountPoints    = GameConfig.EffectiveMountPoints.ToList()
             });
+            
+            if (res.IsSuccess)
+            {
+                IsVfsMounted = true;
+                StatusMessage = "VFS Mounted & Safe Swap Active.";
+            }
+            return res;
         }
-        IsVfsMounted = _vfsOrchestrator.IsMounted;
-        UpdateMountButtonState();
-        return result;
     }
 
     private void UpdateMountButtonState()
@@ -273,177 +320,249 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(SafeSwapStatusColor));
     }
 
+    private static readonly IBrush _mountedBrush = new SolidColorBrush(Color.Parse("#4CAF50"));
+    private static readonly IBrush _unmountedBrush = new SolidColorBrush(Color.Parse("#757575"));
+
     [RelayCommand]
     private async Task LaunchGame()
     {
-        RequestClearFocus?.Invoke();
-        StatusMessage = "Launching...";
-
-        bool wasAutoMounted = false;
+        if (GameConfig.ActiveGameSupport == null) { StatusMessage = "Select a game first."; return; }
+        
         if (!IsVfsMounted)
         {
-            var mountResult = await ToggleMountInternal();
-            if (mountResult.IsSuccess) wasAutoMounted = true;
-            else { StatusMessage = $"Auto-mount failed: {mountResult.ErrorMessage}"; return; }
+            var res = await ToggleMountInternal();
+            if (!res.IsSuccess) { StatusMessage = $"Mount failed: {res.ErrorMessage}"; return; }
         }
 
-        var result = await _gameLauncher.LaunchGameAsync(
-            GameConfig.GameExecutablePath, GameConfig.LaunchArguments, GameConfig.ActiveGameSupport, ModList.AllMods.Where(m => m.IsEnabled));
-
-        if (wasAutoMounted && IsVfsMounted)
-        {
-            _logService.Log("Game closed. Auto-unmounting...");
-            await ToggleMountInternal();
-        }
-
-        IsVfsMounted = _vfsOrchestrator.IsMounted;
-        UpdateMountButtonState();
-        StatusMessage = result.IsSuccess ? "Ready" : result.ErrorMessage ?? "Launch Failed";
-    }
-
-    // ── Mod install / remove ──────────────────────────────────────────────────
-
-    [RelayCommand]
-    private async Task Refresh()
-    {
-        RequestClearFocus?.Invoke();
-        if (string.IsNullOrEmpty(GameConfig.ModsFolderPath)) return;
-        StatusMessage = "Refreshing mods...";
+        StatusMessage = "Launching game...";
         try
         {
-            var scannedMods = await _modScanner.ScanDirectoryAsync(GameConfig.ModsFolderPath);
-            var currentMap  = ModList.AllMods.ToDictionary(m => m.RootPath, m => m);
-            var newList = scannedMods.Select(mod => {
-                if (currentMap.TryGetValue(mod.RootPath, out var existing)) return existing;
-                mod.Priority = -1;
-                return mod;
-            }).ToList();
+            var activeMods = ModList.AllMods.Where(m => m.IsEnabled && !m.IsBroken && !m.IsInstalling).ToList();
+            await _gameLauncher.LaunchGameAsync(
+                GameConfig.GameExecutablePath, 
+                GameConfig.LaunchArguments, 
+                GameConfig.ActiveGameSupport, 
+                activeMods);
+            StatusMessage = "Game running.";
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError("Launch failed", ex);
+            StatusMessage = $"Launch error: {ex.Message}";
+        }
+    }
 
-            using (SuppressAutoSave())
+    [RelayCommand]
+    private async Task AddMod(string? sourcePath = null)
+    {
+        if (!string.IsNullOrEmpty(sourcePath))
+        {
+            await InstallModAtMountPointAsync(sourcePath, null);
+            return;
+        }
+
+        var top = (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (top == null) return;
+
+        var files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+        {
+            Title = "Select Mod Archives",
+            AllowMultiple = true,
+            FileTypeFilter = new[] { new Avalonia.Platform.Storage.FilePickerFileType("Archives") { Patterns = new[] { "*.zip", "*.7z", "*.rar" } } }
+        });
+
+        foreach (var file in files)
+        {
+            await InstallModAtMountPointAsync(file.Path.LocalPath, null);
+        }
+    }
+
+    [RelayCommand]
+    private async Task AddModFromFolder()
+    {
+        var top = (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (top == null) return;
+
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+        {
+            Title = "Select Mod Folder",
+            AllowMultiple = false
+        });
+
+        if (folders.Count > 0)
+        {
+            await InstallModAtMountPointAsync(folders[0].Path.LocalPath, null);
+        }
+    }
+
+    private async Task InstallModAtMountPointAsync(string sourcePath, string? mountPointId)
+    {
+        if (string.IsNullOrEmpty(GameConfig.ModsFolderPath))
+        {
+            StatusMessage = "Error: Mods folder not set in Game Config.";
+            return;
+        }
+
+        // 1. Storage is ALWAYS in the Mods Folder
+        string targetBaseDir = GameConfig.ModsFolderPath;
+
+        // 2. Identify intended mount point (metadata only)
+        var mountPoint = GameConfig.EffectiveMountPoints.FirstOrDefault(mp => mp.Id == mountPointId) 
+                         ?? GameConfig.EffectiveMountPoints.FirstOrDefault();
+        
+        // 3. Proper Update Detection: Match by archive name vs existing folder name
+        string baseName = Path.GetFileNameWithoutExtension(sourcePath);
+        var existingMod = ModList.AllMods.FirstOrDefault(m => 
+            string.Equals(Path.GetFileName(m.RootPath), baseName, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(m.Name, baseName, StringComparison.OrdinalIgnoreCase));
+
+        Mod targetMod;
+        bool isUpdate = existingMod != null;
+
+        if (isUpdate)
+        {
+            targetMod = existingMod!;
+            targetMod.IsInstalling = true;
+            targetMod.InstallProgress = 0;
+        }
+        else
+        {
+            targetMod = new Mod(baseName, sourcePath, ModList.AllMods.Count + 1)
             {
-                ModList.AllMods.Clear();
-                foreach (var mod in newList.OrderByDescending(m => m.Priority)) ModList.AllMods.Add(mod);
-                ModList.UpdatePriorities(); ModList.UpdateCategories();
-            }
-            ModList.RebuildDisplayedMods();
-            AutoSave();
-            StatusMessage = "Mods refreshed.";
-        }
-        catch (Exception ex) { _logService.Log($"REFRESH ERROR: {ex.Message}"); StatusMessage = $"ERROR: {ex.Message}"; }
-    }
+                IsInstalling = true,
+                InstallProgress = 0,
+                MountPointId = mountPoint?.Id ?? "Default",
+                Category = "Uncategorized"
+            };
 
-    [RelayCommand]
-    private async Task ScanDirectory(string? path)
-    {
-        if (string.IsNullOrEmpty(path)) return;
+            // Pre-fill metadata (Name/Category) from Nexus BEFORE adding to list
+            _sessionState.NotifyModInstalled(targetMod, sourcePath);
+
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => {
+                ModList.AllMods.Insert(0, targetMod);
+                ModList.RebuildDisplayedMods();
+            });
+        }
+
+        var cts = new System.Threading.CancellationTokenSource();
+        targetMod.SetInstallCancellationTokenSource(cts);
+
+        StatusMessage = $"Installing {targetMod.Name}...";
+        IsInstalling = true;
+
         try
         {
-            var scannedMods = await _modScanner.ScanDirectoryAsync(path);
-            using (SuppressAutoSave())
-            {
-                GameConfig.ModsFolderPath = path;
-                ModList.AllMods.Clear();
-                foreach (var mod in scannedMods) ModList.AllMods.Add(mod);
-                ModList.UpdatePriorities(); ModList.UpdateCategories();
-            }
-            ModList.RebuildDisplayedMods();
-            AutoSave();
-        }
-        catch (Exception ex) { _logService.Log($"SCAN ERROR: {ex.Message}"); StatusMessage = $"ERROR: {ex.Message}"; }
-    }
+            var progress = new Progress<double>(p => targetMod.InstallProgress = p);
+            string installedPath = string.Empty;
 
-    [RelayCommand]
-    private async Task AddMod(string? sourcePath)
-    {
-        if (string.IsNullOrEmpty(sourcePath)) return;
-        if (string.IsNullOrEmpty(GameConfig.ModsFolderPath)) { _logService.Log("ERROR: Please select a Mods Folder first."); return; }
-        try
-        {
-            StatusMessage = "Importing mod...";
-
-            var installers     = _uiExtensionHost?.ModInstallers ?? Enumerable.Empty<IModInstaller>();
-            IModInstaller? chosen = installers.FirstOrDefault(i => i.CanInstall(sourcePath));
-
-            string installedPath;
+            var chosen = _uiExtensionHost?.ModInstallers.FirstOrDefault(i => i.CanInstall(sourcePath));
+            
+            Task<string> installTask;
             if (chosen != null)
             {
-                var ctx           = new SimpleInstallContext(GameConfig.ModsFolderPath, new LogServiceAdapter(_logService), _sessionState.ConsumePendingPreset());
+                var ctx = new SimpleInstallContext(GameConfig.ModsFolderPath, new LogServiceAdapter(_logService), _sessionState.ConsumePendingPreset());
                 var installResult = await chosen.InstallAsync(sourcePath, ctx);
                 if (installResult == null || !installResult.IsSuccess)
                 {
+                    if (!isUpdate) ModList.AllMods.Remove(targetMod);
+                    targetMod.IsInstalling = false;
+                    ModList.RebuildDisplayedMods();
                     StatusMessage = installResult?.ErrorMessage ?? "Install cancelled.";
                     return;
                 }
-                string modName = Path.GetFileNameWithoutExtension(sourcePath);
-                installedPath  = await _modManagementService.InstallModFromMappingAsync(
-                    sourcePath, modName, GameConfig.ModsFolderPath, installResult.FileMapping);
+                installTask = _modManagementService.InstallModFromMappingAsync(
+                    sourcePath, baseName, targetBaseDir, installResult.FileMapping, isUpdate ? targetMod.RootPath : null, progress, cts.Token);
             }
             else
             {
-                installedPath = await _modManagementService.InstallModAsync(sourcePath, GameConfig.ModsFolderPath);
+                installTask = _modManagementService.InstallModAsync(sourcePath, targetBaseDir, isUpdate ? targetMod.RootPath : null, progress, cts.Token);
             }
 
-            string name = Path.GetFileNameWithoutExtension(installedPath);
-            var mod = new Mod(name, installedPath, ModList.AllMods.Count, true, "Uncategorized");
+            lock (_activeInstallTasks) _activeInstallTasks.Add(installTask);
+            try { installedPath = await installTask; }
+            catch (OperationCanceledException) { installedPath = string.Empty; }
+            catch (Exception ex) { _logService.LogError("Install task failed", ex); installedPath = string.Empty; }
+            finally { lock (_activeInstallTasks) _activeInstallTasks.Remove(installTask); }
 
-            string sidecar = Path.Combine(installedPath, ".cmm_metadata.toml");
-            if (File.Exists(sidecar))
+            if (string.IsNullOrEmpty(installedPath))
             {
-                try
+                if (!isUpdate)
                 {
-                    var meta = Toml.ReadFile<ModMetadata>(sidecar);
-                    if (meta != null) { mod.Name = meta.Name; mod.Version = meta.Version; mod.Category = meta.Category; }
+                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => {
+                        ModList.AllMods.Remove(targetMod);
+                        ModList.RebuildDisplayedMods();
+                    });
                 }
-                catch { }
+                targetMod.IsInstalling = false;
+                StatusMessage = "Installation cancelled.";
+                return;
             }
 
-            ModList.AllMods.Insert(0, mod);
-            ModList.UpdatePriorities(); ModList.UpdateCategories();
-            ModList.RebuildDisplayedMods();
-            ModList.SelectedMod = mod;
-            AutoSave();
-            ModInstalled?.Invoke(mod, sourcePath);
-            StatusMessage = "Mod imported.";
-            _logService.Log($"Mod imported to: {installedPath}");
-        }
-        catch (Exception ex) { _logService.Log($"IMPORT ERROR: {ex.Message}"); StatusMessage = $"IMPORT ERROR: {ex.Message}"; }
-    }
+            targetMod.RootPath = installedPath;
+            targetMod.IsArchive = false;
+            
+            // Link Path to Nexus Tracking AFTER successful install
+            _sessionState.NotifyModInstalled(targetMod, sourcePath);
 
-    [RelayCommand]
-    private async Task AddModToRoot(string? sourcePath)
-    {
-        if (string.IsNullOrEmpty(sourcePath)) return;
-        if (string.IsNullOrEmpty(GameConfig.ModsFolderPath)) { _logService.Log("ERROR: Please select a Mods Folder first."); return; }
-        try
+            try
+            {
+                string sidecar = Path.Combine(installedPath, ".cmm_metadata.toml");
+                if (File.Exists(sidecar))
+                {
+                    var meta = Nett.Toml.ReadFile<ModMetadata>(sidecar);
+                    if (meta != null)
+                    {
+                        if (!string.IsNullOrEmpty(meta.Name) && string.Equals(targetMod.Name, baseName, StringComparison.OrdinalIgnoreCase))
+                            targetMod.Name = meta.Name;
+                        if (!string.IsNullOrEmpty(meta.Version) && meta.Version != "1.0.0")
+                            targetMod.Version = meta.Version;
+                        if (targetMod.Category == "Uncategorized" && !string.IsNullOrEmpty(meta.Category))
+                            targetMod.Category = meta.Category;
+                    }
+                }
+            }
+            catch { }
+
+            targetMod.IsInstalling = false;
+            
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => {
+                ModList.UpdatePriorities();
+                ModList.UpdateCategories();
+                ModList.RebuildDisplayedMods();
+            });
+            
+            ModInstalled?.Invoke(targetMod, sourcePath);
+            StatusMessage = $"Mod '{targetMod.Name}' installed.";
+            ProfileManager.AutoSave();
+        }
+        catch (Exception ex)
         {
-            StatusMessage = "Installing to Root...";
-            string modName    = Path.GetFileNameWithoutExtension(sourcePath);
-            string installedPath = await _modManagementService.InstallModToRootAsync(sourcePath, modName, GameConfig.ModsFolderPath);
-
-            var mod = new Mod(modName, installedPath, ModList.AllMods.Count, true, "Uncategorized");
-            ModList.AllMods.Insert(0, mod);
-            ModList.UpdatePriorities(); ModList.UpdateCategories();
-            ModList.RebuildDisplayedMods();
-            ModList.SelectedMod = mod;
-            AutoSave();
-            ModInstalled?.Invoke(mod, sourcePath);
-            StatusMessage = "Installed to Root.";
-            _logService.Log($"Root install: {installedPath}");
+            _logService.LogError("Installation error", ex);
+            StatusMessage = $"Error: {ex.Message}"; 
+            if (!isUpdate)
+            {
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => {
+                    ModList.AllMods.Remove(targetMod);
+                    ModList.RebuildDisplayedMods();
+                });
+            }
+            targetMod.IsInstalling = false;
         }
-        catch (Exception ex) { _logService.Log($"ROOT INSTALL ERROR: {ex.Message}"); StatusMessage = $"ROOT INSTALL ERROR: {ex.Message}"; }
+        finally 
+        { 
+            IsInstalling = ModList.AllMods.Any(m => m.IsInstalling); 
+            cts.Dispose();
+        }
     }
 
     private sealed class SimpleInstallContext : IInstallContext
     {
-        public string        DestinationFolder { get; }
-        public IPluginLogger Log              { get; }
-        public FomodPreset?  FomodPreset      { get; }
-        public SimpleInstallContext(string dest, IPluginLogger log, FomodPreset? fomodPreset = null)
-        {
-            DestinationFolder = dest;
-            Log               = log;
-            FomodPreset       = fomodPreset;
-        }
+        public string TargetFolder { get; }
+        public string DestinationFolder => TargetFolder;
+        public IPluginLogger Log { get; }
+        public FomodPreset? FomodPreset { get; }
+        public SimpleInstallContext(string target, IPluginLogger log, FomodPreset? preset) 
+        { TargetFolder = target; Log = log; FomodPreset = preset; }
     }
 
     [RelayCommand]
@@ -455,45 +574,44 @@ public partial class MainWindowViewModel : ViewModelBase
         if (toRemove.Count == 0) return;
         try
         {
-            using (SuppressAutoSave())
+            using (ProfileManager.SuppressAutoSave())
             {
                 foreach (var mod in toRemove)
                 {
-                    if (!string.IsNullOrEmpty(GameConfig.BaseFolderPath) && mod.HasRootFolder)
+                    if (!mod.IsBroken && !string.IsNullOrEmpty(GameConfig.BaseFolderPath) && mod.HasRootFolder)
                         await _rootSwapService.UndeployModAsync(mod.RootPath, GameConfig.BaseFolderPath);
+
                     ModList.AllMods.Remove(mod);
                     _logService.Log($"Mod '{mod.Name}' removed.");
-                    if (!string.IsNullOrEmpty(GameConfig.ModsFolderPath) && mod.RootPath.StartsWith(GameConfig.ModsFolderPath))
-                    {
-                        if (Directory.Exists(mod.RootPath)) Directory.Delete(mod.RootPath, true);
-                        else if (File.Exists(mod.RootPath)) File.Delete(mod.RootPath);
-                    }
+
+                    // PHYSICAL DELETION
+                    if (_fileService.DirectoryExists(mod.RootPath))
+                        await Task.Run(() => _fileService.DeleteDirectory(mod.RootPath, true));
+                    else if (_fileService.FileExists(mod.RootPath))
+                        await Task.Run(() => _fileService.DeleteFile(mod.RootPath));
                 }
                 ModList.UpdatePriorities();
             }
             ModList.RebuildDisplayedMods();
-            AutoSave();
+            ProfileManager.AutoSave();
         }
         catch (Exception ex) { _logService.Log($"REMOVE ERROR: {ex.Message}"); StatusMessage = $"ERROR: {ex.Message}"; }
     }
 
-    // ── Sidebar / misc ────────────────────────────────────────────────────────
-
-    [RelayCommand] private void ExecuteSidebarAction(ISidebarAction? action) => action?.Execute();
-    [RelayCommand] private void ClearFocus() => RequestClearFocus?.Invoke();
-    [RelayCommand] private void OpenPluginBrowser()
+    [RelayCommand] private void OpenPluginBrowser() { }
+    [RelayCommand] private void ShowAppData() => _processService.OpenFolderAsync(_pathService.BaseDataPath);
+    [RelayCommand] private async Task OpenModsFolder() => await _processService.OpenFolderAsync(GameConfig.ModsFolderPath ?? "");
+    [RelayCommand] private async Task OpenDownloadsFolder() => await _processService.OpenFolderAsync(GameConfig.DownloadsFolderPath ?? "");
+    [RelayCommand] private async Task OpenGameDataFolder()
     {
-        if (_pluginBrowserVm != null) new CatModManager.Ui.Views.PluginBrowserWindow(_pluginBrowserVm).Show();
+        var sub = GameConfig.DataSubFolder;
+        if (string.IsNullOrEmpty(sub)) { await _processService.OpenFolderAsync(GameConfig.BaseFolderPath ?? ""); return; }
+        var expanded = Environment.ExpandEnvironmentVariables(sub);
+        string folder = Path.IsPathRooted(expanded) ? expanded :
+            !string.IsNullOrEmpty(GameConfig.BaseFolderPath) ? Path.Combine(GameConfig.BaseFolderPath, expanded) : expanded;
+        await _processService.OpenFolderAsync(folder);
     }
-
-    [RelayCommand] private async Task OpenModsFolder()          => await _processService.OpenFolderAsync(GameConfig.ModsFolderPath ?? "");
-    [RelayCommand] private async Task OpenGameFolder()          => await _processService.OpenFolderAsync(GameConfig.BaseFolderPath ?? "");
-    [RelayCommand] private async Task OpenProfilesFolder()      => await _processService.OpenFolderAsync(_pathService.ProfilesPath);
-    [RelayCommand] private async Task OpenAppDataFolder()       => await _processService.OpenFolderAsync(_pathService.BaseDataPath);
-    [RelayCommand] private async Task OpenDownloadsFolder()     => await _processService.OpenFolderAsync(GameConfig.DownloadsFolderPath ?? "");
-    [RelayCommand] private async Task OpenDataSubFolder()       =>
-        await _processService.OpenFolderAsync(!string.IsNullOrEmpty(GameConfig.BaseFolderPath) && !string.IsNullOrEmpty(GameConfig.DataSubFolder)
-            ? Path.Combine(GameConfig.BaseFolderPath, GameConfig.DataSubFolder) : GameConfig.DataSubFolder ?? "");
+    [RelayCommand] private async Task OpenGameFolder() => await _processService.OpenFolderAsync(GameConfig.BaseFolderPath ?? "");
     [RelayCommand] private async Task OpenGameExecutableFolder() =>
         await _processService.OpenFolderAsync(!string.IsNullOrEmpty(GameConfig.GameExecutablePath)
             ? Path.GetDirectoryName(GameConfig.GameExecutablePath) ?? "" : "");
@@ -504,8 +622,12 @@ public partial class MainWindowViewModel : ViewModelBase
         if (File.Exists(path)) path = Path.GetDirectoryName(path)!;
         await _processService.OpenFolderAsync(path);
     }
-
-    // ── Logging ───────────────────────────────────────────────────────────────
+    [RelayCommand] private void OpenDataSubFolder() => OpenGameDataFolderCommand.Execute(null);
+    [RelayCommand] private void OpenAppDataFolder() => ShowAppDataCommand.Execute(null);
+    [RelayCommand] private void Refresh() { }
+    [RelayCommand] private void ClearFocus() { RequestClearFocus?.Invoke(); }
+    [RelayCommand] private void DeleteMountPoint(MountPointDef? mp) { if (mp != null) GameConfig.UserMountPoints.Remove(mp); }
+    [RelayCommand] private void ExecuteSidebarAction(ISidebarAction? action) { if (action != null) action.Execute(); }
 
     private void AddLog(string formattedMessage)
     {
@@ -519,17 +641,46 @@ public partial class MainWindowViewModel : ViewModelBase
         else Action();
     }
 
-    // ── Shutdown ──────────────────────────────────────────────────────────────
-
-    public void Shutdown()
+    public async Task Shutdown()
     {
-        _logService.Log("Shutdown detected. Cleaning up VFS...");
-        _vfsOrchestrator.ShutdownCleanup();
-        if (!string.IsNullOrEmpty(ProfileManager.CurrentProfileName))
+        try
         {
-            _configService.Current.LastProfileName = ProfileManager.CurrentProfileName;
-            _configService.Save();
+            _logService.Log("Shutdown detected. Cancelling active tasks...");
+            
+            // 1. Shutdown plugins FIRST (saves Nexus DB while everything is still open)
+            await _pluginLoader.ShutdownAllAsync();
+
+            // 2. Cancel installs
+            var installingMods = ModList.AllMods.Where(m => m.IsInstalling).ToList();
+            foreach (var mod in installingMods) mod.CancelInstall();
+            if (_activeInstallTasks.Count > 0) await Task.WhenAll(_activeInstallTasks.ToArray());
+
+            // 3. Cleanup VFS and Save Config
+            _vfsOrchestrator.ShutdownCleanup();
+            if (!string.IsNullOrEmpty(ProfileManager.CurrentProfileName))
+            {
+                _configService.Current.LastProfileName = ProfileManager.CurrentProfileName;
+                _configService.Save();
+            }
         }
-        IsVfsMounted = false;
+        catch (Exception ex) { Console.WriteLine($"[Shutdown] Error during cleanup: {ex.Message}"); }
+        finally { IsVfsMounted = false; }
+    }
+}
+
+public class ModFileItem
+{
+    public string Name { get; }
+    public bool IsDirectory { get; }
+    public long RawSize { get; }
+    public string Size => IsDirectory ? "" : FormatSize(RawSize);
+    public ModFileItem(string name, bool isDir, long size) { Name = name; IsDirectory = isDir; RawSize = size; }
+    private static string FormatSize(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double size = bytes;
+        int unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.Length - 1) { size /= 1024; unitIndex++; }
+        return $"{size:F1} {units[unitIndex]}";
     }
 }

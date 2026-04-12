@@ -29,6 +29,8 @@ public partial class ProfileManagerViewModel : ViewModelBase
 
     private readonly SemaphoreSlim _lock = new(1, 1);
     private int _suppressionCount;
+    private string? _previousProfileName;
+    private bool _confirming;
 
     // ── Events & callbacks ────────────────────────────────────────────────────
 
@@ -43,6 +45,12 @@ public partial class ProfileManagerViewModel : ViewModelBase
 
     /// <summary>Set by the View to show a confirmation dialog before deleting a profile.</summary>
     public Func<string, Task<bool>>? ConfirmDelete;
+
+    /// <summary>
+    /// Set by the View to confirm a profile switch. Receives the new profile name.
+    /// Return false to cancel. Only invoked when CheckHasActiveDownloads (set by a plugin) returns true.
+    /// </summary>
+    public Func<string, Task<bool>>? ConfirmProfileChange;
 
     // ── Observable state ──────────────────────────────────────────────────────
 
@@ -88,12 +96,30 @@ public partial class ProfileManagerViewModel : ViewModelBase
 
     partial void OnCurrentProfileNameChanged(string? value)
     {
-        if (IsAutoSaveSuppressed) return;
+        if (IsAutoSaveSuppressed || _confirming) return;
         if (!string.IsNullOrEmpty(value) && AvailableProfiles.Contains(value))
         {
             ProfileDisplayName = value;
-            _ = LoadProfileAsync(value);
+            _ = ConfirmAndLoadAsync(value);
         }
+    }
+
+    private async Task ConfirmAndLoadAsync(string name)
+    {
+        if (ConfirmProfileChange != null)
+        {
+            bool ok = await ConfirmProfileChange(name);
+            if (!ok)
+            {
+                _confirming = true;
+                CurrentProfileName = _previousProfileName;
+                ProfileDisplayName = _previousProfileName;
+                _confirming = false;
+                return;
+            }
+        }
+        _previousProfileName = name;
+        await LoadProfileAsync(name);
     }
 
     // ── Commands ──────────────────────────────────────────────────────────────
@@ -102,9 +128,20 @@ public partial class ProfileManagerViewModel : ViewModelBase
     public async Task NewProfile()
     {
         string newName = GetUniqueProfileName("NewProfile");
-        ProfileDisplayName = newName;
-        await SaveProfileInternalAsync(newName);
+
+        // Save a blank profile — intentionally NOT using BuildSaveData to avoid
+        // copying the current profile's state into the new one.
+        await _lock.WaitAsync();
+        try
+        {
+            var blank = new Profile { Name = newName };
+            await _profileService.SaveProfileAsync(blank, _pathService.GetProfilePath(newName));
+        }
+        catch (Exception ex) { _logService.Log($"NEW PROFILE ERROR: {ex.Message}"); return; }
+        finally { _lock.Release(); }
+
         await RefreshListAsync(newName);
+        await LoadProfileAsync(newName);
     }
 
     [RelayCommand]
@@ -244,8 +281,9 @@ public partial class ProfileManagerViewModel : ViewModelBase
             {
                 using (SuppressAutoSave())
                 {
-                    CurrentProfileName = name;
-                    ProfileDisplayName = name;
+                    CurrentProfileName    = name;
+                    ProfileDisplayName    = name;
+                    _previousProfileName  = name;
                     _configService.Current.LastProfileName = name;
                     _configService.Save();
                 }

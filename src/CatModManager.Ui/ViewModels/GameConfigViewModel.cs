@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -29,6 +30,98 @@ public partial class GameConfigViewModel : ViewModelBase
     [ObservableProperty] private string? _downloadsFolderPath;
     [ObservableProperty] private bool _isDriverMissing;
     [ObservableProperty] private IGameSupport _activeGameSupport;
+
+    /// <summary>User-defined mount points (editable; persisted in profile).</summary>
+    public ObservableCollection<MountPointDef> UserMountPoints { get; } = new();
+
+    /// <summary>
+    /// Combined view: game-defined (read-only) + user-defined mount points.
+    /// Game-defined entries are marked <see cref="MountPointDef.IsGameDefined"/> = true.
+    /// </summary>
+    public IReadOnlyList<MountPointDef> EffectiveMountPoints
+    {
+        get
+        {
+            // First entry is always the DataSubFolder default mount point.
+            var result = new List<MountPointDef>
+            {
+                new MountPointDef("default", "Default", DataSubFolder ?? "")
+            };
+
+            // Then game-defined additional mount points (skip "default" id).
+            // If a UserMountPoint overrides one (same Id), the user version wins.
+            foreach (var mp in ActiveGameSupport?.GameDefinedMountPoints ?? [])
+            {
+                if (string.Equals(mp.Id, "default", StringComparison.OrdinalIgnoreCase)) continue;
+                var userOverride = UserMountPoints.FirstOrDefault(u =>
+                    string.Equals(u.Id, mp.Id, StringComparison.OrdinalIgnoreCase));
+                result.Add(userOverride ?? mp);
+            }
+
+            // Then purely user-defined mount points (IDs not already covered).
+            foreach (var mp in UserMountPoints)
+                if (!result.Any(e => string.Equals(e.Id, mp.Id, StringComparison.OrdinalIgnoreCase)))
+                    result.Add(mp);
+
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Game-defined mount points from the active game support (read-only; game TOML-defined).
+    /// </summary>
+    public IReadOnlyList<MountPointDef> GameDefinedMountPoints
+        => ActiveGameSupport?.GameDefinedMountPoints ?? [];
+
+    /// <summary>
+    /// Game-defined mount points with Path resolved to absolute for display purposes.
+    /// </summary>
+    public IReadOnlyList<MountPointDef> ResolvedGameDefinedMountPoints
+    {
+        get
+        {
+            return (ActiveGameSupport?.GameDefinedMountPoints ?? [])
+                .Select(mp =>
+                {
+                    // Use user override path if one exists for this id.
+                    var userOverride = UserMountPoints.FirstOrDefault(u =>
+                        string.Equals(u.Id, mp.Id, StringComparison.OrdinalIgnoreCase));
+                    var rawPath = userOverride?.Path ?? mp.Path ?? "";
+
+                    var expanded = Environment.ExpandEnvironmentVariables(rawPath);
+                    string abs;
+                    if (string.IsNullOrEmpty(expanded))
+                        abs = BaseFolderPath ?? "";
+                    else if (Path.IsPathRooted(expanded))
+                        abs = expanded;
+                    else if (!string.IsNullOrEmpty(BaseFolderPath))
+                        abs = Path.Combine(BaseFolderPath, expanded);
+                    else
+                        abs = expanded;
+                    return new MountPointDef(mp.Id, mp.Name, abs) { IsGameDefined = true };
+                })
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Resolved absolute path for the default (DataSubFolder) mount point.
+    /// Expands environment variables and combines with BaseFolderPath for relative paths.
+    /// </summary>
+    public string DefaultMountPointAbsolutePath
+    {
+        get
+        {
+            var sub = DataSubFolder;
+            if (string.IsNullOrEmpty(sub))
+                return BaseFolderPath ?? "(game folder)";
+            var expanded = Environment.ExpandEnvironmentVariables(sub);
+            if (Path.IsPathRooted(expanded)) return expanded;
+            if (!string.IsNullOrEmpty(BaseFolderPath))
+                return Path.Combine(BaseFolderPath, expanded);
+            return sub;
+        }
+    }
 
     public ObservableCollection<IGameSupport> AvailableGameSupports { get; } = new();
 
@@ -72,11 +165,11 @@ public partial class GameConfigViewModel : ViewModelBase
 
     partial void OnGameExecutablePathChanged(string? value) { AutoSave?.Invoke(); DetectSupport(value); }
     partial void OnModsFolderPathChanged(string? value)     => AutoSave?.Invoke();
-    partial void OnDataSubFolderChanged(string? value)      => AutoSave?.Invoke();
+    partial void OnDataSubFolderChanged(string? value)      { AutoSave?.Invoke(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(DefaultMountPointAbsolutePath)); }
     partial void OnDownloadsFolderPathChanged(string? value) => AutoSave?.Invoke();
-    partial void OnBaseFolderPathChanged(string? value)     => AutoSave?.Invoke();
+    partial void OnBaseFolderPathChanged(string? value)     { AutoSave?.Invoke(); OnPropertyChanged(nameof(DefaultMountPointAbsolutePath)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
     partial void OnLaunchArgumentsChanged(string? value)    => AutoSave?.Invoke();
-    partial void OnActiveGameSupportChanged(IGameSupport value) => AutoSave?.Invoke();
+    partial void OnActiveGameSupportChanged(IGameSupport value) { AutoSave?.Invoke(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(GameDefinedMountPoints)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
@@ -132,8 +225,7 @@ public partial class GameConfigViewModel : ViewModelBase
                 ActiveGameSupport = detected;
                 AutoSave = saved;
                 _logService.Log($"Auto-detected Game Support: {detected.DisplayName}");
-                if (string.IsNullOrEmpty(DataSubFolder) && !string.IsNullOrEmpty(detected.DataSubFolder))
-                    DataSubFolder = detected.DataSubFolder;
+                DataSubFolder = detected.DataSubFolder;
             }
         }
         if (string.IsNullOrEmpty(BaseFolderPath) && !string.IsNullOrEmpty(value))
@@ -145,5 +237,40 @@ public partial class GameConfigViewModel : ViewModelBase
             if (string.IsNullOrEmpty(DownloadsFolderPath))
                 DownloadsFolderPath = Path.Combine(BaseFolderPath, "downloads");
         }
+    }
+
+    /// <summary>Notifies bindings that EffectiveMountPoints has changed. Called from code-behind after editing a mount point in-place.</summary>
+    public void NotifyMountPointsChanged()
+    {
+        OnPropertyChanged(nameof(EffectiveMountPoints));
+        OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints));
+    }
+
+    /// <summary>
+    /// Saves a user path override for a game-defined mount point (same Id).
+    /// Creates a new UserMountPoint entry if none exists yet, updates path if it does.
+    /// </summary>
+    public void OverrideGameDefinedMountPointPath(string id, string name, string newPath)
+    {
+        var existing = UserMountPoints.FirstOrDefault(u =>
+            string.Equals(u.Id, id, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+            existing.Path = newPath;
+        else
+            UserMountPoints.Add(new MountPointDef(id, name, newPath) { IsGameDefined = true });
+        AutoSave?.Invoke();
+        NotifyMountPointsChanged();
+    }
+
+    /// <summary>Adds a new user-defined mount point. Called from code-behind after dialog.</summary>
+    public void AddUserMountPoint(string name, string path)
+    {
+        var id = name.ToLowerInvariant().Replace(' ', '_');
+        // Ensure unique Id
+        if (UserMountPoints.Any(m => m.Id == id) || (ActiveGameSupport?.GameDefinedMountPoints?.Any(m => m.Id == id) ?? false))
+            id += "_" + UserMountPoints.Count;
+        UserMountPoints.Add(new MountPointDef(id, name, path));
+        AutoSave?.Invoke();
+        OnPropertyChanged(nameof(EffectiveMountPoints));
     }
 }

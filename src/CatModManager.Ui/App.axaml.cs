@@ -36,9 +36,10 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var vm = Services.GetRequiredService<MainWindowViewModel>();
             desktop.MainWindow = new MainWindow
             {
-                DataContext = Services.GetRequiredService<MainWindowViewModel>()
+                DataContext = vm
             };
         }
 
@@ -95,19 +96,18 @@ public partial class App : Application
 
         services.AddSingleton<IConflictResolver, SimpleConflictResolver>();
         services.AddSingleton<IHardlinkStateStore>(sp => new SqliteHardlinkStateStore(sp.GetRequiredService<AppDatabase>()));
-        services.AddSingleton<IFileSystemDriver>(sp => FileSystemFactory.CreateDriver(sp.GetRequiredService<IHardlinkStateStore>()));
         // ISafeSwapStrategy: NoBaseSwapStrategy (HardlinkDriver/Windows) or
         //                    PassthroughSwapStrategy (FuseDriver/Linux).
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             services.AddSingleton<ISafeSwapStrategy, NoBaseSwapStrategy>();
         else
             services.AddSingleton<ISafeSwapStrategy, PassthroughSwapStrategy>();
-        services.AddSingleton<IVirtualFileSystem, CatVirtualFileSystem>();
 
         services.AddSingleton<IVfsOrchestrationService>(sp => new VfsOrchestrationService(
-            sp.GetRequiredService<IVirtualFileSystem>(),
+            sp.GetRequiredService<IConflictResolver>(),
+            sp.GetRequiredService<IHardlinkStateStore>(),
+            sp.GetRequiredService<ISafeSwapStrategy>(),
             sp.GetRequiredService<IVfsStateService>(),
-            sp.GetRequiredService<IDriverService>(),
             sp.GetRequiredService<ILogService>(),
             sp.GetRequiredService<IRootSwapService>(),
             sp.GetRequiredService<UiExtensionHost>().VfsHooks));
