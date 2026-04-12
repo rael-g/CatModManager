@@ -3,6 +3,7 @@ using CatModManager.Core.Models;
 using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
+using CatModManager.VirtualFileSystem;
 
 namespace CatModManager.Tests;
 
@@ -50,7 +51,13 @@ public class ProfileRegressionTests : IDisposable
             _mockDriverService,
             _mockModManagementService,
             _mockProcessService,
-            new VfsOrchestrationService(new NullVfs(), _stateService, _mockDriverService, _mockLog, new NullRootSwapService()),
+            new VfsOrchestrationService(
+                new SimpleConflictResolver(_mockLog),
+                new NullHardlinkStateStore(),
+                new NoBaseSwapStrategy(),
+                _stateService,
+                _mockLog,
+                new NullRootSwapService()),
             new GameLaunchService(_mockProcessService, _mockLog),
             new MockFileService(),
             _pathService,
@@ -59,7 +66,8 @@ public class ProfileRegressionTests : IDisposable
             _gameSupportService,
             new GameDiscoveryService(_gameSupportService),
             new NullRootSwapService(),
-            new CatModManager.Ui.Plugins.AppSessionState()
+            new CatModManager.Ui.Plugins.AppSessionState(),
+            new MockPluginLoader()
         );
     }
 
@@ -185,9 +193,9 @@ public class ProfileRegressionTests : IDisposable
     }
 
     private class MockModManagementService : IModManagementService {
-        public Task<string> InstallModAsync(string s, string d) => Task.FromResult("");
-        public Task<string> InstallModFromMappingAsync(string a, string n, string t, Dictionary<string, string> m) => Task.FromResult(t);
-        public Task<string> InstallModToRootAsync(string a, string n, string t) => Task.FromResult(t);
+        public Task<string> InstallModAsync(string s, string d, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult("");
+        public Task<string> InstallModFromMappingAsync(string a, string n, string t, Dictionary<string, string> m, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(t);
+        public Task<string> InstallModToRootAsync(string a, string n, string t, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(t);
     }
 
     private class MockFileService : IFileService {
@@ -198,10 +206,11 @@ public class ProfileRegressionTests : IDisposable
         public void CopyDirectory(string s, string d) { }
         public void DeleteFile(string p) { }
         public void DeleteDirectory(string p, bool r) { }
+        public void MoveDirectory(string fromPath, string targetPath) { }
     }
 
     private class MockProcessService : IProcessService {
-        public Task<bool> StartProcessAsync(string p, string a, bool admin) => Task.FromResult(true);
+        public Task<bool> StartProcessAsync(string p, string a, bool admin = false, bool waitForChildren = true) => Task.FromResult(true);
         public Task OpenFolderAsync(string p) => Task.CompletedTask;
     }
 
@@ -209,5 +218,12 @@ public class ProfileRegressionTests : IDisposable
         public event Action<string>? OnLog;
         public void Log(string m) => OnLog?.Invoke(m);
         public void LogError(string m, Exception? e) => OnLog?.Invoke(m);
+    }
+
+    private sealed class NullHardlinkStateStore : IHardlinkStateStore
+    {
+        public void Save(string mountPoint, IReadOnlyList<HardlinkStateEntry> entries) { }
+        public IReadOnlyList<HardlinkStateEntry> Load(string? mountPoint) => Array.Empty<HardlinkStateEntry>();
+        public void Clear(string? mountPoint) { }
     }
 }

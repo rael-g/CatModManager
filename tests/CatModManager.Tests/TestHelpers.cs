@@ -21,10 +21,14 @@ public class MockCatPathService : ICatPathService
 
     public MockCatPathService(string baseDataPath)
     {
+        // Force absolute path in Temp if it looks relative
+        if (!Path.IsPathRooted(baseDataPath))
+            baseDataPath = Path.Combine(Path.GetTempPath(), "CMM_Tests", baseDataPath);
+
         BaseDataPath = baseDataPath;
-        if (!Directory.Exists(BaseDataPath)) Directory.CreateDirectory(BaseDataPath);
-        if (!Directory.Exists(ProfilesPath)) Directory.CreateDirectory(ProfilesPath);
-        if (!Directory.Exists(GameSupportsPath)) Directory.CreateDirectory(GameSupportsPath);
+        Directory.CreateDirectory(BaseDataPath);
+        Directory.CreateDirectory(ProfilesPath);
+        Directory.CreateDirectory(GameSupportsPath);
     }
 
     public string GetProfilePath(string profileName)
@@ -32,4 +36,10 @@ public class MockCatPathService : ICatPathService
         if (!profileName.EndsWith(".toml")) profileName += ".toml";
         return Path.Combine(ProfilesPath, profileName);
     }
+}
+
+public class MockPluginLoader : CatModManager.Ui.Plugins.PluginLoader
+{
+    public MockPluginLoader() : base(null!, null!, null!, null!, null!, null!, null!) { }
+    public override System.Threading.Tasks.Task ShutdownAllAsync() => System.Threading.Tasks.Task.CompletedTask;
 }

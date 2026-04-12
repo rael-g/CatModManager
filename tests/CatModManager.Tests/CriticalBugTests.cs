@@ -7,6 +7,7 @@ using Xunit;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
 using CatModManager.Core.Vfs;
+using CatModManager.VirtualFileSystem;
 
 namespace CatModManager.Tests;
 
@@ -43,17 +44,20 @@ public class CriticalBugTests : IDisposable
     [Fact]
     public void Shutdown_Cleanup_MUST_Restore_Folders_Synchronously()
     {
-        var mockVfs = new MockVfs();
         var state = new VfsStateService(new AppDatabase(_pathService), _logService);
-        var mockDriver = new MockDriverService();
-        var orchestrator = new VfsOrchestrationService(mockVfs, state, mockDriver, _logService, new NullRootSwapService());
+        var orchestrator = new VfsOrchestrationService(
+            new SimpleConflictResolver(_logService),
+            new NullHardlinkStateStore(),
+            new NoBaseSwapStrategy(),
+            state,
+            _logService,
+            new NullRootSwapService());
 
         string original = Path.Combine(_tempDir, "GameFolder");
         string backup = Path.Combine(_tempDir, ".GameFolder.CMM_base");
         Directory.CreateDirectory(backup);
         
         state.RegisterMount(original, backup);
-        mockVfs.SetMounted(true);
 
         // ACT: Cleanup de encerramento (Síncrono)
         orchestrator.ShutdownCleanup();
@@ -71,15 +75,12 @@ public class CriticalBugTests : IDisposable
         public string DownloadsPath => Path.Combine(BaseDataPath, "downloads");
         public string GetProfilePath(string n) => Path.Combine(ProfilesPath, n + ".toml");
     }
-    private class MockVfs : IVirtualFileSystem {
-        public bool IsMounted          { get; private set; }
-        public void SetMounted(bool val) => IsMounted = val;
-        public event EventHandler<string>? ErrorOccurred;
-        public void Mount(string m, List<Mod> a, string? d = null) => IsMounted = true;
-        public void Unmount() => IsMounted = false;
-        public void Dispose() { }
+    private sealed class NullHardlinkStateStore : IHardlinkStateStore
+    {
+        public void Save(string mountPoint, IReadOnlyList<HardlinkStateEntry> entries) { }
+        public IReadOnlyList<HardlinkStateEntry> Load(string? mountPoint) => Array.Empty<HardlinkStateEntry>();
+        public void Clear(string? mountPoint) { }
     }
-    private class MockDriverService : IDriverService { public bool IsDriverInstalled() => true; }
     private class NullRootSwapService : IRootSwapService
     {
         public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;

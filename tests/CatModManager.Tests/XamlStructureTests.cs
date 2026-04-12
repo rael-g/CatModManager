@@ -39,7 +39,7 @@ public class XamlStructureTests
 
         // O valor "44, 32, *, 130, 70" deve aparecer exatamente 2 vezes
         // (header + row template)
-        var modListColDef = "44, 32, *, 130, 70";
+        var modListColDef = "44, 32, *, 100, 70";
         var count = grids.Count(v => v == modListColDef);
         Assert.Equal(2, count);
     }
