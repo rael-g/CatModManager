@@ -14,13 +14,13 @@ public class CatPathService : ICatPathService
     public CatPathService()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        BaseDataPath = Path.Combine(localAppData, "catmodmanager");
+        BaseDataPath = Path.GetFullPath(Path.Combine(localAppData, "catmodmanager"));
         
-        // Ensure all critical directories exist immediately
-        if (!Directory.Exists(BaseDataPath)) Directory.CreateDirectory(BaseDataPath);
-        if (!Directory.Exists(ProfilesPath)) Directory.CreateDirectory(ProfilesPath);
-        if (!Directory.Exists(GameSupportsPath)) Directory.CreateDirectory(GameSupportsPath);
-        if (!Directory.Exists(DownloadsPath)) Directory.CreateDirectory(DownloadsPath);
+        // Ensure all critical directories exist immediately in the correct OS location
+        Directory.CreateDirectory(BaseDataPath);
+        Directory.CreateDirectory(ProfilesPath);
+        Directory.CreateDirectory(GameSupportsPath);
+        Directory.CreateDirectory(DownloadsPath);
     }
 
     public string GetProfilePath(string profileName) 

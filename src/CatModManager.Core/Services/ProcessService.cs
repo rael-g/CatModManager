@@ -16,7 +16,7 @@ public class ProcessService : IProcessService
         _logService = logService;
     }
 
-    public async Task<bool> StartProcessAsync(string filePath, string arguments, bool runAsAdmin)
+    public async Task<bool> StartProcessAsync(string filePath, string arguments, bool runAsAdmin, bool waitForChildren = true)
     {
         try
         {
@@ -36,7 +36,8 @@ public class ProcessService : IProcessService
             // The launched exe may be a thin launcher that spawns the real game process
             // and exits early (common with Steam/UE5 games). Wait for any remaining
             // processes running from the same game directory before returning.
-            await WaitForGameDirectoryProcesses(filePath);
+            if (waitForChildren)
+                await WaitForGameDirectoryProcesses(filePath);
 
             return true;
         }
@@ -95,16 +96,21 @@ public class ProcessService : IProcessService
     public Task OpenFolderAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return Task.CompletedTask;
+        // Walk up to the nearest existing ancestor so explorer.exe doesn't fall back to Documents.
+        var candidate = path;
+        while (!string.IsNullOrEmpty(candidate) && !Directory.Exists(candidate))
+            candidate = Path.GetDirectoryName(candidate) ?? "";
+        if (string.IsNullOrEmpty(candidate)) return Task.CompletedTask;
         try
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                Process.Start("explorer.exe", path);
+                Process.Start("explorer.exe", candidate);
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                Process.Start("xdg-open", path);
+                Process.Start("xdg-open", candidate);
         }
         catch (Exception ex)
         {
-            _logService.LogError($"Failed to open folder: {path}", ex);
+            _logService.LogError($"Failed to open folder: {candidate}", ex);
         }
         return Task.CompletedTask;
     }

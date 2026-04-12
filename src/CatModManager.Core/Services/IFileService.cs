@@ -11,4 +11,5 @@ public interface IFileService
     void CopyDirectory(string source, string destination);
     void DeleteFile(string path);
     void DeleteDirectory(string path, bool recursive);
+    void MoveDirectory(string fromPath, string targetPath);
 }

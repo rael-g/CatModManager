@@ -25,4 +25,13 @@ public class PhysicalFileService : IFileService
             File.Copy(newPath, newPath.Replace(sourceDir, destinationDir), true);
         }
     }
+
+    public void MoveDirectory(string fromPath, string targetPath)
+    {
+        if (Directory.Exists(targetPath))
+        {
+            Directory.Delete(targetPath, true);
+        }
+        Directory.Move(fromPath, targetPath);
+    }
 }
