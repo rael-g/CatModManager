@@ -8,7 +8,11 @@ public class MockLogService : ILogService
 {
     public event Action<string>? OnLog;
     public void Log(string message) => OnLog?.Invoke(message);
-    public void LogError(string message, Exception? ex = null) => OnLog?.Invoke($"ERROR: {message} {ex?.Message}");
+    public void LogError(string message, Exception? ex = null) {
+        var msg = $"ERROR: {message}";
+        if (ex != null) msg += $" {ex.Message}";
+        OnLog?.Invoke(msg);
+    }
 }
 
 public class MockCatPathService : ICatPathService

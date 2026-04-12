@@ -15,6 +15,8 @@ public class PhysicalFileService : IFileService
     {
         if (!Directory.Exists(sourceDir)) throw new DirectoryNotFoundException($"Source directory not found: {sourceDir}");
 
+        Directory.CreateDirectory(destinationDir);
+
         foreach (string dirPath in Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories))
         {
             Directory.CreateDirectory(dirPath.Replace(sourceDir, destinationDir));

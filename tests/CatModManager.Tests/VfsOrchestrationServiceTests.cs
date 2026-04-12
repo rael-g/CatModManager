@@ -1,0 +1,125 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Xunit;
+using CatModManager.Core.Models;
+using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
+
+namespace CatModManager.Tests;
+
+public class VfsOrchestrationServiceTests
+{
+    private readonly MockLogService _logService = new();
+    private readonly MockVfsStateService _stateService = new();
+    private readonly MockRootSwapService _rootSwapService = new();
+    private readonly MockConflictResolver _resolver = new();
+
+    private VfsOrchestrationService CreateService(IEnumerable<IVfsLifecycleHook>? hooks = null)
+    {
+        return new VfsOrchestrationService(
+            _resolver,
+            new MockHardlinkStateStore(),
+            new NoBaseSwapStrategy(),
+            _stateService,
+            _logService,
+            _rootSwapService,
+            hooks?.ToList());
+    }
+
+    [Fact]
+    public async Task MountAsync_ReturnsFailure_WhenNoGamePathProvided()
+    {
+        var service = CreateService();
+        var result = await service.MountAsync(new MountOptions { GameFolderPath = "" });
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task MountAsync_CallsLifecycleHooks_BeforeMount()
+    {
+        var hook = new MockVfsHook();
+        var service = CreateService(new[] { hook });
+        
+        await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", ActiveMods = new List<Mod>() });
+
+        Assert.True(hook.BeforeMountCalled);
+    }
+
+    [Fact]
+    public async Task UnmountAsync_CallsLifecycleHooks_AfterUnmount()
+    {
+        var hook = new MockVfsHook();
+        var service = CreateService(new[] { hook });
+        // Use RootSwapOnly to ensure IsMounted becomes true without complex VFS logic
+        await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true, ActiveMods = new List<Mod> { new Mod("T", "P", 1) } });
+
+        await service.UnmountAsync();
+
+        Assert.True(hook.AfterUnmountCalled);
+    }
+
+    [Fact]
+    public async Task MountAsync_ReturnsFailure_IfAlreadyMounted()
+    {
+        var service = CreateService();
+        await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true });
+        
+        var result = await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true });
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task MountAsync_HandlesRootSwapOnlyMode()
+    {
+        var service = CreateService();
+        var options = new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true };
+
+        await service.MountAsync(options);
+
+        Assert.True(_rootSwapService.DeployCalled);
+    }
+
+    // --- MOCKS ---
+
+    private class MockVfsHook : IVfsLifecycleHook
+    {
+        public bool BeforeMountCalled { get; private set; }
+        public bool AfterUnmountCalled { get; private set; }
+        public Task OnBeforeMountAsync(MountInfo info) { BeforeMountCalled = true; return Task.CompletedTask; }
+        public Task OnAfterUnmountAsync(string gameFolder) { AfterUnmountCalled = true; return Task.CompletedTask; }
+    }
+
+    private class MockRootSwapService : IRootSwapService
+    {
+        public bool DeployCalled { get; private set; }
+        public Task DeployAsync(IEnumerable<Mod> mods, string folder) { DeployCalled = true; return Task.CompletedTask; }
+        public Task UndeployAsync(string folder) => Task.CompletedTask;
+        public Task UndeployModAsync(string path, string folder) => Task.CompletedTask;
+        public void RecoverStaleDeployments() { }
+        public bool HasDeployedFiles(string folder) => false;
+    }
+
+    private class MockVfsStateService : IVfsStateService
+    {
+        public void RegisterMount(string o, string b) { }
+        public void UnregisterMount(string o) { }
+        public void RecoverStaleMounts() { }
+    }
+
+    private class MockHardlinkStateStore : CatModManager.VirtualFileSystem.IHardlinkStateStore
+    {
+        public void Save(string mp, IReadOnlyList<CatModManager.VirtualFileSystem.HardlinkStateEntry> e) { }
+        public IReadOnlyList<CatModManager.VirtualFileSystem.HardlinkStateEntry> Load(string? mp) => Array.Empty<CatModManager.VirtualFileSystem.HardlinkStateEntry>();
+        public void Clear(string? mp) { }
+    }
+
+    private class MockConflictResolver : IConflictResolver
+    {
+        public string? ForbiddenPath { get; set; }
+        public IDictionary<string, IFileSource> ResolveConflicts(IEnumerable<Mod> mods, string? baseDir, string? sub) => new Dictionary<string, IFileSource>();
+        public IReadOnlyList<ConflictReport> GetConflictReport(IEnumerable<Mod> activeMods) => Array.Empty<ConflictReport>();
+    }
+}

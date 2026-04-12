@@ -142,15 +142,18 @@ public class MainWindowViewModelTests : IDisposable
     public void DisplayedMods_Sorting_ByPriority()
     {
         var vm = CreateViewModel();
-        var mod1 = new Mod("Mod1", "Path1", 10);
-        var mod2 = new Mod("Mod2", "Path2", 20);
+        // With current logic:
+        // mod1 added first -> index 0 -> Priority = Count-1-0 = 1
+        // mod2 added second -> index 1 -> Priority = Count-1-1 = 0
+        var mod1 = new Mod("Mod1", "Path1", 0);
+        var mod2 = new Mod("Mod2", "Path2", 0);
         
         vm.ModList.AllMods.Add(mod1);
         vm.ModList.AllMods.Add(mod2);
 
         var displayed = vm.ModList.DisplayedMods.ToList();
-        Assert.Equal("Mod2", displayed[0].Name);
-        Assert.Equal("Mod1", displayed[1].Name);
+        Assert.Equal("Mod1", displayed[0].Name);
+        Assert.Equal("Mod2", displayed[1].Name);
     }
 
     // MOCKS

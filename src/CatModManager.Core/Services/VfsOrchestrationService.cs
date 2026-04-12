@@ -152,6 +152,10 @@ public class VfsOrchestrationService : IVfsOrchestrationService
                 _rootSwapOnlyDeployed = false;
                 _lastGameFolderPath   = null;
                 _logService.Log("RootSwap undeployed.");
+
+                foreach (var hook in _vfsHooks)
+                    await hook.OnAfterUnmountAsync(gameFolder ?? string.Empty);
+
                 return OperationResult.Success();
             }
             catch (Exception ex)

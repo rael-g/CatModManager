@@ -39,6 +39,7 @@ public class ProfileManagementTests
         
         // Setup VM state
         vm.ProfileManager.CurrentProfileName = profileName;
+        vm.ProfileManager.ConfirmDelete = _ => Task.FromResult(true); // Mock confirmation
         
         Assert.Contains(profileName, vm.ProfileManager.AvailableProfiles);
         Assert.True(File.Exists(profilePath));

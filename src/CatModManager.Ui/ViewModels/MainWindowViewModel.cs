@@ -507,7 +507,7 @@ public partial class MainWindowViewModel : ObservableObject
             try
             {
                 string sidecar = Path.Combine(installedPath, ".cmm_metadata.toml");
-                if (File.Exists(sidecar))
+                if (_fileService.FileExists(sidecar))
                 {
                     var meta = Nett.Toml.ReadFile<ModMetadata>(sidecar);
                     if (meta != null)
