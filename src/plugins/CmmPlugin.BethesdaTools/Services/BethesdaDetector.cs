@@ -32,8 +32,20 @@ public static class BethesdaDetector
     public static BethesdaGame? Detect(string? executablePath)
     {
         if (string.IsNullOrEmpty(executablePath)) return null;
+
+        // Direct match (e.g. SkyrimSE.exe configured as the executable).
         string exeName = Path.GetFileNameWithoutExtension(executablePath);
-        return _known.TryGetValue(exeName, out var game) ? game : null;
+        if (_known.TryGetValue(exeName, out var game)) return game;
+
+        // Fallback: scan the game folder for a known executable.
+        // Handles launchers (skse64_loader.exe, ModOrganizer.exe, etc.) configured instead of the game exe.
+        string? dir = Path.GetDirectoryName(executablePath);
+        if (string.IsNullOrEmpty(dir)) return null;
+        foreach (var (knownExe, knownGame) in _known)
+            if (File.Exists(Path.Combine(dir, knownExe + ".exe")))
+                return knownGame;
+
+        return null;
     }
 
     public static string GetPluginsTextPath(BethesdaGame game)

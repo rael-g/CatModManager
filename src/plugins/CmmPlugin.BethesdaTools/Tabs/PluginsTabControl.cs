@@ -117,11 +117,16 @@ public class PluginsTabControl : UserControl
             Spacing = 4,
             Margin = new Thickness(4)
         };
+        var btnOpenLoot   = MakeButton("Open LOOT",          () => _vm.OpenLoot());
+        var btnImportLoot = MakeButton("Import LOOT Order",  () => { _vm.ImportLootOrder(); UpdateStatus(); });
+
         bar.Children.Add(btnRefresh);
         bar.Children.Add(btnSave);
         bar.Children.Add(btnSort);
         bar.Children.Add(btnUp);
         bar.Children.Add(btnDown);
+        bar.Children.Add(btnOpenLoot);
+        bar.Children.Add(btnImportLoot);
         return bar;
     }
 

@@ -1,11 +1,14 @@
 using System;
+using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using CatModManager.PluginSdk;
 using CmmPlugin.FomodInstaller.Models;
+using SharpCompress.Archives;
 
 namespace CmmPlugin.FomodInstaller.Wizard;
 
@@ -17,15 +20,17 @@ public class FomodWizardWindow : Window
 {
     private readonly FomodWizardViewModel _vm;
     private readonly IPluginLogger _log;
+    private readonly string _archivePath;
     private readonly ContentControl _stepContent;
     private readonly TextBlock _stepIndicator;
     private readonly Button _btnBack;
     private readonly Button _btnNext;
     private readonly Button _btnInstall;
 
-    public FomodWizardWindow(FomodModuleConfig config, IPluginLogger log)
+    public FomodWizardWindow(FomodModuleConfig config, IPluginLogger log, string archivePath = "")
     {
         _log = log;
+        _archivePath = archivePath;
         _vm = new FomodWizardViewModel(config);
 
         Title = $"Install: {config.ModuleName}";
@@ -213,7 +218,51 @@ public class FomodWizardWindow : Window
             });
         }
 
+        if (!string.IsNullOrEmpty(plugin.ImagePath))
+        {
+            var bmp = TryLoadImageFromArchive(_archivePath, plugin.ImagePath);
+            if (bmp != null)
+                row.Children.Add(new Image
+                {
+                    Source    = bmp,
+                    MaxHeight = 120,
+                    Stretch   = Stretch.Uniform,
+                    Margin    = new Thickness(20, 4, 0, 0),
+                    HorizontalAlignment = HorizontalAlignment.Left
+                });
+        }
+
         return row;
+    }
+
+    /// <summary>
+    /// Attempts to extract an image entry from a zip/7z archive and return it as a Bitmap.
+    /// Returns null on any failure so the wizard degrades gracefully.
+    /// </summary>
+    private static Bitmap? TryLoadImageFromArchive(string archivePath, string imagePath)
+    {
+        if (string.IsNullOrEmpty(archivePath) || !File.Exists(archivePath)) return null;
+        try
+        {
+            // Normalise path separators for comparison
+            var normalizedImage = imagePath.Replace('\\', '/').TrimStart('/');
+
+            using var archive = ArchiveFactory.Open(archivePath);
+            foreach (var entry in archive.Entries)
+            {
+                if (entry.IsDirectory) continue;
+                var entryKey = (entry.Key ?? "").Replace('\\', '/').TrimStart('/');
+                if (!string.Equals(entryKey, normalizedImage, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                using var ms = new MemoryStream();
+                entry.OpenEntryStream().CopyTo(ms);
+                ms.Position = 0;
+                return new Bitmap(ms);
+            }
+        }
+        catch { /* Degrade gracefully — image simply won't appear */ }
+        return null;
     }
 
     private void Finish()

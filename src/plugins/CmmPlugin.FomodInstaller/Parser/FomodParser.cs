@@ -36,9 +36,19 @@ public static class FomodParser
         var configEntry = archive.Entries.FirstOrDefault(e => !e.IsDirectory && IsConfigEntry(e.Key))
             ?? throw new InvalidOperationException("ModuleConfig.xml not found in archive.");
 
+        // Detect wrapper folder: if ModuleConfig.xml is not at "fomod/..." but at
+        // "WrapperName/fomod/...", FOMOD source paths are relative to "WrapperName/".
+        string? wrapperPrefix = null;
+        var configKey = configEntry.Key!.Replace('\\', '/');
+        var fomodIdx  = configKey.IndexOf("fomod/", StringComparison.OrdinalIgnoreCase);
+        if (fomodIdx > 0)
+            wrapperPrefix = configKey[..fomodIdx]; // e.g. "MyMod_v1.0/"
+
         using var stream = configEntry.OpenEntryStream();
         var doc = XDocument.Load(stream);
-        return ParseDocument(doc);
+        var config = ParseDocument(doc);
+        config.WrapperPrefix = wrapperPrefix;
+        return config;
     }
 
     private static FomodModuleConfig ParseDocument(XDocument doc)
@@ -63,6 +73,24 @@ public static class FomodParser
         {
             foreach (var stepEl in stepsEl.Elements(ns + "installStep"))
                 config.InstallSteps.Add(ParseStep(stepEl, ns));
+        }
+
+        // Conditional file installs — we cannot evaluate flag conditions here, so we
+        // collect all files from every pattern and add them as required installs so
+        // nothing is silently skipped.
+        var conditionalEl = root.Element(ns + "conditionalFileInstalls");
+        if (conditionalEl != null)
+        {
+            var patternsEl = conditionalEl.Element(ns + "patterns");
+            if (patternsEl != null)
+            {
+                foreach (var patternEl in patternsEl.Elements(ns + "pattern"))
+                {
+                    var filesEl = patternEl.Element(ns + "files");
+                    if (filesEl != null)
+                        config.RequiredInstallFiles.AddRange(ParseFileList(filesEl, ns));
+                }
+            }
         }
 
         return config;

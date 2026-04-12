@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Models;
 using CmmPlugin.BethesdaTools.Services;
@@ -10,6 +11,9 @@ public class PluginsTabViewModel
     private readonly LoadOrderService _loadOrder;
     private readonly IModManagerState _state;
     private readonly IPluginLogger _log;
+
+    private string? _pluginsTextPath;
+    private bool    _usesStarFormat;
 
     public ObservableCollection<EspEntry> Entries => _loadOrder.Entries;
     public string Status => $"{Entries.Count(e => e.IsEnabled)}/{Entries.Count} plugins active";
@@ -24,20 +28,29 @@ public class PluginsTabViewModel
     public void Refresh()
     {
         var game = BethesdaDetector.Detect(_state.GameExecutablePath);
-        string? pluginsTextPath = game != null ? BethesdaDetector.GetPluginsTextPath(game) : null;
-        _loadOrder.Refresh(_state.DataFolderPath, pluginsTextPath, _state.ActiveMods);
+        if (game != null)
+        {
+            _pluginsTextPath = BethesdaDetector.GetPluginsTextPath(game);
+            _usesStarFormat  = game.UsesStarFormat;
+        }
+        _loadOrder.Refresh(_state.DataFolderPath, _pluginsTextPath, _state.ActiveMods);
     }
 
     public void Save()
     {
+        // Re-detect in case state was updated since last Refresh.
         var game = BethesdaDetector.Detect(_state.GameExecutablePath);
-        if (game == null)
+        if (game != null)
         {
-            _log.Log("[BethesdaTools] No Bethesda game detected — plugins.txt not written.");
+            _pluginsTextPath = BethesdaDetector.GetPluginsTextPath(game);
+            _usesStarFormat  = game.UsesStarFormat;
+        }
+        if (string.IsNullOrEmpty(_pluginsTextPath))
+        {
+            _log.Log("[BethesdaTools] Cannot save: plugins.txt location is unknown for this game.");
             return;
         }
-        string pluginsTextPath = BethesdaDetector.GetPluginsTextPath(game);
-        _loadOrder.Save(pluginsTextPath, game.UsesStarFormat);
+        _loadOrder.Save(_pluginsTextPath, _usesStarFormat);
     }
 
     public void MoveUp(EspEntry entry)
@@ -67,5 +80,63 @@ public class PluginsTabViewModel
             e.LoadOrder = i++;
             Entries.Add(e);
         }
+    }
+
+    public void OpenLoot()
+    {
+        // LOOT is a standalone tool — it detects the game itself, so no game detection check needed here.
+        string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string[] candidates =
+        [
+            Path.Combine(localApp, "LOOT", "LOOT.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "LOOT", "LOOT.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "LOOT", "LOOT.exe"),
+        ];
+
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path)) continue;
+            try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); return; }
+            catch (Exception ex) { _log.Log($"[Bethesda] Failed to launch LOOT at '{path}': {ex.Message}"); return; }
+        }
+        _log.Log("[Bethesda] LOOT.exe not found in common locations. Install LOOT or add it to your External Tools.");
+    }
+
+    public void ImportLootOrder()
+    {
+        var game = BethesdaDetector.Detect(_state.GameExecutablePath);
+        if (game == null) { _log.Log("[Bethesda] Cannot import LOOT order: no Bethesda game detected."); return; }
+
+        string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string loadOrderPath = Path.Combine(localApp, game.LocalAppDataFolder, "loadorder.txt");
+        if (!File.Exists(loadOrderPath))
+        {
+            _log.Log($"[Bethesda] loadorder.txt not found at: {loadOrderPath}");
+            return;
+        }
+
+        var lines = File.ReadAllLines(loadOrderPath)
+            .Select(l => l.Trim())
+            .Where(l => l.Length > 0 && l[0] != '#')
+            .ToList();
+
+        var ordered = new List<EspEntry>();
+        int i = 0;
+        foreach (var name in lines)
+        {
+            var entry = Entries.FirstOrDefault(e =>
+                string.Equals(e.FileName, name, StringComparison.OrdinalIgnoreCase));
+            if (entry != null) { entry.LoadOrder = i++; ordered.Add(entry); }
+        }
+        foreach (var entry in Entries.Where(e => !ordered.Contains(e)))
+        {
+            entry.LoadOrder = i++;
+            ordered.Add(entry);
+        }
+
+        Entries.Clear();
+        foreach (var entry in ordered) Entries.Add(entry);
+        _log.Log($"[Bethesda] Imported LOOT load order: {lines.Count} entries.");
+        Save(); // persist the reordered load order immediately
     }
 }

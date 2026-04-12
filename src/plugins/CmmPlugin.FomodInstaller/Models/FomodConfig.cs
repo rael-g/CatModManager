@@ -5,6 +5,12 @@ namespace CmmPlugin.FomodInstaller.Models;
 public class FomodModuleConfig
 {
     public string ModuleName { get; set; } = string.Empty;
+    /// <summary>
+    /// Non-null when the archive has a wrapper folder (e.g. "MyMod_v1.0/fomod/ModuleConfig.xml" →
+    /// WrapperPrefix = "MyMod_v1.0/"). Source paths from the FOMOD XML are relative to the module
+    /// root inside this wrapper; the prefix must be prepended before matching against archive entries.
+    /// </summary>
+    public string? WrapperPrefix { get; set; }
     public List<FomodInstallFile> RequiredInstallFiles { get; set; } = new();
     public List<FomodInstallStep> InstallSteps { get; set; } = new();
 }

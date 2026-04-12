@@ -49,8 +49,9 @@ public class FomodWizardViewModel
                     group.Plugins.Where(p => p.IsDefault || group.Type == GroupType.SelectAll)
                                  .Select(p => p.Name));
 
-                // SelectExactlyOne with no default → select first
-                if (group.Type == GroupType.SelectExactlyOne && defaultSet.Count == 0 && group.Plugins.Count > 0)
+                // SelectExactlyOne / SelectAtLeastOne with no default → select first
+                if (defaultSet.Count == 0 && group.Plugins.Count > 0 &&
+                    group.Type is GroupType.SelectExactlyOne or GroupType.SelectAtLeastOne)
                     defaultSet.Add(group.Plugins[0].Name);
 
                 Selections[key] = defaultSet;
@@ -156,10 +157,12 @@ public class FomodWizardViewModel
 
     private static void AddFilesToMapping(Dictionary<string, string> mapping, FomodInstallFile file)
     {
-        // The destination key is the virtual path; source is the archive-relative path.
-        // Folder entries use the destination as a prefix: actual file mapping is resolved during extraction.
-        string dest = string.IsNullOrEmpty(file.Destination) ? file.Source : file.Destination;
-        mapping[dest] = file.Source;
+        // Key = archive-relative source path (unique per entry).
+        // Value = destination path relative to mod root ("" means install to mod root).
+        // Keying by source prevents multiple entries with dest="" from overwriting each other.
+        string source = file.Source ?? "";
+        string dest   = file.Destination ?? "";
+        mapping[source] = dest;
     }
 
     private static string GroupKey(FomodInstallStep step, FomodGroup group) =>

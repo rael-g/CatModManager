@@ -22,6 +22,9 @@ public class BethesdaToolsPlugin : ICmmPlugin
 
         var installer = new BethesdaModInstaller(context.State);
 
+        // Refresh load order whenever the active profile changes
+        context.State.ProfileChanged += _ => vm.Refresh();
+
         context.Ui.RegisterModInstaller(installer);
         context.Ui.RegisterInspectorTab(tab);
         context.Ui.RegisterGameLaunchHook(hook);

@@ -13,37 +13,19 @@ using SharpCompress.Archives;
 namespace CmmPlugin.REEngine.Installers;
 
 /// <summary>
-/// Smart mod installer for RE Engine games.
+/// Mod installer for RE Engine games.
 ///
-/// The VFS mounts at the game's reframework/ sub-folder (DataSubFolder = "reframework"),
-/// so only files under reframework/ are served by the VFS. Everything that must live
-/// at the game root (natives/, *.pak, *.dll) is placed in the mod's Root/ sub-folder
-/// and deployed via RootSwap at mount time.
+/// Mirrors the Fluffy Mod Manager convention:
+///   - Single wrapper folder: stripped automatically (via empty-source mapping).
+///   - Variant zip (≥2 top-level folders each with a modinfo.ini): user picks which to install.
+///   - Everything else: all files extracted as-is to the mod folder root.
 ///
-/// Routing table:
-///   reframework/**   → reframework/... (VFS-managed)
-///   natives/**       → Root/natives/... (RootSwap → game root)
-///   *.pak / *.dll    → Root/*.pak|dll   (RootSwap → game root)
-///   images / meta    → mod root only    (inspector display)
-///
-/// Many Nexus/Fluffy zips bundle several mutually-exclusive variants as
-/// top-level sub-folders (each with a modinfo.ini). This installer detects
-/// that pattern and shows a simple picker so the user selects which to install.
+/// We deliberately avoid per-file mapping built from archive.Entries because some solid
+/// RARs omit large entries from the TOC enumeration while ExtractAllEntries streams them
+/// correctly. Instead we use coarse folder-level mappings ("" = copy everything).
 /// </summary>
 public class ReEngineModInstaller : IModInstaller
 {
-    private static readonly HashSet<string> RootExtensions =
-        new(StringComparer.OrdinalIgnoreCase) { ".pak", ".dll" };
-
-    private static readonly HashSet<string> MetaFiles =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            "modinfo.ini", "readme.txt", "readme.md", "license.txt", "changelog.txt"
-        };
-
-    private static readonly HashSet<string> ImageExtensions =
-        new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".webp", ".gif" };
-
     private readonly IModManagerState _state;
 
     public ReEngineModInstaller(IModManagerState state) => _state = state;
@@ -54,12 +36,14 @@ public class ReEngineModInstaller : IModInstaller
 
     public async Task<InstallResult> InstallAsync(string archivePath, IInstallContext ctx)
     {
+        // Read entry keys just for variant detection — we don't need every file, only
+        // the folder structure (top-level names + modinfo.ini presence).
         List<string> entries;
         try
         {
             using var archive = ArchiveFactory.Open(archivePath);
             entries = archive.Entries
-                .Where(e => !e.IsDirectory && e.Key != null)
+                .Where(e => e.Key != null)
                 .Select(e => e.Key!.Replace('\\', '/').Trim('/'))
                 .ToList();
         }
@@ -68,14 +52,13 @@ public class ReEngineModInstaller : IModInstaller
             return InstallResult.Failure($"[RE Engine] Failed to read archive: {ex.Message}");
         }
 
-        // ── Detect archive layout ─────────────────────────────────────────────
-
+        // Top-level names (first path segment of every entry)
         var topFolders = entries
             .Select(e => e.Split('/')[0])
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // A "variant zip" has ≥2 top-level folders each containing a modinfo.ini
+        // Variant zip: ≥2 top-level folders each containing a modinfo.ini
         var variantFolders = topFolders
             .Where(f => entries.Any(e =>
                 e.StartsWith(f + "/", StringComparison.OrdinalIgnoreCase) &&
@@ -84,100 +67,42 @@ public class ReEngineModInstaller : IModInstaller
             .ToList();
 
         bool isVariantZip = variantFolders.Count >= 2;
-        bool hasWrapper   = !isVariantZip &&
-                            topFolders.Count == 1 &&
-                            entries.All(e => e.StartsWith(topFolders[0] + "/", StringComparison.OrdinalIgnoreCase));
 
-        // ── Variant picker ────────────────────────────────────────────────────
-
-        IReadOnlyList<string> chosenVariants;
-        if (isVariantZip)
+        if (!isVariantZip)
         {
-            bool? picked = null;
-            ReEngineVariantPickerWindow? picker = null;
-
-            await Dispatcher.UIThread.InvokeAsync(async () =>
-            {
-                var mainWindow = (Application.Current?.ApplicationLifetime
-                    as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-                picker = new ReEngineVariantPickerWindow(variantFolders);
-                picked = await picker.ShowDialog<bool?>(mainWindow!);
-            });
-
-            if (picked != true || picker == null || picker.SelectedVariants.Count == 0)
-                return InstallResult.Failure("Installation cancelled.");
-
-            chosenVariants = picker.SelectedVariants;
-        }
-        else
-        {
-            // Single wrapper or flat zip — treat the single top-level folder (if any) as the only variant
-            chosenVariants = variantFolders.Count == 1 ? variantFolders : [];
+            // Single wrapper folder? All entries share the same top-level directory prefix.
+            // Map that prefix → mod root so the wrapper is stripped automatically.
+            // Otherwise map archive root → mod root ("" = copy everything as-is).
+            bool isWrapper = topFolders.Count == 1
+                && entries.All(e => e.StartsWith(topFolders[0] + "/", StringComparison.OrdinalIgnoreCase));
+            string sourceKey = isWrapper ? topFolders[0] + "/" : "";
+            return InstallResult.Success(new Dictionary<string, string> { [sourceKey] = "" });
         }
 
-        // ── Build file mapping ────────────────────────────────────────────────
+        // Show variant picker
+        IReadOnlyList<string> chosenVariants = [];
+        ReEngineVariantPickerWindow? picker = null;
+        bool picked = false;
 
+        await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            var mainWindow = (Application.Current?.ApplicationLifetime
+                as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+            picker = new ReEngineVariantPickerWindow(variantFolders);
+            picked = await picker.ShowDialog<bool?>(mainWindow!) == true;
+        });
+
+        if (!picked || picker == null || picker.SelectedVariants.Count == 0)
+            return InstallResult.Failure("Installation cancelled.");
+
+        chosenVariants = picker.SelectedVariants;
+
+        // Map each chosen variant folder → mod root.
+        // The trailing "/" on the key causes InstallModFromMappingAsync to use the
+        // StartsWith folder-match branch, stripping the variant prefix automatically.
         var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var srcPath in entries)
-        {
-            string effectivePath = srcPath;
-
-            if (isVariantZip)
-            {
-                var matchingVariant = chosenVariants.FirstOrDefault(v =>
-                    srcPath.StartsWith(v + "/", StringComparison.OrdinalIgnoreCase));
-
-                if (matchingVariant == null) continue;  // top-level screenshot etc → skip
-                effectivePath = srcPath[(matchingVariant.Length + 1)..];
-                if (string.IsNullOrEmpty(effectivePath)) continue;
-            }
-            else if (hasWrapper)
-            {
-                int slash = effectivePath.IndexOf('/');
-                if (slash < 0) continue;
-                effectivePath = effectivePath[(slash + 1)..];
-                if (string.IsNullOrEmpty(effectivePath)) continue;
-            }
-
-            string fileName = Path.GetFileName(effectivePath);
-            string ext      = Path.GetExtension(fileName);
-
-            string destPath;
-
-            if (MetaFiles.Contains(fileName) || ImageExtensions.Contains(ext))
-            {
-                // Metadata and screenshots → mod root for inspector display only
-                destPath = fileName;
-            }
-            else if (_state.RootSwapOnly)
-            {
-                // RootSwap-only mode (RE Engine): every game file goes to Root/ so it is
-                // deployed to the actual game folder via RootSwap at mount time.
-                // natives/, reframework/, *.pak, *.dll — all land at game root through RootSwap.
-                destPath = "Root/" + effectivePath;
-            }
-            else if (effectivePath.StartsWith("reframework/", StringComparison.OrdinalIgnoreCase))
-            {
-                // VFS mode with DataSubFolder="reframework": scripts served by VFS
-                destPath = effectivePath;
-            }
-            else if (effectivePath.StartsWith("natives/", StringComparison.OrdinalIgnoreCase) ||
-                     RootExtensions.Contains(ext))
-            {
-                // Must live at game root → RootSwap
-                destPath = "Root/" + (RootExtensions.Contains(ext) ? fileName : effectivePath);
-            }
-            else
-            {
-                destPath = effectivePath;
-            }
-
-            mapping[destPath] = srcPath;
-        }
-
-        if (mapping.Count == 0)
-            return InstallResult.Failure("[RE Engine] No files were selected for installation.");
+        foreach (var variant in chosenVariants)
+            mapping[variant + "/"] = "";
 
         return InstallResult.Success(mapping);
     }

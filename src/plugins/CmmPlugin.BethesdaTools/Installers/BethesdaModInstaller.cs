@@ -76,7 +76,7 @@ public class BethesdaModInstaller : IModInstaller
                     : stripped;
 
                 if (!string.IsNullOrEmpty(destPath))
-                    mapping[destPath] = originalKey;
+                    mapping[originalKey] = destPath;
             }
         }
         catch (Exception ex)
