@@ -6,6 +6,13 @@ SteamAppId  = 1091500
 
 RequiredFiles = ["bin\\x64\\Cyberpunk2077.exe"]
 
+# Default install target: REDmod/archive mods go here.
 DataSubFolder = "archive\\pc\\mod"
 
-SaveFolderPattern = '%USERPROFILE%\Saved Games\CD Projekt Red\Cyberpunk 2077'
+# Alternate mount point: some mods (e.g. CET scripts, redscript) install to game root subdirs.
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""
+
+SaveFolderPattern = "%USERPROFILE%\\Saved Games\\CD Projekt Red\\Cyberpunk 2077"

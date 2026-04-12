@@ -34,6 +34,12 @@ public interface IGameSupport
     /// The first .exe entry is treated as the primary executable.
     /// </summary>
     string[] RequiredFiles { get; }
+
+    /// <summary>
+    /// Predefined mount points for this game (read-only; from game definition).
+    /// Empty list = use <see cref="DataSubFolder"/> as the single default mount point.
+    /// </summary>
+    IReadOnlyList<MountPointDef> GameDefinedMountPoints { get; }
 }
 
 public class GenericGameSupport : IGameSupport
@@ -49,4 +55,5 @@ public class GenericGameSupport : IGameSupport
     public string DataSubFolder => "";
     public bool RootSwapOnly => false;
     public string[] RequiredFiles => [];
+    public IReadOnlyList<MountPointDef> GameDefinedMountPoints => [];
 }

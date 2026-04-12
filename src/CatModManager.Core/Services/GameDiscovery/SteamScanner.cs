@@ -47,24 +47,54 @@ public static class SteamScanner
     [SupportedOSPlatform("windows")]
     private static IEnumerable<string> GetLibraryRoots()
     {
-        var steamPath = GetSteamPath();
-        if (steamPath == null) yield break;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var normalizedSteam = Normalize(steamPath);
-        yield return normalizedSteam;
+        // Seed candidates: registry-reported Steam path + well-known default locations.
+        // This handles setups where a modded Steam client (e.g. SteamVerde) overwrites the
+        // registry entry, making the original Steam installation invisible to a registry-only scan.
+        var candidates = new List<string?> { GetSteamPath() };
+        candidates.AddRange(GetWellKnownSteamPaths());
 
-        var vdf = Path.Combine(normalizedSteam, "steamapps", "libraryfolders.vdf");
-        if (!File.Exists(vdf)) yield break;
-
-        var text = File.ReadAllText(vdf);
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { normalizedSteam };
-
-        foreach (Match m in Regex.Matches(text, "\"path\"\\s+\"([^\"]+)\""))
+        foreach (var candidate in candidates)
         {
-            var norm = Normalize(m.Groups[1].Value.Replace("\\\\", "\\"));
-            if (seen.Add(norm))
-                yield return norm;
+            if (string.IsNullOrEmpty(candidate)) continue;
+            string norm;
+            try { norm = Normalize(candidate); } catch { continue; }
+
+            if (!Directory.Exists(Path.Combine(norm, "steamapps"))) continue;
+            if (!seen.Add(norm)) continue;
+
+            yield return norm;
+
+            // Also yield any additional library folders listed in this installation's VDF.
+            var vdf = Path.Combine(norm, "steamapps", "libraryfolders.vdf");
+            if (!File.Exists(vdf)) continue;
+
+            string text;
+            try { text = File.ReadAllText(vdf); } catch { continue; }
+
+            foreach (Match m in Regex.Matches(text, "\"path\"\\s+\"([^\"]+)\""))
+            {
+                string libNorm;
+                try { libNorm = Normalize(m.Groups[1].Value.Replace("\\\\", "\\")); } catch { continue; }
+                if (seen.Add(libNorm))
+                    yield return libNorm;
+            }
         }
+    }
+
+    /// <summary>
+    /// Returns well-known Steam installation paths to use as fallbacks when the registry
+    /// points to a different Steam client (e.g. SteamVerde, Steam++ variants).
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static IEnumerable<string> GetWellKnownSteamPaths()
+    {
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var programFiles    = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+
+        yield return Path.Combine(programFilesX86, "Steam");
+        yield return Path.Combine(programFiles,    "Steam");
     }
 
     private static string Normalize(string path)

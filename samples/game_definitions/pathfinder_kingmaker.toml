@@ -1,0 +1,18 @@
+GameId      = "pathfinder_kingmaker"
+DisplayName = "Pathfinder: Kingmaker"
+
+NexusDomain = "pathfinderkingmaker"
+SteamAppId  = 640820
+
+RequiredFiles = ["Kingmaker.exe"]
+
+# Default install target: Unity Mod Manager mods go into the Mods subfolder.
+DataSubFolder = "Mods"
+
+# Alternate mount point: some mods install to game root.
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""
+
+SaveFolderPattern = "%APPDATA%\\unity3d\\Owlcat Games\\Pathfinder Kingmaker"

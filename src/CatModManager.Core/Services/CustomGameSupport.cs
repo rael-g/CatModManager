@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Nett;
 using CatModManager.Core.Models;
 
@@ -29,6 +30,13 @@ public class GameDefinition
     /// Set to true for RE Engine games (exe cannot run from virtual filesystem).
     /// </summary>
     public bool RootSwapOnly { get; set; } = false;
+
+    /// <summary>
+    /// Predefined mount points for this game (from TOML).
+    /// The first entry is the default install target.
+    /// If empty, a single default mount point is synthesised from DataSubFolder.
+    /// </summary>
+    public List<MountPointDef> MountPoints { get; set; } = new();
 }
 
 public class CustomGameSupport : IGameSupport
@@ -42,6 +50,8 @@ public class CustomGameSupport : IGameSupport
     public string DataSubFolder => _def.DataSubFolder;
     public bool RootSwapOnly => _def.RootSwapOnly;
     public string[] RequiredFiles => _def.RequiredFiles;
+    public IReadOnlyList<MountPointDef> GameDefinedMountPoints =>
+        _def.MountPoints.Select(mp => new MountPointDef(mp.Id, mp.Name, mp.Path, isGameDefined: true)).ToList();
 
     public CustomGameSupport(GameDefinition def) => _def = def;
 

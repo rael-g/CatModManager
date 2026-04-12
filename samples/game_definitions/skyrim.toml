@@ -6,6 +6,13 @@ SteamAppId  = 489830
 
 RequiredFiles = ["SkyrimSE.exe", "Data"]
 
+# Default install target: loose mods go into the Data folder.
 DataSubFolder = "Data"
+
+# Alternate mount point: some mods (e.g. SKSE plugins, ENB) install to the game root.
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""
 
 SaveFolderPattern = "%USERPROFILE%\\Documents\\My Games\\Skyrim Special Edition\\Saves"

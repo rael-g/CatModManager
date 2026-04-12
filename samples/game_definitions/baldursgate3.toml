@@ -1,0 +1,18 @@
+GameId      = "baldursgate3"
+DisplayName = "Baldur's Gate 3"
+
+NexusDomain = "baldursgate3"
+SteamAppId  = 1086940
+
+RequiredFiles = ["bin\\bg3.exe"]
+
+# Default install target: PAK mods go to the Larian AppData Mods folder.
+DataSubFolder = "%LOCALAPPDATA%\\Larian Studios\\Baldur's Gate 3\\Mods"
+
+# Alternate mount point: loose-file mods go to the game Data\ folder.
+[[MountPoints]]
+Id   = "data"
+Name = "Data (loose files)"
+Path = "Data"
+
+SaveFolderPattern = "%LOCALAPPDATA%\\Larian Studios\\Baldur's Gate 3\\PlayerProfiles\\Public\\Savegames"
