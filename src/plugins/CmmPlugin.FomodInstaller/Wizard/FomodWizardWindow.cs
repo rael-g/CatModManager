@@ -272,3 +272,4 @@ public class FomodWizardWindow : Window
         Close(InstallResult.Success(mapping));
     }
 }
+

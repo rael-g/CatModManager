@@ -55,7 +55,7 @@ public partial class GameDetectionDialogViewModel : ObservableObject
     {
         // Pre-select the detected game mode, or generic if none.
         SelectedGameMode = value?.DetectedSupport
-            ?? AvailableSupports[0]; // Generic is always index 0
+            ?? AvailableSupports[0];
     }
 
     public void Apply()

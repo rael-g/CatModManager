@@ -57,3 +57,4 @@ public static class ReEngineDetector
         return Directory.GetFiles(dir, "*.lua", SearchOption.AllDirectories).Length;
     }
 }
+

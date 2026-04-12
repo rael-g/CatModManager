@@ -11,3 +11,4 @@ public interface IInstallContext
     /// </summary>
     FomodPreset?  FomodPreset      { get; }
 }
+

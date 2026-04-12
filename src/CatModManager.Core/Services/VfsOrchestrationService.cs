@@ -52,11 +52,9 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         _vfsHooks        = vfsHooks ?? [];
     }
 
-    // ── Recovery ─────────────────────────────────────────────────────────────
-
     public void RecoverStaleMounts()
     {
-        // Let HardlinkDriver clean up any stale links from a previous crash.
+        // Clean up any stale links from a previous crash.
         var crashRecovery = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore), _swapStrategy);
         try { crashRecovery.Unmount(); } catch { }
 
@@ -73,8 +71,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         _stateService.RecoverStaleMounts();
     }
 
-    // ── Mount ─────────────────────────────────────────────────────────────────
-
     public async Task<OperationResult> MountAsync(MountOptions options)
     {
         if (IsMounted)
@@ -90,8 +86,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         {
             _lastGameFolderPath = options.GameFolderPath;
 
-            // Build effective mount point list.
-            // Fall back to DataSubFolder when no mount points are configured.
             var mountPoints = BuildEffectiveMountPoints(options);
 
             var mountInfo = new MountInfo
@@ -107,7 +101,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
             foreach (var mp in mountPoints)
             {
-                // Select mods for this mount point.
                 // Mods with no MountPointId go to the first (default) mount point.
                 var modsForMp = options.ActiveMods
                     .Where(m => MountPointMatches(m, mp, mountPoints[0]))
@@ -115,7 +108,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
                 if (modsForMp.Count == 0) continue;
 
-                // Resolve the absolute target path.
                 string targetPath = ResolveMountPointPath(options.GameFolderPath, mp.Path);
 
                 var vfs = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore), _swapStrategy);
@@ -125,8 +117,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
                 _logService.Log($"  [{mp.Name}] → {targetPath} ({modsForMp.Count} mod(s))");
             }
 
-            // Legacy Root/ files via RootSwapService (for backward compat with existing mods
-            // that use the Root/ subfolder convention and have no MountPointId set).
+            // Legacy Root/ files (backward compat with mods using Root/ subfolder without MountPointId).
             var modsWithRoot = options.ActiveMods.Where(m => m.HasRootFolder && string.IsNullOrEmpty(m.MountPointId)).ToList();
             if (modsWithRoot.Count > 0)
             {
@@ -146,8 +137,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
             return OperationResult.Failure($"MOUNT ERROR: {ex.Message}", ex);
         }
     }
-
-    // ── Unmount ───────────────────────────────────────────────────────────────
 
     public async Task<OperationResult> UnmountAsync()
     {
@@ -197,9 +186,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /// <summary>Builds effective mount point list from options, falling back to DataSubFolder.</summary>
     private static List<MountPointDef> BuildEffectiveMountPoints(MountOptions options)
     {
         if (options.MountPoints.Count > 0)
@@ -209,23 +195,17 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         return [new MountPointDef("default", "Default", options.DataSubFolder ?? "")];
     }
 
-    /// <summary>Returns true if <paramref name="mod"/> belongs to <paramref name="mp"/>.</summary>
     private static bool MountPointMatches(Mod mod, MountPointDef mp, MountPointDef defaultMp)
     {
         if (string.IsNullOrEmpty(mod.MountPointId))
-            return mp == defaultMp; // null/empty → first mount point
+            return mp == defaultMp;
         return string.Equals(mod.MountPointId, mp.Id, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Returns the DataSubFolder string to pass to CatVirtualFileSystem.Mount() for a given mount point.
-    /// For absolute paths, returns the path as-is (VFS handles absolute dataSubFolder).
-    /// For relative paths, returns the relative path.
-    /// </summary>
     private static string? GetDataSubFolder(MountPointDef mp, MountOptions options)
     {
-        if (string.IsNullOrEmpty(mp.Path)) return null; // game root
-        return Environment.ExpandEnvironmentVariables(mp.Path); // relative or absolute
+        if (string.IsNullOrEmpty(mp.Path)) return null;
+        return Environment.ExpandEnvironmentVariables(mp.Path);
     }
 
     private static string ResolveMountPointPath(string gameFolder, string mpPath)

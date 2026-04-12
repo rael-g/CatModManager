@@ -10,3 +10,4 @@ public interface IModInfo
     bool   IsEnabled { get; }
     int    Priority  { get; }
 }
+

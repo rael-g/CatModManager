@@ -168,3 +168,4 @@ public class FomodWizardViewModel
     private static string GroupKey(FomodInstallStep step, FomodGroup group) =>
         $"{step.Name}::{group.Name}";
 }
+

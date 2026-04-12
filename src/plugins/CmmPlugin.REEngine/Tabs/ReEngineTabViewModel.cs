@@ -55,3 +55,4 @@ public partial class ReEngineTabViewModel : ObservableObject
         ScriptCount      = ReEngineDetector.CountReFrameworkScripts(gameFolder).ToString();
     }
 }
+

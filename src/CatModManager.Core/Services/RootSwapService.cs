@@ -10,9 +10,8 @@ using Microsoft.Data.Sqlite;
 namespace CatModManager.Core.Services;
 
 /// <summary>
-/// Deploys mod files from each mod's Root/ subfolder to the game root at mount time,
-/// and reverses the operation at unmount time. All moves are recorded in the DB for
-/// crash-safe recovery.
+/// Manages mod files in the game root via atomic moves and database-backed recovery.
+/// Deploys from 'Root/' subfolders and reverses operations at unmount.
 /// </summary>
 public class RootSwapService : IRootSwapService
 {
@@ -29,8 +28,6 @@ public class RootSwapService : IRootSwapService
 
     public async Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder)
     {
-        // Build deployment plan: higher-priority mod wins on filename conflict.
-        // activeMods is ordered highest-priority first.
         var plan = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var mod in activeMods)
         {
@@ -40,7 +37,7 @@ public class RootSwapService : IRootSwapService
             foreach (var file in Directory.GetFiles(rootDir, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(rootDir, file);
-                if (!plan.ContainsKey(rel))        // first (highest priority) wins
+                if (!plan.ContainsKey(rel))
                     plan[rel] = file;
             }
         }
@@ -147,8 +144,6 @@ public class RootSwapService : IRootSwapService
         cmd.Parameters.AddWithValue("@gf", gameFolder);
         return Convert.ToInt64(cmd.ExecuteScalar()!) > 0;
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private void ReverseEntry(RootSwapEntry e)
     {

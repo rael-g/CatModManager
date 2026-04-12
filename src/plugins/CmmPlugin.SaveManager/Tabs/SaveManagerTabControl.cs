@@ -145,3 +145,4 @@ public class SaveManagerTabControl : UserControl
             _                 => $"{bytes / (1_024 * 1_024)} MB"
         };
 }
+

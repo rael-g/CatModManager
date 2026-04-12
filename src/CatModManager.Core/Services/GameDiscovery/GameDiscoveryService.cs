@@ -51,7 +51,6 @@ public class GameDiscoveryService : IGameDiscoveryService
             .GroupBy(s => s.SteamAppId)
             .ToDictionary(g => g.Key, g => g.First());
 
-        // ── Steam ──────────────────────────────────────────────────────────
         if (OperatingSystem.IsWindows())
         {
             try
@@ -63,24 +62,21 @@ public class GameDiscoveryService : IGameDiscoveryService
                     var gameFolder = Path.GetFullPath(Path.Combine(commonPath, installDir));
                     if (!Directory.Exists(gameFolder) || !seenFolders.Add(gameFolder)) continue;
 
-                    // Find the best exe for this game folder.
                     IGameSupport? knownSupport = bySteamId.GetValueOrDefault(appId);
                     var exe = FindExe(gameFolder, knownSupport, name);
                     if (exe == null || !seenExes.Add(exe)) continue;
 
-                    // Auto-detect game support: first by AppId, then by CanSupport.
                     var detected = knownSupport ?? supports.FirstOrDefault(s => s.CanSupport(exe));
 
                     results.Add(new GameInstallation(name, exe, gameFolder, "Steam", detected));
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch { /* Steam not installed or unreadable */ }
+            catch { }
         }
 
         ct.ThrowIfCancellationRequested();
 
-        // ── GOG ────────────────────────────────────────────────────────────
         if (OperatingSystem.IsWindows())
         {
             try
@@ -95,12 +91,11 @@ public class GameDiscoveryService : IGameDiscoveryService
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch { /* GOG not installed */ }
+            catch { }
         }
 
         ct.ThrowIfCancellationRequested();
 
-        // ── Epic ───────────────────────────────────────────────────────────
         try
         {
             foreach (var (exe, folder, name) in EpicScanner.GetInstalledGames())
@@ -113,31 +108,28 @@ public class GameDiscoveryService : IGameDiscoveryService
             }
         }
         catch (OperationCanceledException) { throw; }
-        catch { /* Epic not installed */ }
+        catch { }
 
         return results.OrderBy(r => r.DisplayName).ToList();
     }
 
     /// <summary>
-    /// Finds the most likely main executable for a game folder.
-    /// Priority: 1) known support's RequiredFiles .exe  2) exe matching the game name  3) largest non-excluded exe
+    /// Finds the main game executable using known support hints, name matching, and file size heuristics.
     /// </summary>
     private static string? FindExe(string gameFolder, IGameSupport? knownSupport, string gameName)
     {
-        // 1. Use the support's RequiredFiles if we already know the game.
         if (knownSupport != null)
         {
             var rel = knownSupport.RequiredFiles
                 .FirstOrDefault(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
             if (rel != null)
             {
-                // RequiredFiles is an explicit hint — skip size filter.
+                // RequiredFiles is an explicit hint from game support — skip size filter.
                 var full = Path.GetFullPath(Path.Combine(gameFolder, rel));
                 if (File.Exists(full)) return full;
             }
         }
 
-        // 2. Scan root-level executables, exclude launchers/tools.
         string[] candidates;
         try { candidates = Directory.GetFiles(gameFolder, "*.exe", SearchOption.TopDirectoryOnly); }
         catch { return null; }
@@ -150,13 +142,11 @@ public class GameDiscoveryService : IGameDiscoveryService
             .Where(e => new FileInfo(e).Length >= MinExeSizeBytes)
             .ToList();
 
-        // If all root exes are small launchers, fall back to the largest one rather
-        // than returning null and losing the game entirely from the list.
+        // Fall back to the largest one if all root exes are small launchers, to avoid missing the game.
         var pool = valid.Count > 0 ? valid : nonExcluded;
         if (pool.Count == 0) return null;
         if (pool.Count == 1) return pool[0];
 
-        // 3. Prefer the exe whose name is closest to the game/install-dir name.
         var nameToken = Path.GetFileNameWithoutExtension(
             gameName.Replace(" ", "").Replace(":", "").Replace("'", ""));
 
@@ -165,7 +155,7 @@ public class GameDiscoveryService : IGameDiscoveryService
                 .Contains(nameToken, StringComparison.OrdinalIgnoreCase));
         if (byName != null) return byName;
 
-        // 4. Fall back to the largest file (heuristic: game binaries are big).
+        // Game binaries are typically the largest executables in the folder.
         return pool
             .OrderByDescending(e => new FileInfo(e).Length)
             .First();

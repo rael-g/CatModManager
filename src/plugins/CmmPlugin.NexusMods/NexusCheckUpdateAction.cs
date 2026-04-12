@@ -119,3 +119,4 @@ internal sealed class NexusCheckUpdateAction : IModContextAction
         window.ShowDialog(mainWindow);
     }
 }
+

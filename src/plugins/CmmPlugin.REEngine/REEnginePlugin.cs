@@ -27,3 +27,4 @@ public class REEnginePlugin : ICmmPlugin
         ctx.Log.Log($"[{DisplayName}] Initialized — RE2R, RE3R, RE7, RE Village, RE4R, RE9, DMC5, MH Rise, MH Wilds, DD2, SF6.");
     }
 }
+

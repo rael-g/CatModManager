@@ -11,3 +11,4 @@ public interface IPluginContext
     /// <summary>CMM's persistent data directory. Plugins may store data in sub-folders here.</summary>
     string           AppDataPath { get; }
 }
+

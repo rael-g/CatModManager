@@ -20,3 +20,4 @@ public class FomodPresetGroup
     /// <summary>Plugin indices selected within this group (fallback when names don't match).</summary>
     public List<int>    SelectedIndices  { get; set; } = new();
 }
+

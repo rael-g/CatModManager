@@ -140,3 +140,4 @@ public class PluginsTabViewModel
         Save(); // persist the reordered load order immediately
     }
 }
+

@@ -16,3 +16,4 @@ public interface IInspectorTab
     /// </summary>
     object CreateView(IModInfo? mod);
 }
+

@@ -7,3 +7,4 @@ public interface IGameLaunchHook
     Task OnBeforeLaunchAsync(LaunchContext ctx);
     Task OnAfterExitAsync(LaunchContext ctx);
 }
+

@@ -6,3 +6,4 @@ public record ReEngineGame(
     string DisplayName,
     string ExecutableName,
     bool   HasReFrameworkSupport);
+

@@ -30,12 +30,11 @@ public static class SteamScanner
                 if (appId == null || installDir == null) continue;
                 if (!int.TryParse(appId, out var id)) continue;
 
-                // StateFlags bit 2 (value 4) = fully installed.
+                // Bit 2 (value 4) of StateFlags indicates the game is fully installed.
                 if (stateFlags != null && int.TryParse(stateFlags, out var flags) && (flags & 4) == 0)
                     continue;
 
-                // SizeOnDisk = 0 means the game was never actually downloaded.
-                // Require at least 50 MB to rule out ghost entries from managers like Hydra.
+                // Filter out ghost entries (e.g. from 3rd party managers) by requiring a minimum size.
                 if (sizeOnDisk != null && long.TryParse(sizeOnDisk, out var size) && size < 50L * 1024 * 1024)
                     continue;
 
@@ -49,9 +48,8 @@ public static class SteamScanner
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Seed candidates: registry-reported Steam path + well-known default locations.
-        // This handles setups where a modded Steam client (e.g. SteamVerde) overwrites the
-        // registry entry, making the original Steam installation invisible to a registry-only scan.
+        // Include well-known paths to handle custom Steam clients (e.g. SteamVerde) 
+        // that may overwrite default registry entries.
         var candidates = new List<string?> { GetSteamPath() };
         candidates.AddRange(GetWellKnownSteamPaths());
 
@@ -66,7 +64,6 @@ public static class SteamScanner
 
             yield return norm;
 
-            // Also yield any additional library folders listed in this installation's VDF.
             var vdf = Path.Combine(norm, "steamapps", "libraryfolders.vdf");
             if (!File.Exists(vdf)) continue;
 

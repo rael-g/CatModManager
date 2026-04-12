@@ -36,3 +36,4 @@ public class SaveManagerLaunchHook : IGameLaunchHook
 
     public Task OnAfterExitAsync(LaunchContext ctx) => Task.CompletedTask;
 }
+

@@ -15,3 +15,4 @@ public class SaveGameDef
     /// </summary>
     public string SaveFolderPattern { get; init; } = "";
 }
+

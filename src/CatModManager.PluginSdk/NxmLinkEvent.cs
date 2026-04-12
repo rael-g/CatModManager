@@ -5,3 +5,4 @@ namespace CatModManager.PluginSdk;
 /// either from a command-line argument (startup) or from a second instance via IPC pipe.
 /// </summary>
 public record NxmLinkEvent(string NxmUri);
+

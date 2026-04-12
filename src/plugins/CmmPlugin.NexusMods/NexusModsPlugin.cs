@@ -153,7 +153,6 @@ public class NexusModsPlugin : ICmmPlugin
         return Task.CompletedTask;
     }
 
-    // -----------------------------------------------------------------------
 
     private static string NormalizeProfileName(string? profileName)
         => string.IsNullOrEmpty(profileName) ? "_global" : profileName;
@@ -236,3 +235,4 @@ public class NexusModsPlugin : ICmmPlugin
         return defaultFolder;
     }
 }
+

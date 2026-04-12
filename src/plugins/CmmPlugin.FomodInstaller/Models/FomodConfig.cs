@@ -53,3 +53,4 @@ public class FomodInstallFile
     public bool IsFolder { get; set; }
     public int Priority { get; set; }
 }
+

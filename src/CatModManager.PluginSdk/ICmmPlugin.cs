@@ -15,3 +15,4 @@ public interface ICmmPlugin
     /// <summary>Called before the plugin is unloaded. Override to release resources.</summary>
     Task ShutdownAsync() => Task.CompletedTask;
 }
+

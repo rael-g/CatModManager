@@ -32,3 +32,4 @@ public class BethesdaToolsPlugin : ICmmPlugin
         context.Log.Log($"[{DisplayName}] Initialized — supports Skyrim, Fallout, Oblivion, Starfield and more.");
     }
 }
+

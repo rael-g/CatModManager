@@ -10,3 +10,4 @@ public interface IPluginRegistrar
     void RegisterSidebarAction(ISidebarAction action);
     void RegisterModContextAction(IModContextAction action);
 }
+

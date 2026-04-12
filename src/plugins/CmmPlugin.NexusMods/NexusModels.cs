@@ -5,10 +5,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CmmPlugin.NexusMods;
 
-// ---------------------------------------------------------------------------
-// API response models
-// ---------------------------------------------------------------------------
-
 public class NexusModFile
 {
     [JsonPropertyName("file_id")]
@@ -72,16 +68,11 @@ public class NexusModDetails
     [JsonPropertyName("category_id")]
     public int CategoryId { get; set; }
 
-    /// <summary>Derives a displayable category string: prefers category_name, falls back to category_id if present.</summary>
     public string ResolvedCategory =>
         !string.IsNullOrEmpty(CategoryName) ? CategoryName
         : CategoryId > 0 ? $"Category {CategoryId}"
         : string.Empty;
 }
-
-// ---------------------------------------------------------------------------
-// NxmLink — parses nxm:// URIs
-// ---------------------------------------------------------------------------
 
 public record NxmLink(
     string GameDomain,
@@ -92,7 +83,6 @@ public record NxmLink(
     int? UserId)
 {
     /// <summary>
-    /// Parses nxm://{gameDomain}/mods/{modId}/files/{fileId}?key={key}&amp;expires={expires}&amp;user_id={userId}
     /// Returns null if this is not a mod link (e.g. it's a collection link).
     /// </summary>
     public static NxmLink? TryParse(string uri)
@@ -111,14 +101,10 @@ public record NxmLink(
             query["key"], query["expires"], userId);
     }
 
-    /// <summary>Kept for backward compat — throws on collection links.</summary>
     public static NxmLink Parse(string uri) =>
         TryParse(uri) ?? throw new FormatException($"Not a mod nxm link: {uri}");
 }
 
-/// <summary>
-/// Parses nxm://{gameDomain}/collections/{slug}/revisions/{revision}?key=...&amp;expires=...
-/// </summary>
 public record NxmCollectionLink(
     string GameDomain,
     string Slug,
@@ -131,7 +117,6 @@ public record NxmCollectionLink(
     {
         var parsed = new Uri(uri);
         var segments = parsed.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        // Expected: collections/{slug}/revisions/{revision}
         if (segments.Length < 4 || !string.Equals(segments[0], "collections", StringComparison.OrdinalIgnoreCase))
             return null;
 
@@ -143,10 +128,6 @@ public record NxmCollectionLink(
             query["key"], query["expires"], userId);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Nexus Collection manifest (inside the downloaded .zip archive)
-// ---------------------------------------------------------------------------
 
 public class NexusCollectionManifest
 {
@@ -175,7 +156,6 @@ public class NexusCollectionModEntry
 
 public class NexusCollectionFomodChoices
 {
-    /// <summary>"fomod" when the choices are for a FOMOD installer.</summary>
     [JsonPropertyName("type")]    public string Type    { get; set; } = string.Empty;
     [JsonPropertyName("options")] public List<NexusCollectionFomodOption> Options { get; set; } = new();
 }
@@ -200,10 +180,6 @@ public class NexusCollectionModSource
     [JsonPropertyName("gameDomain")] public string GameDomain { get; set; } = string.Empty;
     [JsonPropertyName("fileSize")]   public long   FileSize   { get; set; }
 }
-
-// ---------------------------------------------------------------------------
-// DownloadEntry — observable download queue item
-// ---------------------------------------------------------------------------
 
 public partial class DownloadEntry : ObservableObject
 {
@@ -237,10 +213,6 @@ public partial class DownloadEntry : ObservableObject
     /// <summary>When non-null, the FOMOD installer will auto-apply these choices without showing the wizard.</summary>
     public CatModManager.PluginSdk.FomodPreset? FomodPreset { get; set; }
 }
-
-// ---------------------------------------------------------------------------
-// GraphQL response models (v2 API — collection revision)
-// ---------------------------------------------------------------------------
 
 public class NexusCollectionGraphQlResponse
 {
@@ -283,10 +255,6 @@ public class NexusCollectionGame
     [JsonPropertyName("domainName")] public string DomainName { get; set; } = string.Empty;
 }
 
-// ---------------------------------------------------------------------------
-// Tracking models
-// ---------------------------------------------------------------------------
-
 public class NexusTrackEntry
 {
     public string ModFolderPath { get; set; } = string.Empty;
@@ -297,10 +265,6 @@ public class NexusTrackEntry
     /// <summary>Original archive path that was downloaded, if this entry was created from a download.</summary>
     public string? SourceArchivePath { get; set; }
 }
-
-// ---------------------------------------------------------------------------
-// Category resolution helpers
-// ---------------------------------------------------------------------------
 
 public class NexusCategory
 {
@@ -324,15 +288,8 @@ public class NexusGameDetails
     public List<NexusCategory> Categories { get; set; } = new();
 }
 
-// ---------------------------------------------------------------------------
-// Browse / search models  (v2 GraphQL)
-// ---------------------------------------------------------------------------
-
 public enum BrowseSort { Trending, LatestAdded, LatestUpdated }
 
-// ── Collection browse models ─────────────────────────────────────────────────
-
-/// <summary>Unified collection record for the browse window.</summary>
 public class NexusBrowseCollection
 {
     public int    Id           { get; set; }
@@ -399,7 +356,6 @@ public class NexusCollectionCategoryInfo
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Unified mod record for the browse window.</summary>
 public class NexusBrowseMod
 {
     public int    ModId            { get; set; }
@@ -413,8 +369,6 @@ public class NexusBrowseMod
     public string GameDomain       { get; set; } = string.Empty;
     public int    TotalCount       { get; set; }
 }
-
-// ── v2 GraphQL mods query response ──────────────────────────────────────────
 
 public class NexusModsGraphQlResponse
 {

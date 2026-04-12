@@ -139,8 +139,6 @@ public partial class GameConfigViewModel : ViewModelBase
         _activeGameSupport = _gameSupportService.Default;
     }
 
-    // ── Initialization ────────────────────────────────────────────────────────
-
     public void Initialize()
     {
         CheckDriverStatus();
@@ -161,8 +159,6 @@ public partial class GameConfigViewModel : ViewModelBase
             AvailableGameSupports.Add(s);
     }
 
-    // ── Property change handlers ──────────────────────────────────────────────
-
     partial void OnGameExecutablePathChanged(string? value) { AutoSave?.Invoke(); DetectSupport(value); }
     partial void OnModsFolderPathChanged(string? value)     => AutoSave?.Invoke();
     partial void OnDataSubFolderChanged(string? value)      { AutoSave?.Invoke(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(DefaultMountPointAbsolutePath)); }
@@ -170,8 +166,6 @@ public partial class GameConfigViewModel : ViewModelBase
     partial void OnBaseFolderPathChanged(string? value)     { AutoSave?.Invoke(); OnPropertyChanged(nameof(DefaultMountPointAbsolutePath)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
     partial void OnLaunchArgumentsChanged(string? value)    => AutoSave?.Invoke();
     partial void OnActiveGameSupportChanged(IGameSupport value) { AutoSave?.Invoke(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(GameDefinedMountPoints)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
-
-    // ── Commands ──────────────────────────────────────────────────────────────
 
     [RelayCommand]
     private void DetectGameSupport() => DetectSupport(GameExecutablePath);
@@ -196,7 +190,7 @@ public partial class GameConfigViewModel : ViewModelBase
             ? resultMode
             : AvailableGameSupports.FirstOrDefault(s => s.GameId == resultMode.GameId) ?? resultMode;
 
-        // Suppress individual AutoSave calls; caller will save once at end.
+        // Temporarily disable AutoSave during batch updates to avoid redundant IO.
         var savedAutoSave = AutoSave;
         AutoSave = null;
         GameExecutablePath  = result.ExecutablePath;
@@ -210,8 +204,6 @@ public partial class GameConfigViewModel : ViewModelBase
 
         _logService.Log($"Game auto-detected: {result.DisplayName} [{result.StoreName}]");
     }
-
-    // ── Internal ──────────────────────────────────────────────────────────────
 
     public void DetectSupport(string? value)
     {
@@ -266,7 +258,6 @@ public partial class GameConfigViewModel : ViewModelBase
     public void AddUserMountPoint(string name, string path)
     {
         var id = name.ToLowerInvariant().Replace(' ', '_');
-        // Ensure unique Id
         if (UserMountPoints.Any(m => m.Id == id) || (ActiveGameSupport?.GameDefinedMountPoints?.Any(m => m.Id == id) ?? false))
             id += "_" + UserMountPoints.Count;
         UserMountPoints.Add(new MountPointDef(id, name, path));

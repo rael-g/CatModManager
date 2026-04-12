@@ -13,3 +13,4 @@ public interface ISidebarAction
 
     void Execute();
 }
+

@@ -17,8 +17,7 @@ public class TomlModParser : IModParser
 
     public Mod? ParseModInfo(string path)
     {
-        // Only read mod_info.toml from already-installed mod directories (backward compatibility).
-        // New installs get their metadata from the profile or from plugin events (e.g. ModInstalled).
+        // Backward compatibility: read legacy mod_info.toml if present.
         try
         {
             if (Directory.Exists(path))

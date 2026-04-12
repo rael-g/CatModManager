@@ -20,3 +20,4 @@ public class NexusDownloadsTab : IInspectorTab
     public NexusDownloadsTab(NexusDownloadService downloadService, NexusApiService api, Action<string, FomodPreset?>? installCallback = null, Func<string>? getDownloadsFolder = null)
         => _control = new NexusDownloadsTabControl(downloadService, api, installCallback, getDownloadsFolder);
 }
+

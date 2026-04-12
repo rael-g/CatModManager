@@ -48,3 +48,4 @@ public interface IModManagerState
     /// </summary>
     void SetActiveDownloadCheck(Func<bool> check);
 }
+

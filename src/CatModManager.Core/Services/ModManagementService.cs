@@ -81,7 +81,6 @@ public class ModManagementService : IModManagementService
                 throw new FileNotFoundException("Source mod path not found.");
             }
 
-            // Success! Replace target with temp
             if (_fileService.DirectoryExists(targetPath))
                 await Task.Run(() => _fileService.DeleteDirectory(targetPath, true), ct);
             
@@ -251,7 +250,6 @@ public class ModManagementService : IModManagementService
                     }
                 }
 
-                // Success! Replace target with temp
                 if (_fileService.DirectoryExists(targetPath))
                     _fileService.DeleteDirectory(targetPath, true);
                 
@@ -316,7 +314,6 @@ public class ModManagementService : IModManagementService
                     File.Copy(file, dest, overwrite: true);
                 }
 
-                // Success! Replace target with temp
                 if (_fileService.DirectoryExists(targetPath))
                     _fileService.DeleteDirectory(targetPath, true);
                 

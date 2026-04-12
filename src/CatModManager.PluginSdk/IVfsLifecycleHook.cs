@@ -7,3 +7,4 @@ public interface IVfsLifecycleHook
     Task OnBeforeMountAsync(MountInfo info);
     Task OnAfterUnmountAsync(string mountPath);
 }
+

@@ -19,3 +19,4 @@ public interface IModContextAction
     /// </summary>
     Task<string?> ExecuteAsync(IModInfo mod);
 }
+

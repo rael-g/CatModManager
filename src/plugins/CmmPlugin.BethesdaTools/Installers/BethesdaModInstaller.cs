@@ -93,3 +93,4 @@ public class BethesdaModInstaller : IModInstaller
         return ext is ".zip" or ".7z" or ".rar" or ".tar";
     }
 }
+

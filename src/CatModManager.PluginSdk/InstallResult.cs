@@ -19,3 +19,4 @@ public class InstallResult
     public static InstallResult Failure(string error) =>
         new() { IsSuccess = false, ErrorMessage = error };
 }
+

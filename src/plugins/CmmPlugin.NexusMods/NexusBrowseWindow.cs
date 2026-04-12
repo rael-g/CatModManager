@@ -741,3 +741,4 @@ public class NexusBrowseWindow : Window
         catch { }
     }
 }
+

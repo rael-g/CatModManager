@@ -82,3 +82,4 @@ public partial class SaveManagerTabViewModel : ObservableObject
         Backups.Remove(backup);
     }
 }
+

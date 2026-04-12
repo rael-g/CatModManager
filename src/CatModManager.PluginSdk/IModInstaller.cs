@@ -10,3 +10,4 @@ public interface IModInstaller
 
     Task<InstallResult> InstallAsync(string archivePath, IInstallContext ctx);
 }
+

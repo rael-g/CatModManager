@@ -40,3 +40,4 @@ public class NexusBrowseSidebarAction : ISidebarAction
             window.Show();
     }
 }
+

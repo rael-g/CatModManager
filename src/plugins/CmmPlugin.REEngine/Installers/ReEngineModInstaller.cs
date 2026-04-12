@@ -113,3 +113,4 @@ public class ReEngineModInstaller : IModInstaller
         return ext is ".zip" or ".7z" or ".rar" or ".tar";
     }
 }
+

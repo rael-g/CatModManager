@@ -36,8 +36,6 @@ public partial class ExternalToolsViewModel : ViewModelBase
         _logService      = logService;
     }
 
-    // ── Load / save ───────────────────────────────────────────────────────────
-
     public void LoadTools(System.Collections.Generic.IEnumerable<ExternalTool> tools)
     {
         Tools.Clear();
@@ -46,8 +44,6 @@ public partial class ExternalToolsViewModel : ViewModelBase
 
     public System.Collections.Generic.List<ExternalTool> GetTools()
         => new(Tools);
-
-    // ── Commands ──────────────────────────────────────────────────────────────
 
     [RelayCommand]
     private async Task LaunchTool(ExternalTool? tool)

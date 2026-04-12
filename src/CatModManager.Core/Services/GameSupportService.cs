@@ -66,7 +66,7 @@ public class GameSupportService : IGameSupportService
     {
         if (string.IsNullOrEmpty(gameExecutablePath)) return Default;
 
-        // 1. Local (Portabilidade)
+        // 1. Local (Portability)
         string localDef = Path.Combine(Path.GetDirectoryName(gameExecutablePath)!, "game_definition.toml");
         if (File.Exists(localDef))
         {
@@ -74,7 +74,7 @@ public class GameSupportService : IGameSupportService
             if (local != null) return local;
         }
 
-        // 2. Registrado (AppData)
+        // 2. Registered (AppData)
         foreach (var support in _supports.Where(s => s.GameId != "generic"))
         {
             if (support.CanSupport(gameExecutablePath)) return support;

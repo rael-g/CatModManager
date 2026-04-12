@@ -28,3 +28,4 @@ public class SaveManagerPlugin : ICmmPlugin
         context.Log.Log($"[{DisplayName}] Initialized — {detector.Count} save-managed game(s) detected from definitions.");
     }
 }
+

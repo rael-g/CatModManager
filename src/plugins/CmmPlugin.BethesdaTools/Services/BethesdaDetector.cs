@@ -56,3 +56,4 @@ public static class BethesdaDetector
 
     public static bool IsBethesdaExecutable(string? executablePath) => Detect(executablePath) != null;
 }
+

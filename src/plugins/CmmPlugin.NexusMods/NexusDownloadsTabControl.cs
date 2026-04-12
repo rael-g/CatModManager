@@ -756,3 +756,4 @@ public class NexusDownloadsTabControl : UserControl
     }
 
 }
+

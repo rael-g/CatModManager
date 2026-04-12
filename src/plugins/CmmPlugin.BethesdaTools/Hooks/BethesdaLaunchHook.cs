@@ -34,3 +34,4 @@ public class BethesdaLaunchHook : IGameLaunchHook
 
     public Task OnAfterExitAsync(LaunchContext ctx) => Task.CompletedTask;
 }
+

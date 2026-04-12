@@ -112,3 +112,4 @@ public class SaveBackupService
         return string.Concat(label.Select(c => invalid.Contains(c) ? '_' : c));
     }
 }
+

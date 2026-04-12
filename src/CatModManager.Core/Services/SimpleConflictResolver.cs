@@ -92,18 +92,12 @@ public class SimpleConflictResolver : IConflictResolver
         return result; 
     }
 
-    /// <summary>
-    /// Strips the longest matching DataSubFolder suffix-prefix from a mod file's relative path.
-    /// Files that don't match any prefix are returned as-is.
-    /// </summary>
     private static string StripDataPrefix(string normalizedPath, IReadOnlyList<string> prefixesToStrip)
     {
-        // Direct match: e.g. "LiesofP\Content\Package\~mods\modname\file"
         foreach (var prefix in prefixesToStrip)
             if (normalizedPath.StartsWith(prefix + '\\', StringComparison.OrdinalIgnoreCase))
                 return normalizedPath[(prefix.Length + 1)..];
 
-        // Wrapper + partial match: e.g. "modname\~mods\modname\file" → strip "modname\" first, then prefix
         var firstSep = normalizedPath.IndexOf('\\');
         if (firstSep > 0)
         {

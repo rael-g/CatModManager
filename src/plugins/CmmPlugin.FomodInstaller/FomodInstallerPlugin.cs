@@ -17,3 +17,4 @@ public class FomodInstallerPlugin : ICmmPlugin
         context.Log.Log($"[{DisplayName}] Initialized — FOMOD archives will show the installation wizard.");
     }
 }
+

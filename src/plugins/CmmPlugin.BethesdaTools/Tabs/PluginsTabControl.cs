@@ -142,3 +142,4 @@ public class PluginsTabControl : UserControl
         _statusText.Text = _vm.Status;
     }
 }
+

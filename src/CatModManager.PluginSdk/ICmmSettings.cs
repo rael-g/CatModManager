@@ -6,3 +6,4 @@ public interface ICmmSettings
     void Set<T>(string key, T value);
     void Save();
 }
+

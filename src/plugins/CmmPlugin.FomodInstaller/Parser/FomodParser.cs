@@ -179,3 +179,4 @@ public static class FomodParser
         _                    => GroupType.SelectAny
     };
 }
+

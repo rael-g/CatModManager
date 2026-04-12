@@ -73,3 +73,4 @@ public class FomodModInstaller : IModInstaller
         return result ?? InstallResult.Failure("Installation cancelled.");
     }
 }
+

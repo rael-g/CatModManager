@@ -24,3 +24,4 @@ public class PluginsInspectorTab : IInspectorTab
         return _cachedControl;
     }
 }
+

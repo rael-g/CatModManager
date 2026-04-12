@@ -42,3 +42,4 @@ public class REEngineLaunchHook : IGameLaunchHook
 
     public Task OnAfterExitAsync(LaunchContext ctx) => Task.CompletedTask;
 }
+

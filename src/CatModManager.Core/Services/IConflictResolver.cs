@@ -6,7 +6,7 @@ namespace CatModManager.Core.Services;
 public interface IConflictResolver
 {
     /// <summary>
-    /// Caminho que o scanner deve ignorar para evitar recursão infinita (ex: Ponto de Montagem).
+    /// Path the scanner should ignore to avoid infinite recursion (e.g. Mount Point).
     /// </summary>
     string? ForbiddenPath { get; set; }
 
