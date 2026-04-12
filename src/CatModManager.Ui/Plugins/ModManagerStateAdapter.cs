@@ -43,6 +43,9 @@ public class ModManagerStateAdapter : IModManagerState
     public void RequestInstallMod(string archivePath, FomodPreset? fomodPreset) =>
         _state.RequestInstall(archivePath, fomodPreset);
 
-    public void RequestInstallModToRoot(string archivePath) =>
-        _state.RequestInstallToRoot(archivePath);
+    public void SetInstallFolderHint(string existingFolderPath) =>
+        _state.SetInstallFolderHint(existingFolderPath);
+
+    public void SetActiveDownloadCheck(Func<bool> check) =>
+        _state.SetActiveDownloadCheck(check);
 }

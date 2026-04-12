@@ -31,9 +31,6 @@ public sealed class AppSessionState
     /// <summary>Wired by MainWindowViewModel to execute AddModCommand on the UI thread.</summary>
     public Action<string, FomodPreset?>? RequestInstallModAction { get; set; }
 
-    /// <summary>Wired by MainWindowViewModel to execute AddModToRootCommand on the UI thread.</summary>
-    public Action<string>? RequestInstallModToRootAction { get; set; }
-
     /// <summary>
     /// Temporarily holds a FOMOD preset between RequestInstallMod and the actual install.
     /// Consumed (set to null) by MainWindowViewModel.AddMod.
@@ -47,10 +44,31 @@ public sealed class AppSessionState
         return p;
     }
 
+    /// <summary>
+    /// Temporarily holds an install folder override so the next install overwrites an
+    /// existing mod folder instead of creating a new one. Consumed after use.
+    /// </summary>
+    internal string? PendingInstallFolderHint { get; private set; }
+
+    internal string? ConsumeInstallFolderHint()
+    {
+        var h = PendingInstallFolderHint;
+        PendingInstallFolderHint = null;
+        return h;
+    }
+
+    public void SetInstallFolderHint(string existingFolderPath) =>
+        PendingInstallFolderHint = existingFolderPath;
+
+    /// <summary>Registered by a plugin (NexusMods) to report whether downloads are active.</summary>
+    public Func<bool>? CheckHasActiveDownloads { get; private set; }
+
+    public void SetActiveDownloadCheck(Func<bool> check) => CheckHasActiveDownloads = check;
+
     // ── Notification helpers ───────────────────────────────────────────────────
 
-    internal void NotifyProfileChanged(string name) => ProfileChanged?.Invoke(name);
-    internal void NotifyModInstalled(IModInfo mod, string sourcePath) => ModInstalled?.Invoke(mod, sourcePath);
+    public void NotifyProfileChanged(string name) => ProfileChanged?.Invoke(name);
+    public void NotifyModInstalled(IModInfo mod, string sourcePath) => ModInstalled?.Invoke(mod, sourcePath);
 
     internal void RequestInstall(string archivePath, FomodPreset? preset = null)
     {
@@ -58,6 +76,5 @@ public sealed class AppSessionState
         RequestInstallModAction?.Invoke(archivePath, preset);
     }
 
-    internal void RequestInstallToRoot(string archivePath)
-        => RequestInstallModToRootAction?.Invoke(archivePath);
+
 }

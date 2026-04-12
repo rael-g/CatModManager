@@ -36,9 +36,15 @@ public interface IModManagerState
     void RequestInstallMod(string archivePath, FomodPreset? fomodPreset);
 
     /// <summary>
-    /// Requests CMM to install the given archive into the mod's Root/ subfolder so its files
-    /// are deployed directly to the game root at mount time (not into Data/).
-    /// Wrapper folders in the archive are automatically stripped.
+    /// Hints to CMM that the next install should overwrite the given existing folder instead of
+    /// creating a new one. Used by the NexusMods plugin to reinstall into the same folder when
+    /// a mod with the same Nexus mod ID is already installed. Consumed (cleared) after use.
     /// </summary>
-    void RequestInstallModToRoot(string archivePath);
+    void SetInstallFolderHint(string existingFolderPath);
+
+    /// <summary>
+    /// Registers a callback that returns true when there are active downloads in progress.
+    /// Used by CMM to warn the user before switching profiles mid-download.
+    /// </summary>
+    void SetActiveDownloadCheck(Func<bool> check);
 }

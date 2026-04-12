@@ -8,4 +8,5 @@ public interface IPluginRegistrar
     void RegisterVfsLifecycleHook(IVfsLifecycleHook hook);
     void RegisterGameLaunchHook(IGameLaunchHook hook);
     void RegisterSidebarAction(ISidebarAction action);
+    void RegisterModContextAction(IModContextAction action);
 }
