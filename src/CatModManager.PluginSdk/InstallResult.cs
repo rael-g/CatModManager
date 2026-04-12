@@ -7,7 +7,10 @@ public class InstallResult
     public bool IsSuccess { get; init; }
     public string? ErrorMessage { get; init; }
 
-    /// <summary>Files to include, keyed by virtual path relative to the mod root.</summary>
+    /// <summary>
+    /// File mapping: key = archive-relative source path, value = destination path relative to mod root
+    /// ("" = install directly to mod root). Keyed by source to support multiple entries with the same destination.
+    /// </summary>
     public Dictionary<string, string> FileMapping { get; init; } = new();
 
     public static InstallResult Success(Dictionary<string, string> fileMapping) =>
