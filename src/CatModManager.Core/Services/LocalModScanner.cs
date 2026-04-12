@@ -32,12 +32,20 @@ public class LocalModScanner : IModScanner
                 foreach (var dir in Directory.EnumerateDirectories(directoryPath))
                 {
                     var mod = _parser.ParseModInfo(dir);
-                    if (mod != null) mods.Add(mod);
-                    else
+                    if (mod == null)
                     {
                         string name = Path.GetFileName(dir);
-                        mods.Add(new Mod(name, dir, mods.Count, true, "Uncategorized"));
+                        mod = new Mod(name, dir, mods.Count, false, "Uncategorized");
                     }
+                    
+                    // Check for incomplete installation marker
+                    if (File.Exists(Path.Combine(dir, ".cmm_incomplete")))
+                    {
+                        mod.IsBroken = true;
+                        mod.Name = "[INCOMPLETE] " + mod.Name;
+                    }
+
+                    mods.Add(mod);
                 }
 
                 foreach (var file in Directory.EnumerateFiles(directoryPath, "*.*")

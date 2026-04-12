@@ -23,6 +23,16 @@ public class TomlProfileService : IProfileService
             if (!File.Exists(filePath)) return null;
 
             var toml = await File.ReadAllTextAsync(filePath);
+            
+            // WORKAROUND: Legacy or "poisoned" TOML files may contain 'CancelInstallCommand'
+            // which causes a crash because Nett cannot map a table to an interface.
+            // We strip these lines manually before parsing to ensure stability.
+            if (toml.Contains("CancelInstallCommand"))
+            {
+                var lines = toml.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                toml = string.Join(Environment.NewLine, lines.Where(l => !l.Trim().StartsWith("CancelInstallCommand")));
+            }
+
             var profile = Toml.ReadString<Profile>(toml);
             
             if (profile != null && profile.Mods == null)
@@ -32,8 +42,9 @@ public class TomlProfileService : IProfileService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[TomlProfileService] LoadProfileAsync failed for '{filePath}': {ex}");
-            return null;
+            System.Diagnostics.Debug.WriteLine($"[TomlProfileService] LoadProfileAsync failed for '{filePath}': {ex.Message}");
+            // Return a minimal profile to allow the app to start instead of crashing
+            return new Profile { Name = Path.GetFileNameWithoutExtension(filePath) };
         }
     }
 
@@ -41,9 +52,8 @@ public class TomlProfileService : IProfileService
     {
         try
         {
-            if (!Directory.Exists(directoryPath))
-                return Task.FromResult(Enumerable.Empty<string>());
-
+            if (!Directory.Exists(directoryPath)) return Task.FromResult(Enumerable.Empty<string>());
+            
             var files = Directory.GetFiles(directoryPath, "*.toml")
                 .Select(Path.GetFileNameWithoutExtension)
                 .OrderBy(n => n)
