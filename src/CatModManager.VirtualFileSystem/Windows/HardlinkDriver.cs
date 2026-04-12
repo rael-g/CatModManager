@@ -106,7 +106,10 @@ public class HardlinkDriver : IFileSystemDriver
                     File.Delete(e.DestPath);
 
                 if (e.BackupPath != null && File.Exists(e.BackupPath))
+                {
                     File.Move(e.BackupPath, e.DestPath, overwrite: true);
+                    TryClearHidden(e.DestPath);
+                }
             }
             catch { /* best-effort */ }
 
@@ -206,6 +209,12 @@ public class HardlinkDriver : IFileSystemDriver
     private static void TryHide(string path)
     {
         try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); }
+        catch { }
+    }
+
+    private static void TryClearHidden(string path)
+    {
+        try { File.SetAttributes(path, File.GetAttributes(path) & ~FileAttributes.Hidden); }
         catch { }
     }
 

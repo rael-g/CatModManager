@@ -56,10 +56,14 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
     {
         try
         {
-            // Compute the VFS/hardlink mount point (may be a subfolder).
+            // Compute the VFS/hardlink mount point (may be a subfolder or an absolute path).
+            // Path.Combine already handles absolute dataSubFolder correctly on Windows,
+            // but we make it explicit for clarity.
             string mountPoint = string.IsNullOrEmpty(dataSubFolder)
                 ? gameFolderPath
-                : Path.Combine(gameFolderPath, dataSubFolder);
+                : Path.IsPathRooted(dataSubFolder)
+                    ? dataSubFolder
+                    : Path.Combine(gameFolderPath, dataSubFolder);
 
             _resolver.ForbiddenPath = mountPoint;
 
