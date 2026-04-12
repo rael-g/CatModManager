@@ -82,3 +82,7 @@ GEMINI.md
 
 # Personal notes
 kanban.md
+
+# CMM Temporary and Local Data
+*.log
+*.tmp
