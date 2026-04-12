@@ -1,15 +1,26 @@
 using System;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CatModManager.Core.Services;
 
 namespace CatModManager.Ui.Services;
 
 public static class GitHubUpdateChecker
 {
+    /// <summary>
+    /// Raised on the UI thread when a newer version is available.
+    /// Arguments: (latestTag, htmlUrl).
+    /// </summary>
+    public static event Action<string, string>? UpdateAvailable;
+
+    /// <summary>Non-null when an update was found before any handler was subscribed.</summary>
+    public static (string Tag, string Url)? PendingUpdate { get; private set; }
+
     private static readonly HttpClient _http = new()
     {
         Timeout = TimeSpan.FromSeconds(8)
@@ -46,9 +57,18 @@ public static class GitHubUpdateChecker
 
                 var local = GetLocalVersion();
                 if (remote > local)
-                    log.Log($"[Update] New version available: {tag} (current: {local}) — {release.HtmlUrl}");
+                {
+                    log.Log($"[Update] New version available: {tag} (current: {local}).");
+                    string releaseUrl = release.HtmlUrl ?? string.Empty;
+                    PendingUpdate = (tag, releaseUrl);
+                    Dispatcher.UIThread.Post(() => UpdateAvailable?.Invoke(tag, releaseUrl));
+                }
                 else
                     log.Log($"[Update] Up to date ({local}).");
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                log.Log("[Update] No releases published yet.");
             }
             catch (Exception ex)
             {
