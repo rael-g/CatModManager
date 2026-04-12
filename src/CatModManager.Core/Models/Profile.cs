@@ -29,6 +29,12 @@ public class Profile
 
     public List<Mod>          Mods          { get; set; } = new();
     public List<ExternalTool> ExternalTools { get; set; } = new();
+
+    /// <summary>
+    /// User-defined mount points for this profile.
+    /// Combined with game-defined mount points at runtime (game-defined take precedence by Id).
+    /// </summary>
+    public List<MountPointDef> UserMountPoints { get; set; } = new();
 }
 
 

@@ -1,6 +1,8 @@
 using System.IO;
 using CatModManager.PluginSdk;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Nett;
 
 namespace CatModManager.Core.Models;
 
@@ -30,8 +32,46 @@ public partial class Mod : ObservableObject, IModInfo
     [ObservableProperty]
     private bool _isSeparator;
 
-    /// <summary>True if this mod has a Root/ subfolder whose files will be deployed to the game root at mount time.</summary>
-    /// <remarks>Computed at runtime; the setter is intentionally a no-op so TOML round-trips don't fail.</remarks>
+    [ObservableProperty]
+    private string? _mountPointId;
+
+    [ObservableProperty]
+    [property: TomlIgnore]
+    private string? _mountPointDisplayName;
+
+    [ObservableProperty]
+    [property: TomlIgnore]
+    private bool _isInstalling;
+
+    [ObservableProperty]
+    [property: TomlIgnore]
+    private bool _isBroken;
+
+    [ObservableProperty]
+    [property: TomlIgnore]
+    private double _installProgress;
+
+    private System.Threading.CancellationTokenSource? _installCts;
+
+    public void SetInstallCancellationTokenSource(System.Threading.CancellationTokenSource cts)
+    {
+        _installCts = cts;
+    }
+
+    private IRelayCommand? _cancelInstallCommand;
+    
+    [TomlIgnore]
+    public IRelayCommand CancelInstallCommand => _cancelInstallCommand ??= new RelayCommand(CancelInstall);
+
+    public void CancelInstall()
+    {
+        if (_installCts != null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Mod] Cancelling install for {Name}");
+            _installCts.Cancel();
+        }
+    }
+
     public bool HasRootFolder
     {
         get => !string.IsNullOrEmpty(RootPath) && Directory.Exists(Path.Combine(RootPath, "Root"));
@@ -50,5 +90,3 @@ public partial class Mod : ObservableObject, IModInfo
         Version = version;
     }
 }
-
-
