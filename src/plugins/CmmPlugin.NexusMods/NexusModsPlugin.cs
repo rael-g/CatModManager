@@ -81,7 +81,7 @@ public class NexusModsPlugin : ICmmPlugin
             // so that "Reinstall (Nexus)" can locate the archive later.
             var trackEntry = _trackingService.GetEntryBySourcePath(sourcePath);
             if (trackEntry != null)
-                _trackingService.Track(mod.RootPath, trackEntry.ModId, trackEntry.FileId,
+                _trackingService.Track(mod.ModRootPath, trackEntry.ModId, trackEntry.FileId,
                     trackEntry.Version, trackEntry.GameDomain, trackEntry.SourceArchivePath);
 
             // Enrich mod metadata from the download entry so the profile stores the real name/version/category.

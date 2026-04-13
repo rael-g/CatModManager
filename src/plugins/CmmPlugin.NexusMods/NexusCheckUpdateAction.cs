@@ -33,11 +33,11 @@ internal sealed class NexusCheckUpdateAction : IModContextAction
     }
 
     public bool IsVisible(IModInfo? mod)
-        => mod != null && _tracking.IsTracked(mod.RootPath);
+        => mod != null && _tracking.IsTracked(mod.ModRootPath);
 
     public async Task<string?> ExecuteAsync(IModInfo mod)
     {
-        var entry = _tracking.GetEntry(mod.RootPath);
+        var entry = _tracking.GetEntry(mod.ModRootPath);
         if (entry == null)
             return $"[Nexus] No tracking entry found for {mod.Name}.";
 

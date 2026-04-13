@@ -23,13 +23,8 @@ public class ModManagerStateAdapter : IModManagerState
     public string? NexusDomain         => _state.NexusDomain;
     public string? CurrentProfileName  => _state.CurrentProfileName;
     public string? DataSubFolder       => _state.DataSubFolder;
-    public bool    RootSwapOnly        => _state.RootSwapOnly;
 
-    public event Action<string>?          ProfileChanged
-    {
-        add    => _state.ProfileChanged += value;
-        remove => _state.ProfileChanged -= value;
-    }
+    public event Action<string>? ProfileChanged { add => _state.ProfileChanged += value; remove => _state.ProfileChanged -= value; }
 
     public event Action<IModInfo, string>? ModInstalled
     {

@@ -16,3 +16,4 @@ Name = "Game Root"
 Path = ""
 
 SaveFolderPattern = "%LOCALAPPDATA%\\LiesofP\\Saved\\SaveGames"
+

@@ -467,7 +467,7 @@
                                             </StackPanel>
                                             
                                             <Panel>
-                                                <TextBlock Text="{Binding RootPath}" FontSize="10" Foreground="{DynamicResource TextSubtle}" 
+                                                <TextBlock Text="{Binding ModRootPath}" FontSize="10" Foreground="{DynamicResource TextSubtle}" 
                                                            TextTrimming="CharacterEllipsis" FontFamily="Cascadia Code, Consolas, monospace" 
                                                            IsVisible="{Binding !IsInstalling}"/>
                                                 <TextBlock Text="Installing archive..." FontSize="10" Foreground="{DynamicResource AccentColor}" 
@@ -545,7 +545,7 @@
                                     </StackPanel>
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="PHYSICAL PATH" Classes="inspector-field-label"/>
-                                        <TextBlock Text="{Binding ModList.SelectedMod.RootPath}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextSubtle}" FontFamily="Consolas"/>
+                                        <TextBlock Text="{Binding ModList.SelectedMod.ModRootPath}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextSubtle}" FontFamily="Consolas"/>
                                     </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>

@@ -85,31 +85,22 @@ public partial class App : Application
         services.AddSingleton<IGameSupportService, GameSupportService>();
         services.AddSingleton<IGameDiscoveryService, GameDiscoveryService>();
 
-        services.AddSingleton<IDriverService, HardlinkDriverService>();
+        services.AddSingleton<IArchiveExtractor, SevenZipArchiveExtractor>();
         services.AddSingleton<IProcessService, ProcessService>();
         services.AddSingleton<IModParser, TomlModParser>();
         services.AddSingleton<IModScanner, LocalModScanner>();
         services.AddSingleton<IProfileService, TomlProfileService>();
         services.AddSingleton<IModManagementService, ModManagementService>();
         services.AddSingleton<IVfsStateService, VfsStateService>();
-        services.AddSingleton<IRootSwapService, RootSwapService>();
 
         services.AddSingleton<IConflictResolver, SimpleConflictResolver>();
         services.AddSingleton<IHardlinkStateStore>(sp => new SqliteHardlinkStateStore(sp.GetRequiredService<AppDatabase>()));
-        // ISafeSwapStrategy: NoBaseSwapStrategy (HardlinkDriver/Windows) or
-        //                    PassthroughSwapStrategy (FuseDriver/Linux).
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            services.AddSingleton<ISafeSwapStrategy, NoBaseSwapStrategy>();
-        else
-            services.AddSingleton<ISafeSwapStrategy, PassthroughSwapStrategy>();
 
         services.AddSingleton<IVfsOrchestrationService>(sp => new VfsOrchestrationService(
             sp.GetRequiredService<IConflictResolver>(),
             sp.GetRequiredService<IHardlinkStateStore>(),
-            sp.GetRequiredService<ISafeSwapStrategy>(),
             sp.GetRequiredService<IVfsStateService>(),
             sp.GetRequiredService<ILogService>(),
-            sp.GetRequiredService<IRootSwapService>(),
             sp.GetRequiredService<UiExtensionHost>().VfsHooks));
         services.AddSingleton<IGameLaunchService>(sp => new GameLaunchService(
             sp.GetRequiredService<IProcessService>(),

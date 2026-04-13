@@ -77,7 +77,7 @@ public partial class ModInspectorViewModel : ViewModelBase
         {
             CurrentFolderPath = relativePath;
             Files.Clear();
-            string fullPath = Path.Combine(mod.RootPath, relativePath);
+            string fullPath = Path.Combine(mod.ModRootPath, relativePath);
             if (!Directory.Exists(fullPath)) return;
 
             if (!string.IsNullOrEmpty(relativePath))

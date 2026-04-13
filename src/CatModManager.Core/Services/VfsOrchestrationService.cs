@@ -13,41 +13,32 @@ namespace CatModManager.Core.Services;
 /// <summary>
 /// Coordinates mount / unmount operations across one or more mount points.
 /// Each active mount point gets its own <see cref="CatVirtualFileSystem"/> instance,
-/// so mod files can be hard-linked into different target directories simultaneously
-/// (e.g. game Data\ and an external AppData\ folder for .pak mods).
+/// so mod files can be hard-linked into different target directories simultaneously.
 /// </summary>
 public class VfsOrchestrationService : IVfsOrchestrationService
 {
     private readonly IConflictResolver               _resolver;
     private readonly IHardlinkStateStore             _stateStore;
-    private readonly ISafeSwapStrategy               _swapStrategy;
     private readonly IVfsStateService                _stateService;
-    private readonly IRootSwapService                _rootSwapService;
     private readonly ILogService                     _logService;
     private readonly IReadOnlyList<IVfsLifecycleHook> _vfsHooks;
 
     // Active VFS instances — one per mount point.
     private readonly List<CatVirtualFileSystem> _mounted = new();
     private string?  _lastGameFolderPath;
-    private bool     _rootSwapOnlyDeployed;
-    private bool     _rootFilesDeployed;
 
-    public bool IsMounted => _mounted.Count > 0 && _mounted.Any(v => v.IsMounted) || _rootSwapOnlyDeployed;
+    public bool IsMounted => _mounted.Count > 0 && _mounted.Any(v => v.IsMounted);
 
     public VfsOrchestrationService(
         IConflictResolver                resolver,
         IHardlinkStateStore              stateStore,
-        ISafeSwapStrategy                swapStrategy,
         IVfsStateService                 stateService,
         ILogService                      logService,
-        IRootSwapService                 rootSwapService,
         IReadOnlyList<IVfsLifecycleHook>? vfsHooks = null)
     {
         _resolver        = resolver;
         _stateStore      = stateStore;
-        _swapStrategy    = swapStrategy;
         _stateService    = stateService;
-        _rootSwapService = rootSwapService;
         _logService      = logService;
         _vfsHooks        = vfsHooks ?? [];
     }
@@ -55,19 +46,17 @@ public class VfsOrchestrationService : IVfsOrchestrationService
     public void RecoverStaleMounts()
     {
         // Clean up any stale links from a previous crash.
-        var crashRecovery = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore), _swapStrategy);
+        var crashRecovery = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore));
         try { crashRecovery.Unmount(); } catch { }
 
         _stateService.RecoverStaleMounts();
-        _rootSwapService.RecoverStaleDeployments();
     }
 
-    public void ShutdownCleanup()
+    public async Task ShutdownCleanupAsync()
     {
         if (IsMounted)
-            try { UnmountAllAsync().GetAwaiter().GetResult(); } catch { }
+            try { await UnmountAllAsync(); } catch { }
 
-        _rootSwapService.RecoverStaleDeployments();
         _stateService.RecoverStaleMounts();
     }
 
@@ -78,9 +67,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
         if (string.IsNullOrEmpty(options.GameFolderPath))
             return OperationResult.Failure("ERROR: No game folder path specified.");
-
-        if (options.RootSwapOnly)
-            return await MountRootSwapOnlyAsync(options);
 
         try
         {
@@ -110,20 +96,11 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
                 string targetPath = ResolveMountPointPath(options.GameFolderPath, mp.Path);
 
-                var vfs = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore), _swapStrategy);
+                var vfs = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore));
                 await Task.Run(() => vfs.Mount(options.GameFolderPath, modsForMp, GetDataSubFolder(mp, options)));
                 _mounted.Add(vfs);
 
                 _logService.Log($"  [{mp.Name}] → {targetPath} ({modsForMp.Count} mod(s))");
-            }
-
-            // Legacy Root/ files (backward compat with mods using Root/ subfolder without MountPointId).
-            var modsWithRoot = options.ActiveMods.Where(m => m.HasRootFolder && string.IsNullOrEmpty(m.MountPointId)).ToList();
-            if (modsWithRoot.Count > 0)
-            {
-                await _rootSwapService.DeployAsync(modsWithRoot, options.GameFolderPath!);
-                _rootFilesDeployed = true;
-                _logService.Log($"Root files deployed (legacy) for {modsWithRoot.Count} mod(s).");
             }
 
             _logService.Log("Mounted.");
@@ -132,7 +109,6 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         catch (Exception ex)
         {
             _lastGameFolderPath = null;
-            _rootFilesDeployed  = false;
             await UnmountAllAsync();
             return OperationResult.Failure($"MOUNT ERROR: {ex.Message}", ex);
         }
@@ -142,38 +118,9 @@ public class VfsOrchestrationService : IVfsOrchestrationService
     {
         if (!IsMounted) return OperationResult.Success();
 
-        if (_rootSwapOnlyDeployed)
-        {
-            try
-            {
-                string? gameFolder = _lastGameFolderPath;
-                if (!string.IsNullOrEmpty(gameFolder))
-                    await _rootSwapService.UndeployAsync(gameFolder);
-                _rootSwapOnlyDeployed = false;
-                _lastGameFolderPath   = null;
-                _logService.Log("RootSwap undeployed.");
-
-                foreach (var hook in _vfsHooks)
-                    await hook.OnAfterUnmountAsync(gameFolder ?? string.Empty);
-
-                return OperationResult.Success();
-            }
-            catch (Exception ex)
-            {
-                return OperationResult.Failure($"ROOTSWAP UNDEPLOY ERROR: {ex.Message}", ex);
-            }
-        }
-
         try
         {
             string? mountedPath = _lastGameFolderPath;
-
-            if (_rootFilesDeployed && !string.IsNullOrEmpty(mountedPath))
-            {
-                await _rootSwapService.UndeployAsync(mountedPath);
-                _rootFilesDeployed = false;
-                _logService.Log("Root files undeployed.");
-            }
 
             await UnmountAllAsync();
             _lastGameFolderPath = null;
@@ -250,24 +197,5 @@ public class VfsOrchestrationService : IVfsOrchestrationService
             });
         }
         _mounted.Clear();
-    }
-
-    // ── Legacy RootSwap-only path ─────────────────────────────────────────────
-
-    private async Task<OperationResult> MountRootSwapOnlyAsync(MountOptions options)
-    {
-        try
-        {
-            _lastGameFolderPath = options.GameFolderPath;
-            _logService.Log($"RootSwap deploy: {options.ActiveMods.Count} mod(s) → {options.GameFolderPath}");
-            await _rootSwapService.DeployAsync(options.ActiveMods, options.GameFolderPath!);
-            _rootSwapOnlyDeployed = true;
-            _logService.Log("RootSwap deployed.");
-            return OperationResult.Success();
-        }
-        catch (Exception ex)
-        {
-            return OperationResult.Failure($"ROOTSWAP ERROR: {ex.Message}", ex);
-        }
     }
 }

@@ -35,23 +35,21 @@ public class CriticalBugTests : IDisposable
         File.WriteAllText(Path.Combine(backupDir, "test.txt"), "data");
 
         // ACT: Escanear essa pasta. Não deve retornar vazio.
-        var result = resolver.ResolveConflicts(new List<Mod>(), backupDir);
+        var result = resolver.ResolveConflicts(new List<Mod>(), backupDir, null, null);
 
         // ASSERT
         Assert.True(result.ContainsKey("test.txt"), "O scanner falhou em mapear arquivos da raiz porque o nome da pasta raiz contém 'CMM_base'.");
     }
 
     [Fact]
-    public void Shutdown_Cleanup_MUST_Restore_Folders_Synchronously()
+    public async Task Shutdown_Cleanup_MUST_Restore_Folders_Asynchronously()
     {
         var state = new VfsStateService(new AppDatabase(_pathService), _logService);
         var orchestrator = new VfsOrchestrationService(
             new SimpleConflictResolver(_logService),
             new NullHardlinkStateStore(),
-            new NoBaseSwapStrategy(),
             state,
-            _logService,
-            new NullRootSwapService());
+            _logService);
 
         string original = Path.Combine(_tempDir, "GameFolder");
         string backup = Path.Combine(_tempDir, ".GameFolder.CMM_base");
@@ -59,8 +57,8 @@ public class CriticalBugTests : IDisposable
         
         state.RegisterMount(original, backup);
 
-        // ACT: Cleanup de encerramento (Síncrono)
-        orchestrator.ShutdownCleanup();
+        // ACT: Cleanup de encerramento
+        await orchestrator.ShutdownCleanupAsync();
 
         // ASSERT: Deve ter restaurado
         Assert.True(Directory.Exists(original), "A pasta original não foi restaurada no ShutdownCleanup!");
@@ -80,14 +78,6 @@ public class CriticalBugTests : IDisposable
         public void Save(string mountPoint, IReadOnlyList<HardlinkStateEntry> entries) { }
         public IReadOnlyList<HardlinkStateEntry> Load(string? mountPoint) => Array.Empty<HardlinkStateEntry>();
         public void Clear(string? mountPoint) { }
-    }
-    private class NullRootSwapService : IRootSwapService
-    {
-        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
-        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
-        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
-        public void RecoverStaleDeployments() { }
-        public bool HasDeployedFiles(string gameFolder) => false;
     }
 
     public void Dispose()

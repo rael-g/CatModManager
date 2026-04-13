@@ -12,7 +12,7 @@ public partial class Mod : ObservableObject, IModInfo
     private string _name = string.Empty;
 
     [ObservableProperty]
-    private string _rootPath = string.Empty;
+    private string _modRootPath = string.Empty;
 
     [ObservableProperty]
     private int _priority;
@@ -22,6 +22,9 @@ public partial class Mod : ObservableObject, IModInfo
 
     [ObservableProperty]
     private bool _isArchive;
+
+    public bool IsDirectory => !IsArchive && Directory.Exists(ModRootPath);
+    public bool IsPhysicalArchive => IsArchive && File.Exists(ModRootPath);
 
     [ObservableProperty]
     private string _category = "Uncategorized";
@@ -72,18 +75,18 @@ public partial class Mod : ObservableObject, IModInfo
         }
     }
 
-    public bool HasRootFolder
+    public bool HasRootSubfolder
     {
-        get => !string.IsNullOrEmpty(RootPath) && Directory.Exists(Path.Combine(RootPath, "Root"));
+        get => !string.IsNullOrEmpty(ModRootPath) && Directory.Exists(Path.Combine(ModRootPath, "Root"));
         set { }
     }
 
     public Mod() { }
 
-    public Mod(string name, string rootPath, int priority, bool isArchive = false, string category = "Uncategorized", string version = "1.0.0")
+    public Mod(string name, string modRootPath, int priority, bool isArchive = false, string category = "Uncategorized", string version = "1.0.0")
     {
         Name = name;
-        RootPath = rootPath;
+        ModRootPath = modRootPath;
         Priority = priority;
         IsArchive = isArchive;
         Category = category;

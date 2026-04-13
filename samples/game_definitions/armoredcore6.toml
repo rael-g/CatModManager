@@ -9,3 +9,4 @@ RequiredFiles = ["armoredcore6.exe"]
 DataSubFolder = ""
 
 SaveFolderPattern = "%APPDATA%\\ArmoredCore6\\*"
+

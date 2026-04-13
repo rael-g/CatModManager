@@ -23,7 +23,7 @@ public class ModManagementServiceTests : IDisposable
         Directory.CreateDirectory(_tempDir);
         _fileService = new MockFileService();
         _logService = new MockLogService();
-        _service = new ModManagementService(_fileService, _logService);
+        _service = new ModManagementService(_fileService, _logService, new SevenZipArchiveExtractor());
     }
 
     [Fact]

@@ -16,7 +16,6 @@ public partial class GameConfigViewModel : ViewModelBase
 {
     private readonly IGameSupportService   _gameSupportService;
     private readonly IGameDiscoveryService _gameDiscoveryService;
-    private readonly IDriverService        _driverService;
     private readonly ILogService           _logService;
 
     // Callback wired by MainWindowViewModel so config changes trigger a profile save.
@@ -28,8 +27,9 @@ public partial class GameConfigViewModel : ViewModelBase
     [ObservableProperty] private string? _launchArguments;
     [ObservableProperty] private string? _dataSubFolder;
     [ObservableProperty] private string? _downloadsFolderPath;
-    [ObservableProperty] private bool _isDriverMissing;
     [ObservableProperty] private IGameSupport _activeGameSupport;
+
+    private int _detectionSuppressCount;
 
     /// <summary>User-defined mount points (editable; persisted in profile).</summary>
     public ObservableCollection<MountPointDef> UserMountPoints { get; } = new();
@@ -128,12 +128,10 @@ public partial class GameConfigViewModel : ViewModelBase
     public GameConfigViewModel(
         IGameSupportService   gameSupportService,
         IGameDiscoveryService gameDiscoveryService,
-        IDriverService        driverService,
         ILogService           logService)
     {
         _gameSupportService   = gameSupportService;
         _gameDiscoveryService = gameDiscoveryService;
-        _driverService        = driverService;
         _logService           = logService;
 
         _activeGameSupport = _gameSupportService.Default;
@@ -141,14 +139,7 @@ public partial class GameConfigViewModel : ViewModelBase
 
     public void Initialize()
     {
-        CheckDriverStatus();
         RefreshGameSupports();
-    }
-
-    public void CheckDriverStatus()
-    {
-        IsDriverMissing = !_driverService.IsDriverInstalled();
-        if (IsDriverMissing) _logService.Log("WARNING: File system driver not available.");
     }
 
     public void RefreshGameSupports()
@@ -158,6 +149,14 @@ public partial class GameConfigViewModel : ViewModelBase
         foreach (var s in _gameSupportService.GetAllSupports())
             AvailableGameSupports.Add(s);
     }
+
+    public IDisposable SuppressDetection()
+    {
+        _detectionSuppressCount++;
+        return new DetectionSuppressor(this);
+    }
+
+    private void EndSuppress() => _detectionSuppressCount = Math.Max(0, _detectionSuppressCount - 1);
 
     partial void OnGameExecutablePathChanged(string? value) { AutoSave?.Invoke(); DetectSupport(value); }
     partial void OnModsFolderPathChanged(string? value)     => AutoSave?.Invoke();
@@ -207,6 +206,8 @@ public partial class GameConfigViewModel : ViewModelBase
 
     public void DetectSupport(string? value)
     {
+        if (_detectionSuppressCount > 0) return;
+
         if (!string.IsNullOrEmpty(value))
         {
             var detected = _gameSupportService.DetectSupport(value);
@@ -263,5 +264,10 @@ public partial class GameConfigViewModel : ViewModelBase
         UserMountPoints.Add(new MountPointDef(id, name, path));
         AutoSave?.Invoke();
         OnPropertyChanged(nameof(EffectiveMountPoints));
+    }
+
+    private class DetectionSuppressor(GameConfigViewModel vm) : IDisposable
+    {
+        public void Dispose() => vm.EndSuppress();
     }
 }

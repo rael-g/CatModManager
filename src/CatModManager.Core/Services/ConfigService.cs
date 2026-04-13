@@ -35,7 +35,11 @@ public class ConfigService : IConfigService
             }
             _current = config;
         }
-        catch { _current = new AppConfig(); }
+        catch (Exception ex) 
+        { 
+            _current = new AppConfig(); 
+            System.Console.WriteLine($"[Config] Load failed, using defaults: {ex.Message}");
+        }
     }
 
     public void Save()

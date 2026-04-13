@@ -11,12 +11,6 @@ namespace CatModManager.Tests;
 
 /// <summary>
 /// Regression tests for TOML serialization/deserialization bugs.
-///
-/// Bug: Mod.HasRootFolder is a computed property with no setter.
-/// Toml.WriteString serialized it to TOML; Toml.ReadString then tried
-/// to set it and threw — silently swallowed by catch{return null;} —
-/// causing LoadProfileAsync to always return null and the profile to
-/// never load on startup.
 /// </summary>
 public class TomlRegressionTests : IDisposable
 {
@@ -37,9 +31,9 @@ public class TomlRegressionTests : IDisposable
     // ── Mod round-trip ────────────────────────────────────────────────────────
 
     [Fact]
-    public void Mod_TomlRoundTrip_DoesNotThrow_WhenHasRootFolderPresent()
+    public void Mod_TomlRoundTrip_DoesNotThrow_WhenLegacyFieldsPresent()
     {
-        // A TOML produced by an older version of CMM will contain HasRootFolder.
+        // A TOML produced by an older version of CMM will contain HasRootFolder and RootPath.
         // Nett must be able to deserialize it without throwing.
         const string toml = """
             [[Mods]]
@@ -87,9 +81,8 @@ public class TomlRegressionTests : IDisposable
     }
 
     [Fact]
-    public void Mod_HasRootFolder_IsComputedAtRuntime_NotFromToml()
+    public void Mod_HasRootSubfolder_IsComputedAtRuntime_NotFromToml()
     {
-        // Whatever value is stored in TOML must not override the runtime computation.
         string modDir = Path.Combine(_tempDir, "ModWithoutRoot");
         Directory.CreateDirectory(modDir);
 
@@ -97,7 +90,7 @@ public class TomlRegressionTests : IDisposable
             [[Mods]]
             HasRootFolder = true
             Name = "NoRootMod"
-            RootPath = "{modDir.Replace("\\", "\\\\")}"
+            ModRootPath = "{modDir.Replace("\\", "\\\\")}"
             Priority = 0
             IsEnabled = true
             IsArchive = false
@@ -111,7 +104,7 @@ public class TomlRegressionTests : IDisposable
 
         var mod = profile.Mods[0];
         // Root/ subfolder does NOT exist on disk → must be false regardless of TOML value.
-        Assert.False(mod.HasRootFolder);
+        Assert.False(mod.HasRootSubfolder);
     }
 
     // ── TomlProfileService round-trip ─────────────────────────────────────────
@@ -146,7 +139,6 @@ public class TomlRegressionTests : IDisposable
     [Fact]
     public async Task TomlProfileService_Load_ReturnsNonNull_ForLegacyTomlWithHasRootFolder()
     {
-        // Simulate a TOML file produced before the HasRootFolder setter fix.
         string legacyToml = """
             Name = "Lies of P"
             ModsFolderPath = "C:\\game\\mods"
@@ -174,7 +166,6 @@ public class TomlRegressionTests : IDisposable
 
         var loaded = await _service.LoadProfileAsync(path);
 
-        // Must not return null — the old bug caused this to always be null.
         Assert.NotNull(loaded);
         Assert.Equal("Lies of P",   loaded!.Name);
         Assert.Equal("Kaine Outfit", loaded.Mods[0].Name);

@@ -6,7 +6,7 @@ public interface IModInfo
     string Name     { get; set; }
     string Version  { get; set; }
     string Category { get; set; }
-    string RootPath { get; }
+    string ModRootPath { get; }
     bool   IsEnabled { get; }
     int    Priority  { get; }
 }

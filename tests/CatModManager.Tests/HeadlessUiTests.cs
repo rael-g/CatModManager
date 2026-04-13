@@ -80,17 +80,6 @@ public class HeadlessUiTests
     }
 
     [AvaloniaFact]
-    public void DriverWarning_Visibility_ReflectsDriverStatus()
-    {
-        // HardlinkDriver (kernel32 CreateHardLinkW) needs no installation.
-        // The "INSTALL DRIVER" button was removed with WinFSP. IsDriverMissing
-        // is always false at runtime; verify the ViewModel reflects this.
-        var app = (App)Application.Current!;
-        var vm = app.Services!.GetRequiredService<MainWindowViewModel>();
-        Assert.False(vm.GameConfig.IsDriverMissing);
-    }
-
-    [AvaloniaFact]
     public void ProfileSelector_Binding_ReflectsViewModelState()
     {
         var window = new MainWindow();

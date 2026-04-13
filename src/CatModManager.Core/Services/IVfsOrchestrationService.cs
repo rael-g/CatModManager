@@ -9,5 +9,5 @@ public interface IVfsOrchestrationService
     Task<OperationResult> MountAsync(MountOptions options);
     Task<OperationResult> UnmountAsync();
     void RecoverStaleMounts();
-    void ShutdownCleanup();
+    Task ShutdownCleanupAsync();
 }

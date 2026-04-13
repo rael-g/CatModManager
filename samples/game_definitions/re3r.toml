@@ -7,6 +7,5 @@ SteamAppId  = 952060
 RequiredFiles = ["re3.exe"]
 
 DataSubFolder = ""
-RootSwapOnly  = true
-
 SaveFolderPattern = '%APPDATA%\RE3'
+

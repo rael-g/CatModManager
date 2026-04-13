@@ -12,7 +12,6 @@ public class ProfileRegressionTests : IDisposable
     private readonly string _tempDir;
     private readonly MockModScanner _mockScanner = new();
     private readonly MockProfileService _mockProfileService = new();
-    private readonly MockDriverService _mockDriverService = new();
     private readonly MockModManagementService _mockModManagementService = new();
     private readonly MockProcessService _mockProcessService = new();
     private readonly MockLogService _mockLog = new();
@@ -48,16 +47,13 @@ public class ProfileRegressionTests : IDisposable
         return new MainWindowViewModel(
             _mockScanner,
             _mockProfileService,
-            _mockDriverService,
             _mockModManagementService,
             _mockProcessService,
             new VfsOrchestrationService(
                 new SimpleConflictResolver(_mockLog),
                 new NullHardlinkStateStore(),
-                new NoBaseSwapStrategy(),
                 _stateService,
-                _mockLog,
-                new NullRootSwapService()),
+                _mockLog),
             new GameLaunchService(_mockProcessService, _mockLog),
             new MockFileService(),
             _pathService,
@@ -65,7 +61,6 @@ public class ProfileRegressionTests : IDisposable
             _configService,
             _gameSupportService,
             new GameDiscoveryService(_gameSupportService),
-            new NullRootSwapService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader()
         );
@@ -178,18 +173,6 @@ public class ProfileRegressionTests : IDisposable
             Task.FromResult(Directory.Exists(d)
                 ? Directory.GetFiles(d, "*.toml").AsEnumerable()
                 : Enumerable.Empty<string>());
-    }
-
-    private class NullRootSwapService : IRootSwapService
-    {
-        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
-        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
-        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
-        public void RecoverStaleDeployments() { }
-        public bool HasDeployedFiles(string gameFolder) => false;
-    }
-    private class MockDriverService : IDriverService {
-        public bool IsDriverInstalled() => true;
     }
 
     private class MockModManagementService : IModManagementService {

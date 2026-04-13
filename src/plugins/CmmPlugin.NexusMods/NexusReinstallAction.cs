@@ -30,13 +30,13 @@ internal sealed class NexusReinstallAction : IModContextAction
     public bool IsVisible(IModInfo? mod)
     {
         if (mod == null) return false;
-        var entry = _tracking.GetEntry(mod.RootPath);
+        var entry = _tracking.GetEntry(mod.ModRootPath);
         return entry?.SourceArchivePath != null && File.Exists(entry.SourceArchivePath);
     }
 
     public Task<string?> ExecuteAsync(IModInfo mod)
     {
-        var entry = _tracking.GetEntry(mod.RootPath);
+        var entry = _tracking.GetEntry(mod.ModRootPath);
         if (entry?.SourceArchivePath == null || !File.Exists(entry.SourceArchivePath))
             return Task.FromResult<string?>($"[Nexus] Archive not found for {mod.Name}.");
 

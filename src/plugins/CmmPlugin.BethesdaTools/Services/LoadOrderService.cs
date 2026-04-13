@@ -37,8 +37,8 @@ public class LoadOrderService
                 discovered.Add(f);
 
         if (activeMods != null)
-            foreach (var mod in activeMods.Where(m => m.IsEnabled && Directory.Exists(m.RootPath)))
-                foreach (var f in ScanForPlugins(mod.RootPath))
+            foreach (var mod in activeMods.Where(m => m.IsEnabled && Directory.Exists(m.ModRootPath)))
+                foreach (var f in ScanForPlugins(mod.ModRootPath))
                     discovered.Add(f);
 
         // 2. Read existing plugins.txt to get enabled state + order

@@ -7,6 +7,5 @@ SteamAppId  = 3764200
 RequiredFiles = ["re9.exe"]
 
 DataSubFolder = ""
-RootSwapOnly  = true
-
 SaveFolderPattern = '%APPDATA%\RE9'
+

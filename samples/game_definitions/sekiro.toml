@@ -9,3 +9,4 @@ RequiredFiles = ["sekiro.exe"]
 DataSubFolder = ""
 
 SaveFolderPattern = "%APPDATA%\\Sekiro\\*"
+

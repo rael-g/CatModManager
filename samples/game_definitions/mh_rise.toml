@@ -7,4 +7,4 @@ SteamAppId  = 1446780
 RequiredFiles = ["MonsterHunterRise.exe"]
 
 DataSubFolder = ""
-RootSwapOnly  = true
+

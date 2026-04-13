@@ -17,8 +17,6 @@ public interface IModManagerState
     string?                 CurrentProfileName  { get; }
     /// <summary>Relative sub-folder the VFS mounts in (empty = game root). Use to determine routing mode in installers.</summary>
     string?                 DataSubFolder       { get; }
-    /// <summary>True when the active game uses RootSwap-only mode (no VFS).</summary>
-    bool                    RootSwapOnly        { get; }
 
     /// <summary>Raised on the UI thread when the active profile changes.</summary>
     event Action<string>? ProfileChanged;

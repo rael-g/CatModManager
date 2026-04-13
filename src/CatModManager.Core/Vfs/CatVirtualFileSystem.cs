@@ -12,7 +12,6 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
 {
     private readonly IConflictResolver  _resolver;
     private readonly IFileSystemDriver  _driver;
-    private readonly ISafeSwapStrategy  _swapStrategy;
 
     private IDictionary<string, IFileSource> _fileMap =
         new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
@@ -21,33 +20,18 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
     private readonly Dictionary<string, HashSet<string>> _directoryCache =
         new(StringComparer.OrdinalIgnoreCase);
 
-    // Stored so Unmount() can pass them to the strategy.
     private string? _lastGameFolderPath;
     private string? _lastMountPoint;
 
     public bool IsMounted => _driver.IsMounted;
     public event EventHandler<string>? ErrorOccurred;
 
-    // ── Constructors ─────────────────────────────────────────────────────────
+    // ── Constructor ──────────────────────────────────────────────────────────
 
-    /// <summary>DI constructor — strategy injected by the container.</summary>
-    public CatVirtualFileSystem(
-        IConflictResolver  resolver,
-        IFileSystemDriver  driver,
-        ISafeSwapStrategy  swapStrategy)
-    {
-        _resolver     = resolver;
-        _driver       = driver;
-        _swapStrategy = swapStrategy;
-    }
-
-    /// <summary>
-    /// Convenience constructor used in tests that don't care about swap behaviour.
-    /// Uses <see cref="NoBaseSwapStrategy"/> so the test sees only mod files.
-    /// </summary>
     public CatVirtualFileSystem(IConflictResolver resolver, IFileSystemDriver driver)
-        : this(resolver, driver, new NoBaseSwapStrategy())
     {
+        _resolver = resolver;
+        _driver   = driver;
     }
 
     // ── IVirtualFileSystem ───────────────────────────────────────────────────
@@ -56,31 +40,15 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
     {
         try
         {
-            // Compute the VFS/hardlink mount point (may be a subfolder or an absolute path).
-            // Path.Combine already handles absolute dataSubFolder correctly on Windows,
-            // but we make it explicit for clarity.
             string mountPoint = string.IsNullOrEmpty(dataSubFolder)
                 ? gameFolderPath
                 : Path.IsPathRooted(dataSubFolder)
                     ? dataSubFolder
                     : Path.Combine(gameFolderPath, dataSubFolder);
 
-            _resolver.ForbiddenPath = mountPoint;
-
-            // Let the strategy prepare the mount (e.g. rename folder for WinFSP,
-            // or no-op for HardlinkDriver / FuseDriver).
-            // It returns the effective baseFolderPath for the conflict resolver:
-            //   null         → driver handles all files itself (HardlinkDriver)
-            //   gameFolderPath → serve base files from game folder (FuseDriver)
-            //   gameFolderPath → serve base files from the game folder (FuseDriver)
-            string? effectiveBase = _swapStrategy.Prepare(gameFolderPath, mountPoint);
-
-            // DataSubFolder stripping makes sense only when the VFS mounts at a
-            // subfolder and serves ALL files. When effectiveBase is null (HardlinkDriver),
-            // mod files keep their full game-relative paths — no stripping needed.
-            string? effectiveDataSub = effectiveBase != null ? dataSubFolder : null;
-
-            var rawMap = _resolver.ResolveConflicts(activeMods, effectiveBase, effectiveDataSub);
+            // With multi-mount VFS, we no longer swap folders physically.
+            // All drivers now serve mod files directly or via hardlinks.
+            var rawMap = _resolver.ResolveConflicts(activeMods, gameFolderPath, dataSubFolder, mountPoint);
 
             _fileMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
             foreach (var kvp in rawMap)
@@ -106,10 +74,6 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
     public void Unmount()
     {
         _driver.Unmount();
-
-        if (_lastGameFolderPath != null && _lastMountPoint != null)
-            _swapStrategy.Restore(_lastGameFolderPath, _lastMountPoint);
-
         _fileMap.Clear();
         _directoryCache.Clear();
         _lastGameFolderPath = null;

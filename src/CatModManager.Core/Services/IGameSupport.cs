@@ -18,16 +18,8 @@ public interface IGameSupport
 
     /// <summary>
     /// Relative path inside the game folder where the VFS mounts (e.g. "Data" for Skyrim).
-    /// Empty string combined with <see cref="RootSwapOnly"/> means no VFS — only RootSwap.
     /// </summary>
     string DataSubFolder { get; }
-
-    /// <summary>
-    /// When true the VFS is never mounted; mods are deployed exclusively via RootSwap.
-    /// Use for games where the engine cannot load executables from a virtual filesystem
-    /// (e.g. RE Engine games).
-    /// </summary>
-    bool RootSwapOnly { get; }
 
     /// <summary>
     /// Files/folders (relative to the game root) required for detection.
@@ -53,7 +45,6 @@ public class GenericGameSupport : IGameSupport
     public string? NexusDomain => null;
     public int SteamAppId => 0;
     public string DataSubFolder => "";
-    public bool RootSwapOnly => false;
     public string[] RequiredFiles => [];
     public IReadOnlyList<MountPointDef> GameDefinedMountPoints => [];
 }

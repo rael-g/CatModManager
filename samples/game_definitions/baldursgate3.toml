@@ -16,3 +16,4 @@ Name = "Data (loose files)"
 Path = "Data"
 
 SaveFolderPattern = "%LOCALAPPDATA%\\Larian Studios\\Baldur's Gate 3\\PlayerProfiles\\Public\\Savegames"
+

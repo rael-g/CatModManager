@@ -16,3 +16,4 @@ Name = "Game Root"
 Path = ""
 
 SaveFolderPattern = "%APPDATA%\\unity3d\\Owlcat Games\\Pathfinder Kingmaker"
+

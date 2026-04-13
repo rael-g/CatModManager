@@ -9,3 +9,4 @@ RequiredFiles = ["DarkSoulsRemastered.exe"]
 DataSubFolder = ""
 
 SaveFolderPattern = "%APPDATA%\\DarkSoulsRemastered\\*"
+

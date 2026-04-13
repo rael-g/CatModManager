@@ -20,7 +20,6 @@ public class MainWindowViewModelTests : IDisposable
     private readonly MockModScanner _mockScanner;
     private readonly MockProfileService _mockProfileService;
     private readonly MockFileService _mockFileService;
-    private readonly MockDriverService _mockDriverService;
     private readonly MockProcessService _mockProcessService;
     private readonly MockModManagementService _mockModManagementService;
     private readonly ICatPathService _pathService;
@@ -48,7 +47,6 @@ public class MainWindowViewModelTests : IDisposable
         _mockScanner = new MockModScanner();
         _mockProfileService = new MockProfileService();
         _mockFileService = new MockFileService();
-        _mockDriverService = new MockDriverService();
         _mockProcessService = new MockProcessService();
         _mockModManagementService = new MockModManagementService();
     }
@@ -58,16 +56,13 @@ public class MainWindowViewModelTests : IDisposable
         return new MainWindowViewModel(
             _mockScanner, 
             _mockProfileService, 
-            _mockDriverService, 
             _mockModManagementService, 
             _mockProcessService,
             new VfsOrchestrationService(
                 new SimpleConflictResolver(_logService),
                 new NullHardlinkStateStore(),
-                new NoBaseSwapStrategy(),
                 _mockStateService,
-                _logService,
-                new NullRootSwapService()),
+                _logService),
             new GameLaunchService(_mockProcessService, _logService),
             _mockFileService,
             _pathService,
@@ -75,7 +70,6 @@ public class MainWindowViewModelTests : IDisposable
             _mockConfigService,
             _mockGameSupportService,
             new GameDiscoveryService(_mockGameSupportService),
-            new NullRootSwapService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader());
     }
@@ -170,14 +164,6 @@ public class MainWindowViewModelTests : IDisposable
         public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) => Task.FromResult(Enumerable.Empty<Mod>());
     }
     
-    private class NullRootSwapService : IRootSwapService
-    {
-        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
-        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
-        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
-        public void RecoverStaleDeployments() { }
-        public bool HasDeployedFiles(string gameFolder) => false;
-    }
     private sealed class NullHardlinkStateStore : IHardlinkStateStore
     {
         public void Save(string mountPoint, IReadOnlyList<HardlinkStateEntry> entries) { }
@@ -190,10 +176,6 @@ public class MainWindowViewModelTests : IDisposable
         public Task SaveProfileAsync(Profile p, string f) => ShouldFail ? throw new Exception("forced") : Task.CompletedTask;
         public Task<Profile?> LoadProfileAsync(string f) => ShouldFail ? throw new Exception("forced") : Task.FromResult<Profile?>(null);
         public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
-    }
-
-    private class MockDriverService : IDriverService {
-        public bool IsDriverInstalled() => true;
     }
 
     private class MockProcessService : IProcessService {

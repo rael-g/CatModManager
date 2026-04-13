@@ -35,7 +35,6 @@ public class BugReproductionTests : IDisposable
         // SETUP
         var mockScanner = new MockModScanner();
         var mockProfileService = new MockProfileService();
-        var mockDriverService = new MockDriverService();
         var mockModManagementService = new MockModManagementService();
         var mockProcessService = new MockProcessService();
         var mockFileService = new MockFileService();
@@ -47,16 +46,13 @@ public class BugReproductionTests : IDisposable
         var vm = new MainWindowViewModel(
             mockScanner, 
             mockProfileService, 
-            mockDriverService, 
             mockModManagementService, 
             mockProcessService,
             new VfsOrchestrationService(
                 new SimpleConflictResolver(_logService),
                 new NullHardlinkStateStore(),
-                new NoBaseSwapStrategy(),
                 stateService,
-                _logService,
-                new NullRootSwapService()),
+                _logService),
             new GameLaunchService(mockProcessService, _logService),
             mockFileService,
             _pathService,
@@ -64,7 +60,6 @@ public class BugReproductionTests : IDisposable
             configService,
             gameSupportService,
             new GameDiscoveryService(gameSupportService),
-            new NullRootSwapService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader());
 
@@ -83,8 +78,8 @@ public class BugReproductionTests : IDisposable
         Assert.Single(vm.ModList.AllMods);
         var installed = vm.ModList.AllMods[0];
         Assert.Equal("AwesomeMod_v1", installed.Name);
-        Assert.Equal(expectedInstallPath, installed.RootPath);
-        Assert.NotEqual("default", Path.GetFileName(Path.GetDirectoryName(installed.RootPath)));
+        Assert.Equal(expectedInstallPath, installed.ModRootPath);
+        Assert.NotEqual("default", Path.GetFileName(Path.GetDirectoryName(installed.ModRootPath)));
 
         // ACT 2: Re-install same mod (update simulation)
         // Instead of scanner, we now use .cmm_metadata.toml sidecar
@@ -137,9 +132,7 @@ public class BugReproductionTests : IDisposable
         Directory.CreateDirectory(baseDir);
         File.WriteAllText(Path.Combine(baseDir, "game.exe"), "content");
 
-        resolver.ForbiddenPath = baseDir;
-
-        var result = await Task.Run(() => resolver.ResolveConflicts(new List<Mod>(), baseDir));
+        var result = await Task.Run(() => resolver.ResolveConflicts(new List<Mod>(), baseDir, null, baseDir));
 
         Assert.NotEmpty(result);
         Assert.True(result.ContainsKey("game.exe"), "Should have scanned the root folder even if it's the forbidden path.");
@@ -156,9 +149,7 @@ public class BugReproductionTests : IDisposable
         File.WriteAllText(Path.Combine(baseDir, "root.txt"), "root");
         File.WriteAllText(Path.Combine(mountPoint, "nested.txt"), "nested");
 
-        resolver.ForbiddenPath = mountPoint;
-
-        var result = await Task.Run(() => resolver.ResolveConflicts(new List<Mod>(), baseDir));
+        var result = await Task.Run(() => resolver.ResolveConflicts(new List<Mod>(), baseDir, null, mountPoint));
 
         Assert.True(result.ContainsKey("root.txt"));
         Assert.False(result.ContainsKey("Data\\nested.txt"), "Should NOT have scanned inside the forbidden mount point.");
@@ -169,34 +160,31 @@ public class BugReproductionTests : IDisposable
     {
         var mockScanner = new MockModScanner();
         var mockProfileService = new MockProfileService();
-        var mockDriverService = new MockDriverService();
         var mockModManagementService = new MockModManagementService();
         var mockProcessService = new MockProcessService();
-        var stateService = new VfsStateService(new AppDatabase(_pathService), _logService);
-        var configService = new ConfigService(new AppDatabase(_pathService));
+        var mockFileService = new MockFileService();
+        var db = new AppDatabase(_pathService);
+        var stateService = new VfsStateService(db, _logService);
+        var configService = new ConfigService(db);
         var gameSupportService = new GameSupportService(_pathService, _logService);
 
         var vm = new MainWindowViewModel(
             mockScanner, 
             mockProfileService, 
-            mockDriverService, 
             mockModManagementService, 
             mockProcessService,
             new VfsOrchestrationService(
                 new SimpleConflictResolver(_logService),
                 new NullHardlinkStateStore(),
-                new NoBaseSwapStrategy(),
                 stateService,
-                _logService,
-                new NullRootSwapService()),
+                _logService),
             new GameLaunchService(mockProcessService, _logService),
-            new MockFileService(),
+            mockFileService,
             _pathService,
             _logService,
             configService,
             gameSupportService,
             new GameDiscoveryService(gameSupportService),
-            new NullRootSwapService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader());
 
@@ -221,7 +209,6 @@ public class BugReproductionTests : IDisposable
         public Mod? NextResult { get; set; }
         public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) {
             if (NextResult != null) {
-                // Ensure the scan result's path matches exactly what the test expects for metadata linking
                 return Task.FromResult(new List<Mod> { NextResult }.AsEnumerable());
             }
             return Task.FromResult(Enumerable.Empty<Mod>());
@@ -231,17 +218,6 @@ public class BugReproductionTests : IDisposable
         public Task SaveProfileAsync(Profile p, string f) => Task.CompletedTask;
         public Task<Profile?> LoadProfileAsync(string f) => Task.FromResult<Profile?>(null);
         public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
-    }
-    private class NullRootSwapService : IRootSwapService
-    {
-        public Task DeployAsync(IEnumerable<Mod> activeMods, string gameFolder) => Task.CompletedTask;
-        public Task UndeployAsync(string gameFolder) => Task.CompletedTask;
-        public Task UndeployModAsync(string modRootPath, string gameFolder) => Task.CompletedTask;
-        public void RecoverStaleDeployments() { }
-        public bool HasDeployedFiles(string gameFolder) => false;
-    }
-    private class MockDriverService : IDriverService {
-        public bool IsDriverInstalled() => true;
     }
     private class MockProcessService : IProcessService {
         public Task<bool> StartProcessAsync(string f, string a, bool admin = false, bool waitForChildren = true) => Task.FromResult(true);
@@ -260,7 +236,6 @@ public class BugReproductionTests : IDisposable
         public void CreateFile(string p, string content) {
             _paths.Add(Path.GetFullPath(p));
             _fileContents[Path.GetFullPath(p)] = content;
-            // Also ensure the parent directory "exists"
             _paths.Add(Path.GetFullPath(Path.GetDirectoryName(p)!));
         }
 

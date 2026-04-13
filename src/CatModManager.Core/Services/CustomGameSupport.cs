@@ -26,12 +26,6 @@ public class GameDefinition
     public string SaveFolderPattern { get; set; } = "";
 
     /// <summary>
-    /// When true the VFS is skipped; mods deploy exclusively via RootSwap.
-    /// Set to true for RE Engine games (exe cannot run from virtual filesystem).
-    /// </summary>
-    public bool RootSwapOnly { get; set; } = false;
-
-    /// <summary>
     /// Predefined mount points for this game (from TOML).
     /// The first entry is the default install target.
     /// If empty, a single default mount point is synthesised from DataSubFolder.
@@ -48,7 +42,6 @@ public class CustomGameSupport : IGameSupport
     public string? NexusDomain => string.IsNullOrEmpty(_def.NexusDomain) ? null : _def.NexusDomain;
     public int SteamAppId => _def.SteamAppId;
     public string DataSubFolder => _def.DataSubFolder;
-    public bool RootSwapOnly => _def.RootSwapOnly;
     public string[] RequiredFiles => _def.RequiredFiles;
     public IReadOnlyList<MountPointDef> GameDefinedMountPoints =>
         _def.MountPoints.Select(mp => new MountPointDef(mp.Id, mp.Name, mp.Path, isGameDefined: true)).ToList();
@@ -80,8 +73,10 @@ public class CustomGameSupport : IGameSupport
             var def = Toml.ReadString<GameDefinition>(toml);
             return def != null ? new CustomGameSupport(def) : null;
         }
-        catch { return null; }
+        catch (Exception ex) 
+        { 
+            System.Console.WriteLine($"[CustomGame] Failed to load definition from {filePath}: {ex.Message}");
+            return null; 
+        }
     }
 }
-
-

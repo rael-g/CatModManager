@@ -21,7 +21,6 @@ public sealed class AppSessionState
     public string?                 NexusDomain       { get; set; }
     public string?                 CurrentProfileName { get; set; }
     public string?                 DataSubFolder     { get; set; }
-    public bool                    RootSwapOnly      { get; set; }
 
     // ── Events fired by MainWindowViewModel ───────────────────────────────────
 

@@ -7,6 +7,5 @@ SteamAppId  = 883710
 RequiredFiles = ["re2.exe"]
 
 DataSubFolder = ""
-RootSwapOnly  = true
-
 SaveFolderPattern = '%APPDATA%\RE2'
+

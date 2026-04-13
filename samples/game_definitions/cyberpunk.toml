@@ -16,3 +16,4 @@ Name = "Game Root"
 Path = ""
 
 SaveFolderPattern = "%USERPROFILE%\\Saved Games\\CD Projekt Red\\Cyberpunk 2077"
+

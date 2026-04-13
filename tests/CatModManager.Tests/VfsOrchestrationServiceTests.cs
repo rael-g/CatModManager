@@ -13,7 +13,6 @@ public class VfsOrchestrationServiceTests
 {
     private readonly MockLogService _logService = new();
     private readonly MockVfsStateService _stateService = new();
-    private readonly MockRootSwapService _rootSwapService = new();
     private readonly MockConflictResolver _resolver = new();
 
     private VfsOrchestrationService CreateService(IEnumerable<IVfsLifecycleHook>? hooks = null)
@@ -21,10 +20,8 @@ public class VfsOrchestrationServiceTests
         return new VfsOrchestrationService(
             _resolver,
             new MockHardlinkStateStore(),
-            new NoBaseSwapStrategy(),
             _stateService,
             _logService,
-            _rootSwapService,
             hooks?.ToList());
     }
 
@@ -71,17 +68,6 @@ public class VfsOrchestrationServiceTests
         Assert.False(result.IsSuccess);
     }
 
-    [Fact]
-    public async Task MountAsync_HandlesRootSwapOnlyMode()
-    {
-        var service = CreateService();
-        var options = new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true };
-
-        await service.MountAsync(options);
-
-        Assert.True(_rootSwapService.DeployCalled);
-    }
-
     // --- MOCKS ---
 
     private class MockVfsHook : IVfsLifecycleHook
@@ -90,16 +76,6 @@ public class VfsOrchestrationServiceTests
         public bool AfterUnmountCalled { get; private set; }
         public Task OnBeforeMountAsync(MountInfo info) { BeforeMountCalled = true; return Task.CompletedTask; }
         public Task OnAfterUnmountAsync(string gameFolder) { AfterUnmountCalled = true; return Task.CompletedTask; }
-    }
-
-    private class MockRootSwapService : IRootSwapService
-    {
-        public bool DeployCalled { get; private set; }
-        public Task DeployAsync(IEnumerable<Mod> mods, string folder) { DeployCalled = true; return Task.CompletedTask; }
-        public Task UndeployAsync(string folder) => Task.CompletedTask;
-        public Task UndeployModAsync(string path, string folder) => Task.CompletedTask;
-        public void RecoverStaleDeployments() { }
-        public bool HasDeployedFiles(string folder) => false;
     }
 
     private class MockVfsStateService : IVfsStateService
@@ -119,7 +95,7 @@ public class VfsOrchestrationServiceTests
     private class MockConflictResolver : IConflictResolver
     {
         public string? ForbiddenPath { get; set; }
-        public IDictionary<string, IFileSource> ResolveConflicts(IEnumerable<Mod> mods, string? baseDir, string? sub) => new Dictionary<string, IFileSource>();
+        public IDictionary<string, IFileSource> ResolveConflicts(IEnumerable<Mod> mods, string? baseFolderPath, string? dataSubFolder = null, string? forbiddenPath = null) => new Dictionary<string, IFileSource>();
         public IReadOnlyList<ConflictReport> GetConflictReport(IEnumerable<Mod> activeMods) => Array.Empty<ConflictReport>();
     }
 }

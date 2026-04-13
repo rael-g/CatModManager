@@ -30,12 +30,12 @@ public class NexusModInspectorTab : IInspectorTab
 
     public bool IsVisible(IModInfo? selectedMod)
     {
-        return selectedMod != null && _tracking.IsTracked(selectedMod.RootPath);
+        return selectedMod != null && _tracking.IsTracked(selectedMod.ModRootPath);
     }
 
     public object CreateView(IModInfo? mod)
     {
-        var entry = mod != null ? _tracking.GetEntry(mod.RootPath) : null;
+        var entry = mod != null ? _tracking.GetEntry(mod.ModRootPath) : null;
 
         var updateStatus = new TextBlock
         {

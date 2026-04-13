@@ -11,8 +11,6 @@ public class SimpleConflictResolver : IConflictResolver
 {
     private readonly ILogService _logService;
 
-    public string? ForbiddenPath { get; set; }
-
     public SimpleConflictResolver(ILogService logService)
     {
         _logService = logService;
@@ -21,12 +19,13 @@ public class SimpleConflictResolver : IConflictResolver
     public IDictionary<string, IFileSource> ResolveConflicts(
         IEnumerable<Mod> activeMods,
         string? baseFolderPath,
-        string? dataSubFolder = null)
+        string? dataSubFolder = null,
+        string? forbiddenPath = null)
     {
         var finalMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
 
-        string? normalizedForbidden = !string.IsNullOrEmpty(ForbiddenPath)
-            ? Path.GetFullPath(ForbiddenPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        string? normalizedForbidden = !string.IsNullOrEmpty(forbiddenPath)
+            ? Path.GetFullPath(forbiddenPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             : null;
 
         if (!string.IsNullOrEmpty(baseFolderPath) && Directory.Exists(baseFolderPath))
@@ -40,39 +39,35 @@ public class SimpleConflictResolver : IConflictResolver
         foreach (var mod in activeMods.OrderBy(m => m.Priority))
         {
             int before = finalMap.Count;
-            if (Directory.Exists(mod.RootPath))
+            if (mod.IsDirectory)
             {
-                string fullRoot = Path.GetFullPath(mod.RootPath);
+                string fullRoot = Path.GetFullPath(mod.ModRootPath);
                 ScanRecursive(fullRoot, fullRoot, finalMap, relPath =>
                 {
                     var normalized = NormalizePath(relPath);
-                    // Root/ is deployed to game root by RootSwapService — exclude from the VFS Data mount.
-                    if (normalized.Equals("Root", StringComparison.OrdinalIgnoreCase) ||
-                        normalized.StartsWith("Root\\", StringComparison.OrdinalIgnoreCase))
-                        return null;
                     return StripDataPrefix(normalized, prefixesToStrip);
                 }, null);
             }
-            else if (File.Exists(mod.RootPath))
+            else if (mod.IsPhysicalArchive)
             {
                 try
                 {
-                    using var archive = ArchiveFactory.Open(mod.RootPath);
+                    using var archive = ArchiveFactory.Open(mod.ModRootPath);
                     foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
                     {
                         string targetPath = StripDataPrefix(NormalizePath(entry.Key ?? ""), prefixesToStrip);
                         if (!string.IsNullOrEmpty(targetPath))
-                            finalMap[targetPath] = new ArchiveFileSource(mod.RootPath, entry.Key ?? "", (long)entry.Size, entry.LastModifiedTime ?? DateTime.Now);
+                            finalMap[targetPath] = new ArchiveFileSource(mod.ModRootPath, entry.Key ?? "", (long)entry.Size, entry.LastModifiedTime ?? DateTime.Now);
                     }
                 }
                 catch (Exception ex) { _logService.LogError($"Failed to read mod archive: {mod.Name}", ex); }
             }
             else
             {
-                _logService.Log($"  WARN: mod path not found: {mod.RootPath}");
+                _logService.Log($"  WARN: mod path not found: {mod.ModRootPath}");
             }
             int added = finalMap.Count - before;
-            _logService.Log($"  {mod.Name}: {added} file(s) added/overridden (path exists: {Directory.Exists(mod.RootPath) || File.Exists(mod.RootPath)})");
+            _logService.Log($"  {mod.Name}: {added} file(s) added/overridden (path exists: {mod.IsDirectory || mod.IsPhysicalArchive})");
         }
 
         return finalMap;
@@ -141,16 +136,16 @@ public class SimpleConflictResolver : IConflictResolver
 
     private IEnumerable<string> GetModFiles(Mod mod)
     {
-        if (Directory.Exists(mod.RootPath))
+        if (Directory.Exists(mod.ModRootPath))
         {
-            string fullRoot = Path.GetFullPath(mod.RootPath);
+            string fullRoot = Path.GetFullPath(mod.ModRootPath);
             return EnumerateFiles(fullRoot, fullRoot);
         }
-        if (File.Exists(mod.RootPath))
+        if (File.Exists(mod.ModRootPath))
         {
             try
             {
-                using var archive = ArchiveFactory.Open(mod.RootPath);
+                using var archive = ArchiveFactory.Open(mod.ModRootPath);
                 return archive.Entries
                     .Where(e => !e.IsDirectory)
                     .Select(e => NormalizePath(e.Key ?? ""))
