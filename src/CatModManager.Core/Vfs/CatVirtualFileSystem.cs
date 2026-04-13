@@ -2,31 +2,26 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
 using CatModManager.VirtualFileSystem;
 
 namespace CatModManager.Core.Vfs;
 
+/// <summary>
+/// Orchestrates mod files into a virtual view and mounts them via a low-level driver.
+/// Implements IFileSystem to satisfy driver requirements by delegating to an internal backend.
+/// </summary>
 public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
 {
     private readonly IConflictResolver  _resolver;
     private readonly IFileSystemDriver  _driver;
-
-    private IDictionary<string, IFileSource> _fileMap =
-        new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
-
-    // O(1) directory listing cache built at mount time.
-    private readonly Dictionary<string, HashSet<string>> _directoryCache =
-        new(StringComparer.OrdinalIgnoreCase);
-
-    private string? _lastGameFolderPath;
-    private string? _lastMountPoint;
+    
+    private ModFileSystemBackend? _backend;
 
     public bool IsMounted => _driver.IsMounted;
     public event EventHandler<string>? ErrorOccurred;
-
-    // ── Constructor ──────────────────────────────────────────────────────────
 
     public CatVirtualFileSystem(IConflictResolver resolver, IFileSystemDriver driver)
     {
@@ -34,10 +29,10 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
         _driver   = driver;
     }
 
-    // ── IVirtualFileSystem ───────────────────────────────────────────────────
-
     public void Mount(string gameFolderPath, List<Mod> activeMods, string? dataSubFolder = null)
     {
+        if (IsMounted) return;
+
         try
         {
             string mountPoint = string.IsNullOrEmpty(dataSubFolder)
@@ -46,23 +41,18 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
                     ? dataSubFolder
                     : Path.Combine(gameFolderPath, dataSubFolder);
 
-            // With multi-mount VFS, we no longer swap folders physically.
-            // All drivers now serve mod files directly or via hardlinks.
             var rawMap = _resolver.ResolveConflicts(activeMods, gameFolderPath, dataSubFolder, mountPoint);
 
-            _fileMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
+            var fileMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
             foreach (var kvp in rawMap)
             {
                 string cleanKey = kvp.Key.Replace('/', '\\').Trim('\\');
                 if (!string.IsNullOrEmpty(cleanKey))
-                    _fileMap[cleanKey] = kvp.Value;
+                    fileMap[cleanKey] = kvp.Value;
             }
 
-            BuildDirectoryCache();
+            _backend = new ModFileSystemBackend(fileMap);
             _driver.Mount(mountPoint, this);
-
-            _lastGameFolderPath = gameFolderPath;
-            _lastMountPoint     = mountPoint;
         }
         catch (Exception ex)
         {
@@ -74,81 +64,15 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
     public void Unmount()
     {
         _driver.Unmount();
-        _fileMap.Clear();
-        _directoryCache.Clear();
-        _lastGameFolderPath = null;
-        _lastMountPoint     = null;
+        _backend = null;
     }
 
     public void Dispose() => _driver.Dispose();
 
-    // ── IFileSystem ──────────────────────────────────────────────────────────
+    // ── IFileSystem Delegation ──────────────────────────────────────────────
 
-    public FileSystemNodeInfo? GetInfo(string path)
-    {
-        string normalized = path.Replace('/', '\\').Trim('\\');
-
-        if (string.IsNullOrEmpty(normalized))
-            return new FileSystemNodeInfo { IsDirectory = true };
-
-        if (_fileMap.TryGetValue(normalized, out var source))
-            return new FileSystemNodeInfo { IsDirectory = false, Size = source.Length, LastWriteTime = source.LastWriteTime };
-
-        if (_directoryCache.ContainsKey(normalized))
-            return new FileSystemNodeInfo { IsDirectory = true };
-
-        return null;
-    }
-
-    public IEnumerable<string> ReadDirectory(string path)
-    {
-        string normalized = path.Replace('/', '\\').Trim('\\');
-        return _directoryCache.TryGetValue(normalized, out var entries)
-            ? entries
-            : Enumerable.Empty<string>();
-    }
-
-    public Stream? OpenFile(string path)
-    {
-        string normalized = path.Replace('/', '\\').Trim('\\');
-        if (_fileMap.TryGetValue(normalized, out var source)) return source.OpenRead();
-        return null;
-    }
-
-    public string? GetPhysicalPath(string path)
-    {
-        string normalized = path.Replace('/', '\\').Trim('\\');
-        if (_fileMap.TryGetValue(normalized, out var source) && source is PhysicalFileSource pfs)
-            return pfs.FilePath;
-        return null;
-    }
-
-    // ── Private ──────────────────────────────────────────────────────────────
-
-    private void BuildDirectoryCache()
-    {
-        _directoryCache.Clear();
-        _directoryCache[""] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var path in _fileMap.Keys)
-        {
-            string[] parts     = path.Split('\\', StringSplitOptions.RemoveEmptyEntries);
-            string   parentPath = "";
-
-            for (int i = 0; i < parts.Length; i++)
-            {
-                string name = parts[i];
-
-                if (!_directoryCache.ContainsKey(parentPath))
-                    _directoryCache[parentPath] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                _directoryCache[parentPath].Add(name);
-
-                if (i < parts.Length - 1)
-                    parentPath = string.IsNullOrEmpty(parentPath)
-                        ? name
-                        : parentPath + "\\" + name;
-            }
-        }
-    }
+    public FileSystemNodeInfo? GetInfo(string path) => _backend?.GetInfo(path);
+    public IEnumerable<string> ReadDirectory(string path) => _backend?.ReadDirectory(path) ?? Enumerable.Empty<string>();
+    public Stream? OpenFile(string path) => _backend?.OpenFile(path);
+    public string? GetPhysicalPath(string path) => _backend?.GetPhysicalPath(path);
 }
