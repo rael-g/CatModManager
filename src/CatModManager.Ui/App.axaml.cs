@@ -111,12 +111,17 @@ public partial class App : Application
         services.AddSingleton<UiExtensionHost>();
         services.AddSingleton<IPluginRegistrar>(sp => sp.GetRequiredService<UiExtensionHost>());
         services.AddSingleton<IPluginLogger>(sp => new LogServiceAdapter(sp.GetRequiredService<ILogService>()));
-        services.AddSingleton<CmmSettingsFactory>(sp =>
-            new CmmSettingsFactory(sp.GetRequiredService<AppDatabase>()));
         services.AddSingleton<AppSessionState>();
         services.AddSingleton<IModManagerState>(sp =>
             new ModManagerStateAdapter(sp.GetRequiredService<AppSessionState>()));
-        services.AddSingleton<PluginLoader>();
+        services.AddSingleton<PluginLoader>(sp => new PluginLoader(
+            sp.GetRequiredService<ILogService>(),
+            sp.GetRequiredService<IPluginLogger>(),
+            sp.GetRequiredService<IEventBus>(),
+            sp.GetRequiredService<IPluginRegistrar>(),
+            sp.GetRequiredService<IModManagerState>(),
+            sp.GetRequiredService<IArchiveExtractor>(),
+            sp.GetRequiredService<ICatPathService>()));
 
         services.AddSingleton<NuGetPluginService>();
         services.AddSingleton<PluginBrowserViewModel>();

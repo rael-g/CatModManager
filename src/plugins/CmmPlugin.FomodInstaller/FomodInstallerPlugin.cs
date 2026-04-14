@@ -4,17 +4,16 @@ namespace CmmPlugin.FomodInstaller;
 
 public class FomodInstallerPlugin : ICmmPlugin
 {
-    public string Id => "fomod-installer";
+    public string Id          => "fomod-installer";
     public string DisplayName => "FOMOD Installer";
-    public string Version => typeof(FomodInstallerPlugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-    public string Author => "CatModManager";
+    public string Version     => typeof(FomodInstallerPlugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+    public string Author      => "CatModManager";
 
-    public void Initialize(IPluginContext context)
+    public void Initialize(IPluginContext ctx)
     {
-        var installer = new FomodModInstaller(context.Log);
-        context.Ui.RegisterModInstaller(installer);
+        var installer = new FomodModInstaller(ctx.Log, ctx.ArchiveExtractor);
+        ctx.Ui.RegisterModInstaller(installer);
 
-        context.Log.Log($"[{DisplayName}] Initialized — FOMOD archives will show the installation wizard.");
+        ctx.Log.Log($"[{DisplayName}] Initialized — FOMOD archives will show the installation wizard.");
     }
 }
-

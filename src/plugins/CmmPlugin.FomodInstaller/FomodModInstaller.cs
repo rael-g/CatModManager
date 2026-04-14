@@ -13,8 +13,13 @@ namespace CmmPlugin.FomodInstaller;
 public class FomodModInstaller : IModInstaller
 {
     private readonly IPluginLogger _log;
+    private readonly IArchiveExtractor _extractor;
 
-    public FomodModInstaller(IPluginLogger log) => _log = log;
+    public FomodModInstaller(IPluginLogger log, IArchiveExtractor extractor)
+    {
+        _log = log;
+        _extractor = extractor;
+    }
 
     /// <summary>
     /// Prepends the archive wrapper prefix to every source key so paths match what
@@ -30,14 +35,14 @@ public class FomodModInstaller : IModInstaller
         return result;
     }
 
-    public bool CanInstall(string archivePath) => FomodParser.IsFomod(archivePath);
+    public bool CanInstall(string archivePath) => FomodParser.IsFomod(archivePath, _extractor);
 
     public async Task<InstallResult> InstallAsync(string archivePath, IInstallContext ctx)
     {
         FomodModuleConfig config;
         try
         {
-            config = FomodParser.Parse(archivePath);
+            config = FomodParser.Parse(archivePath, _extractor);
         }
         catch (Exception ex)
         {
@@ -62,7 +67,7 @@ public class FomodModInstaller : IModInstaller
             var mainWindow = (Application.Current?.ApplicationLifetime
                 as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 
-            var wizard = new FomodWizardWindow(config, _log, archivePath);
+            var wizard = new FomodWizardWindow(config, _log, _extractor, archivePath);
             result = await wizard.ShowDialog<InstallResult?>(mainWindow!)
                      ?? InstallResult.Failure("Installation cancelled by user.");
         });
@@ -73,4 +78,3 @@ public class FomodModInstaller : IModInstaller
         return result ?? InstallResult.Failure("Installation cancelled.");
     }
 }
-

@@ -11,6 +11,7 @@ using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
 using CatModManager.VirtualFileSystem;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests;
 
@@ -59,7 +60,7 @@ public class MainWindowViewModelTests : IDisposable
             _mockModManagementService, 
             _mockProcessService,
             new VfsOrchestrationService(
-                new SimpleConflictResolver(_logService),
+                new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor()),
                 new NullHardlinkStateStore(),
                 _mockStateService,
                 _logService),
@@ -107,16 +108,16 @@ public class MainWindowViewModelTests : IDisposable
         var vm = CreateViewModel();
         vm.GameConfig.BaseFolderPath = _tempDir;
 
-        vm.Shutdown();
-        Assert.False(vm.IsVfsMounted, "VFS should be marked as unmounted after shutdown.");
+        await vm.Shutdown();
+        Assert.False(vm.Vfs.IsVfsMounted, "VFS should be marked as unmounted after shutdown.");
     }
 
     [Fact]
     public void MountButton_State_WhenUnmounted()
     {
         var vm = CreateViewModel();
-        Assert.False(vm.IsVfsMounted);
-        Assert.Equal("Mount", vm.MountButtonText);
+        Assert.False(vm.Vfs.IsVfsMounted);
+        Assert.Equal("Mount", vm.Vfs.MountButtonText);
     }
 
     [Fact(Skip = "Requires a real VFS driver (WinFSP/FUSE) — integration test only")]
@@ -124,12 +125,11 @@ public class MainWindowViewModelTests : IDisposable
     {
         var vm = CreateViewModel();
         vm.GameConfig.BaseFolderPath = _tempDir;
-        vm.GameConfig.DataSubFolder = "Data";
 
         await vm.ToggleMountCommand.ExecuteAsync(null);
 
-        Assert.True(vm.IsVfsMounted);
-        Assert.Equal("Unmount", vm.MountButtonText);
+        Assert.True(vm.Vfs.IsVfsMounted);
+        Assert.Equal("Unmount", vm.Vfs.MountButtonText);
     }
 
     [Fact]

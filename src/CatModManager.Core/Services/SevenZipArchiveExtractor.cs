@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CatModManager.PluginSdk;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 
@@ -15,27 +17,47 @@ public class SevenZipArchiveExtractor : IArchiveExtractor
         await Task.Run(() =>
         {
             using var archive = ArchiveFactory.Open(archivePath);
-            
-            // Filter entries to extract (exclude directories as they are created automatically)
-            var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
-            if (entries.Count == 0) return;
+            int total = archive.Entries.Count(e => !e.IsDirectory);
+            int count = 0;
 
-            double total = entries.Count;
-            double current = 0;
+            var options = new ExtractionOptions { ExtractFullPath = true, Overwrite = true };
 
-            foreach (var entry in entries)
+            foreach (var entry in archive.Entries)
             {
                 ct.ThrowIfCancellationRequested();
+                if (entry.IsDirectory) continue;
 
-                entry.WriteToDirectory(destinationDir, new ExtractionOptions
-                {
-                    ExtractFullPath = true,
-                    Overwrite = true
-                });
-
-                current++;
-                progress?.Report(current / total * 100.0);
+                entry.WriteToDirectory(destinationDir, options);
+                count++;
+                progress?.Report((double)count / total * 100);
             }
         }, ct);
+    }
+
+    public IEnumerable<string> GetFileList(string archivePath)
+    {
+        using var archive = ArchiveFactory.Open(archivePath);
+        return archive.Entries.Select(e => e.Key.Replace('/', '\\')).ToList();
+    }
+
+    public Stream? OpenFileStream(string archivePath, string entryPath)
+    {
+        // We must return a stream that doesn't depend on the archive being disposed immediately.
+        // MemoryStream is safest for small metadata files (FOMOD, etc).
+        // For larger files, this interface might need a more complex 'Entry' abstraction.
+        
+        using var archive = ArchiveFactory.Open(archivePath);
+        var entry = archive.Entries.FirstOrDefault(e => 
+            string.Equals(e.Key.Replace('/', '\\'), entryPath.Replace('/', '\\'), StringComparison.OrdinalIgnoreCase));
+        
+        if (entry == null || entry.IsDirectory) return null;
+
+        var ms = new MemoryStream();
+        using (var entryStream = entry.OpenEntryStream())
+        {
+            entryStream.CopyTo(ms);
+        }
+        ms.Position = 0;
+        return ms;
     }
 }

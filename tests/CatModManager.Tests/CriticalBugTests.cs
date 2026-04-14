@@ -28,7 +28,7 @@ public class CriticalBugTests : IDisposable
     [Fact]
     public void SimpleConflictResolver_MUST_Scan_Root_Even_With_Forbidden_Name()
     {
-        var resolver = new SimpleConflictResolver(_logService);
+        var resolver = new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor());
         // Raiz com o nome proibido ".CMM_base"
         string backupDir = Path.Combine(_tempDir, "Game.CMM_base"); 
         Directory.CreateDirectory(backupDir);
@@ -46,11 +46,11 @@ public class CriticalBugTests : IDisposable
     {
         var state = new VfsStateService(new AppDatabase(_pathService), _logService);
         var orchestrator = new VfsOrchestrationService(
-            new SimpleConflictResolver(_logService),
+            new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor()),
             new NullHardlinkStateStore(),
             state,
-            _logService);
-
+            _logService,
+            null);
         string original = Path.Combine(_tempDir, "GameFolder");
         string backup = Path.Combine(_tempDir, ".GameFolder.CMM_base");
         Directory.CreateDirectory(backup);

@@ -5,6 +5,7 @@ using System.Linq;
 using Xunit;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests;
 
@@ -12,18 +13,20 @@ public class SimpleConflictResolverTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly ILogService _logService;
+    private readonly IArchiveExtractor _extractor;
 
     public SimpleConflictResolverTests()
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "ResolverTests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
         _logService = new LogService();
+        _extractor = new SevenZipArchiveExtractor();
     }
 
     [Fact]
     public void ResolveConflicts_Mods_Override_Base()
     {
-        var resolver = new SimpleConflictResolver(_logService);
+        var resolver = new SimpleConflictResolver(_logService, _extractor);
         string baseDir = Path.Combine(_tempDir, "Base");
         string modDir = Path.Combine(_tempDir, "Mod1");
         Directory.CreateDirectory(baseDir);

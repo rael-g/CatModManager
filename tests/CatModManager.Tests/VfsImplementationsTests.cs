@@ -14,8 +14,8 @@ public class VfsImplementationsTests
         var vfs = new NullVfs();
         Assert.False(vfs.IsMounted);
 
-        vfs.Mount("V:", new List<Mod>(), null);
-        vfs.Mount("V:", new List<Mod>(), "base");
+        vfs.Mount("V:", new List<Mod>());
+        vfs.Mount("V:", new List<Mod>());
 
         vfs.Unmount();
         vfs.Dispose();

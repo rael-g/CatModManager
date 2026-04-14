@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests;
 

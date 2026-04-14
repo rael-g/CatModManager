@@ -20,7 +20,7 @@ public class BethesdaToolsPlugin : ICmmPlugin
         var tab = new PluginsInspectorTab(vm);
         var hook = new BethesdaLaunchHook(loadOrder, context.State, context.Log);
 
-        var installer = new BethesdaModInstaller(context.State);
+        var installer = new BethesdaModInstaller(context.State, context.ArchiveExtractor);
 
         // Refresh load order whenever the active profile changes
         context.State.ProfileChanged += _ => vm.Refresh();

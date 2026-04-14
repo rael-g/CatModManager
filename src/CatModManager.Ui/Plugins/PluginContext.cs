@@ -8,17 +8,23 @@ public class PluginContext : IPluginContext
     public IPluginLogger    Log         { get; }
     public IEventBus        Events      { get; }
     public IPluginRegistrar Ui          { get; }
-    public ICmmSettings     Settings    { get; }
     public IModManagerState State       { get; }
+    public IArchiveExtractor ArchiveExtractor { get; }
     public string           AppDataPath { get; }
 
-    public PluginContext(IPluginLogger log, IEventBus events, IPluginRegistrar ui, ICmmSettings settings, IModManagerState state, ICatPathService pathService)
+    public PluginContext(
+        IPluginLogger    log, 
+        IEventBus        events, 
+        IPluginRegistrar ui, 
+        IModManagerState state, 
+        IArchiveExtractor extractor,
+        ICatPathService  pathService)
     {
-        Log         = log;
-        Events      = events;
-        Ui          = ui;
-        Settings    = settings;
-        State       = state;
-        AppDataPath = pathService.BaseDataPath;
+        Log              = log;
+        Events           = events;
+        Ui               = ui;
+        State            = state;
+        ArchiveExtractor = extractor;
+        AppDataPath      = pathService.BaseDataPath;
     }
 }

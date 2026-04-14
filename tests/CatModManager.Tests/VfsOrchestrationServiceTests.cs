@@ -39,7 +39,11 @@ public class VfsOrchestrationServiceTests
         var hook = new MockVfsHook();
         var service = CreateService(new[] { hook });
         
-        await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", ActiveMods = new List<Mod>() });
+        await service.MountAsync(new MountOptions { 
+            GameFolderPath = "C:\\Game", 
+            ActiveMods = new List<Mod>(),
+            MountPoints = new List<MountPointDef> { new MountPointDef("default", "Default", "") }
+        });
 
         Assert.True(hook.BeforeMountCalled);
     }
@@ -49,8 +53,13 @@ public class VfsOrchestrationServiceTests
     {
         var hook = new MockVfsHook();
         var service = CreateService(new[] { hook });
-        // Use RootSwapOnly to ensure IsMounted becomes true without complex VFS logic
-        await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true, ActiveMods = new List<Mod> { new Mod("T", "P", 1) } });
+        
+        // Setup a valid mount point to ensure IsMounted becomes true
+        await service.MountAsync(new MountOptions { 
+            GameFolderPath = "C:\\Game", 
+            ActiveMods = new List<Mod> { new Mod("T", "P", 1) },
+            MountPoints = new List<MountPointDef> { new MountPointDef("default", "Default", "") }
+        });
 
         await service.UnmountAsync();
 
@@ -61,9 +70,13 @@ public class VfsOrchestrationServiceTests
     public async Task MountAsync_ReturnsFailure_IfAlreadyMounted()
     {
         var service = CreateService();
-        await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true });
+        var options = new MountOptions { 
+            GameFolderPath = "C:\\Game",
+            MountPoints = new List<MountPointDef> { new MountPointDef("default", "Default", "") }
+        };
         
-        var result = await service.MountAsync(new MountOptions { GameFolderPath = "C:\\Game", RootSwapOnly = true });
+        await service.MountAsync(options);
+        var result = await service.MountAsync(options);
 
         Assert.False(result.IsSuccess);
     }
@@ -94,6 +107,7 @@ public class VfsOrchestrationServiceTests
 
     private class MockConflictResolver : IConflictResolver
     {
+        private readonly IArchiveExtractor _extractor = new SevenZipArchiveExtractor();
         public string? ForbiddenPath { get; set; }
         public IDictionary<string, IFileSource> ResolveConflicts(IEnumerable<Mod> mods, string? baseFolderPath, string? dataSubFolder = null, string? forbiddenPath = null) => new Dictionary<string, IFileSource>();
         public IReadOnlyList<ConflictReport> GetConflictReport(IEnumerable<Mod> activeMods) => Array.Empty<ConflictReport>();

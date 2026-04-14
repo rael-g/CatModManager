@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using CmmPlugin.FomodInstaller.Models;
-using SharpCompress.Archives;
+using CatModManager.PluginSdk;
 
 namespace CmmPlugin.FomodInstaller.Parser;
 
@@ -17,34 +17,36 @@ public static class FomodParser
         (key.Replace('\\', '/').Equals(ConfigPath, StringComparison.OrdinalIgnoreCase) ||
          key.Replace('\\', '/').EndsWith("/" + ConfigPath, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Returns true if the archive contains a FOMOD ModuleConfig.xml (at root or inside a wrapper folder).</summary>
-    public static bool IsFomod(string archivePath)
+    /// <summary>Returns true if the archive contains a FOMOD ModuleConfig.xml.</summary>
+    public static bool IsFomod(string archivePath, IArchiveExtractor extractor)
     {
         if (!File.Exists(archivePath)) return false;
         try
         {
-            using var archive = ArchiveFactory.Open(archivePath);
-            return archive.Entries.Any(e => !e.IsDirectory && IsConfigEntry(e.Key));
+            var files = extractor.GetFileList(archivePath);
+            return files.Any(IsConfigEntry);
         }
         catch { return false; }
     }
 
     /// <summary>Parses ModuleConfig.xml from the archive and returns the config model.</summary>
-    public static FomodModuleConfig Parse(string archivePath)
+    public static FomodModuleConfig Parse(string archivePath, IArchiveExtractor extractor)
     {
-        using var archive = ArchiveFactory.Open(archivePath);
-        var configEntry = archive.Entries.FirstOrDefault(e => !e.IsDirectory && IsConfigEntry(e.Key))
+        var files = extractor.GetFileList(archivePath).ToList();
+        var configKey = files.FirstOrDefault(IsConfigEntry)
             ?? throw new InvalidOperationException("ModuleConfig.xml not found in archive.");
 
         // Detect wrapper folder: if ModuleConfig.xml is not at "fomod/..." but at
         // "WrapperName/fomod/...", FOMOD source paths are relative to "WrapperName/".
         string? wrapperPrefix = null;
-        var configKey = configEntry.Key!.Replace('\\', '/');
-        var fomodIdx  = configKey.IndexOf("fomod/", StringComparison.OrdinalIgnoreCase);
+        var normalizedKey = configKey.Replace('\\', '/');
+        var fomodIdx  = normalizedKey.IndexOf("fomod/", StringComparison.OrdinalIgnoreCase);
         if (fomodIdx > 0)
-            wrapperPrefix = configKey[..fomodIdx]; // e.g. "MyMod_v1.0/"
+            wrapperPrefix = normalizedKey[..fomodIdx];
 
-        using var stream = configEntry.OpenEntryStream();
+        using var stream = extractor.OpenFileStream(archivePath, configKey);
+        if (stream == null) throw new InvalidOperationException($"Could not open {configKey} from archive.");
+        
         var doc = XDocument.Load(stream);
         var config = ParseDocument(doc);
         config.WrapperPrefix = wrapperPrefix;
@@ -54,7 +56,6 @@ public static class FomodParser
     private static FomodModuleConfig ParseDocument(XDocument doc)
     {
         var root = doc.Root ?? throw new InvalidOperationException("Empty FOMOD XML.");
-        // FOMOD XML may or may not have a namespace
         var ns = root.GetDefaultNamespace();
 
         var config = new FomodModuleConfig
@@ -62,12 +63,10 @@ public static class FomodParser
             ModuleName = (string?)root.Element(ns + "moduleName") ?? string.Empty
         };
 
-        // Required install files
         var reqFiles = root.Element(ns + "requiredInstallFiles");
         if (reqFiles != null)
             config.RequiredInstallFiles.AddRange(ParseFileList(reqFiles, ns));
 
-        // Install steps
         var stepsEl = root.Element(ns + "installSteps");
         if (stepsEl != null)
         {
@@ -75,9 +74,6 @@ public static class FomodParser
                 config.InstallSteps.Add(ParseStep(stepEl, ns));
         }
 
-        // Conditional file installs — we cannot evaluate flag conditions here, so we
-        // collect all files from every pattern and add them as required installs so
-        // nothing is silently skipped.
         var conditionalEl = root.Element(ns + "conditionalFileInstalls");
         if (conditionalEl != null)
         {
@@ -144,7 +140,6 @@ public static class FomodParser
         if (filesEl != null)
             plugin.Files.AddRange(ParseFileList(filesEl, ns));
 
-        // Type descriptor: "Recommended" or "Required" = IsDefault true
         var typeEl = pluginEl.Element(ns + "typeDescriptor")?.Element(ns + "type");
         string? typeName = (string?)typeEl?.Attribute("name");
         plugin.IsDefault = typeName is "Recommended" or "Required";
@@ -179,4 +174,3 @@ public static class FomodParser
         _                    => GroupType.SelectAny
     };
 }
-

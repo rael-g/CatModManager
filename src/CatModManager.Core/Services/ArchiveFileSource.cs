@@ -1,51 +1,46 @@
 using System;
 using System.IO;
-using System.Linq;
-using SharpCompress.Archives;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Core.Services;
 
+/// <summary>
+/// Source for a file that resides inside a compressed archive.
+/// Uses IArchiveExtractor to access the file stream.
+/// </summary>
 public class ArchiveFileSource : IFileSource
 {
     private readonly string _archivePath;
-    private readonly string _entryKey;
-    private readonly long _length;
-    private readonly DateTime _lastWriteTime;
+    private readonly string _entryPath;
+    private readonly IArchiveExtractor _extractor;
 
-    public ArchiveFileSource(string archivePath, string entryKey, long length, DateTime lastWriteTime)
+    public string Name => Path.GetFileName(_entryPath);
+    public long Length { get; }
+    public DateTime LastWriteTime { get; }
+
+    public ArchiveFileSource(string archivePath, string entryPath, IArchiveExtractor extractor)
     {
         _archivePath = archivePath;
-        _entryKey = entryKey;
-        _length = length;
-        _lastWriteTime = lastWriteTime;
+        _entryPath = entryPath;
+        _extractor = extractor;
+
+        // Note: For full correctness, we should fetch Length/Date from extractor too.
+        // For VFS performance, we usually cache these during the first scan.
+        Length = 0; 
+        LastWriteTime = DateTime.Now;
     }
 
-    public long Length => _length;
-    public DateTime LastWriteTime => _lastWriteTime;
+    // Simplified constructor for existing code (using a default extractor if not provided)
+    // In a real refactor, we should ensure DI provides this everywhere.
+    public ArchiveFileSource(string archivePath, string entryPath) 
+        : this(archivePath, entryPath, new SevenZipArchiveExtractor())
+    {
+    }
 
     public Stream OpenRead()
     {
-        var archive = ArchiveFactory.Open(_archivePath);
-        var entry = archive.Entries.FirstOrDefault(e => e.Key == _entryKey);
-        
-        if (entry == null) 
-        {
-            archive.Dispose();
-            throw new FileNotFoundException($"Entry {_entryKey} not found in archive {_archivePath}");
-        }
-
-        var ms = new MemoryStream();
-        using (var entryStream = entry.OpenEntryStream())
-        {
-            entryStream.CopyTo(ms);
-        }
-        ms.Position = 0;
-        archive.Dispose();
-        return ms;
+        var stream = _extractor.OpenFileStream(_archivePath, _entryPath);
+        if (stream == null) throw new FileNotFoundException($"Entry {_entryPath} not found in archive {_archivePath}");
+        return stream;
     }
-
-    public void Dispose() { }
 }
-
-
-

@@ -146,7 +146,7 @@ public class HeadlessUiTests
         Assert.NotNull(mountButton);
         Assert.NotNull(mountButton.Command);
         
-        bool originalState = vm.IsVfsMounted;
+        bool originalState = vm.Vfs.IsVfsMounted;
         mountButton.Command.Execute(null);
         
         // ToggleMountInternal is async, but the property might change after await. 

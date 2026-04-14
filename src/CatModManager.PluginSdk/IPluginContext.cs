@@ -6,8 +6,8 @@ public interface IPluginContext
     IPluginLogger    Log         { get; }
     IEventBus        Events      { get; }
     IPluginRegistrar Ui          { get; }
-    ICmmSettings     Settings    { get; }
     IModManagerState State       { get; }
+    IArchiveExtractor ArchiveExtractor { get; }
     /// <summary>CMM's persistent data directory. Plugins may store data in sub-folders here.</summary>
     string           AppDataPath { get; }
 }

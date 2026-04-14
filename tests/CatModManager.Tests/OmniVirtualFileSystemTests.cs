@@ -6,6 +6,7 @@ using Xunit;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
 using CatModManager.Core.Vfs;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests;
 
@@ -29,11 +30,11 @@ public class OmniVirtualFileSystemTests : IDisposable
     [Fact]
     public void Vfs_Mount_And_Unmount_Flow()
     {
-        var resolver = new SimpleConflictResolver(_logService);
+        var resolver = new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor());
         var vfs = new CatVirtualFileSystem(resolver, new MockDriver());
         var mods = new List<Mod>();
 
-        vfs.Mount(_mountPoint, mods, null);
+        vfs.Mount(_mountPoint, mods);
         Assert.True(vfs.IsMounted);
 
         vfs.Unmount();
@@ -43,7 +44,7 @@ public class OmniVirtualFileSystemTests : IDisposable
     [Fact]
     public void GetInfo_Returns_Correct_Nodes()
     {
-        var resolver = new SimpleConflictResolver(_logService);
+        var resolver = new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor());
         var vfs = new CatVirtualFileSystem(resolver, new MockDriver());
 
         // Create a mod with a test file so it appears in the VFS file map.
@@ -52,7 +53,7 @@ public class OmniVirtualFileSystemTests : IDisposable
         File.WriteAllText(Path.Combine(modDir, "test.txt"), "hello");
 
         var mod = new Mod("Mod1", modDir, 10);
-        vfs.Mount(_mountPoint, new List<Mod> { mod }, null);
+        vfs.Mount(_mountPoint, new List<Mod> { mod });
 
         var info = vfs.GetInfo("test.txt");
         Assert.NotNull(info);

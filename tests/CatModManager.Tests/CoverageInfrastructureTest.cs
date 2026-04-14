@@ -4,6 +4,7 @@ using System.IO;
 using Xunit;
 using CatModManager.Core.Services;
 using CatModManager.Core.Models;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests;
 
@@ -15,7 +16,7 @@ public class CoverageInfrastructureTest : IDisposable
     [Fact]
     public void SimpleConflictResolver_Basic_Coverage()
     {
-        var resolver = new SimpleConflictResolver(new LogService());
+        var resolver = new SimpleConflictResolver(new LogService(), new SevenZipArchiveExtractor());
         var mods = new List<Mod> { new Mod("Test", "Path", 1) };
         var result = resolver.ResolveConflicts(mods, _tempDir);
         Assert.NotNull(result);

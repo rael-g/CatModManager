@@ -8,7 +8,6 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CatModManager.PluginSdk;
 using CmmPlugin.FomodInstaller.Models;
-using SharpCompress.Archives;
 
 namespace CmmPlugin.FomodInstaller.Wizard;
 
@@ -20,6 +19,7 @@ public class FomodWizardWindow : Window
 {
     private readonly FomodWizardViewModel _vm;
     private readonly IPluginLogger _log;
+    private readonly IArchiveExtractor _extractor;
     private readonly string _archivePath;
     private readonly ContentControl _stepContent;
     private readonly TextBlock _stepIndicator;
@@ -27,9 +27,10 @@ public class FomodWizardWindow : Window
     private readonly Button _btnNext;
     private readonly Button _btnInstall;
 
-    public FomodWizardWindow(FomodModuleConfig config, IPluginLogger log, string archivePath = "")
+    public FomodWizardWindow(FomodModuleConfig config, IPluginLogger log, IArchiveExtractor extractor, string archivePath = "")
     {
         _log = log;
+        _extractor = extractor;
         _archivePath = archivePath;
         _vm = new FomodWizardViewModel(config);
 
@@ -220,7 +221,7 @@ public class FomodWizardWindow : Window
 
         if (!string.IsNullOrEmpty(plugin.ImagePath))
         {
-            var bmp = TryLoadImageFromArchive(_archivePath, plugin.ImagePath);
+            var bmp = TryLoadImageFromArchive(_extractor, _archivePath, plugin.ImagePath);
             if (bmp != null)
                 row.Children.Add(new Image
                 {
@@ -236,30 +237,25 @@ public class FomodWizardWindow : Window
     }
 
     /// <summary>
-    /// Attempts to extract an image entry from a zip/7z archive and return it as a Bitmap.
+    /// Attempts to extract an image entry from an archive and return it as a Bitmap.
     /// Returns null on any failure so the wizard degrades gracefully.
     /// </summary>
-    private static Bitmap? TryLoadImageFromArchive(string archivePath, string imagePath)
+    private static Bitmap? TryLoadImageFromArchive(IArchiveExtractor extractor, string archivePath, string imagePath)
     {
         if (string.IsNullOrEmpty(archivePath) || !File.Exists(archivePath)) return null;
         try
         {
-            // Normalise path separators for comparison
+            // Normalize path for lookup
             var normalizedImage = imagePath.Replace('\\', '/').TrimStart('/');
+            var files = extractor.GetFileList(archivePath);
+            
+            var entryKey = files.FirstOrDefault(f => 
+                string.Equals(f.Replace('\\', '/').TrimStart('/'), normalizedImage, StringComparison.OrdinalIgnoreCase));
 
-            using var archive = ArchiveFactory.Open(archivePath);
-            foreach (var entry in archive.Entries)
-            {
-                if (entry.IsDirectory) continue;
-                var entryKey = (entry.Key ?? "").Replace('\\', '/').TrimStart('/');
-                if (!string.Equals(entryKey, normalizedImage, StringComparison.OrdinalIgnoreCase))
-                    continue;
+            if (entryKey == null) return null;
 
-                using var ms = new MemoryStream();
-                entry.OpenEntryStream().CopyTo(ms);
-                ms.Position = 0;
-                return new Bitmap(ms);
-            }
+            using var stream = extractor.OpenFileStream(archivePath, entryKey);
+            return stream != null ? new Bitmap(stream) : null;
         }
         catch { /* Degrade gracefully — image simply won't appear */ }
         return null;
@@ -272,4 +268,3 @@ public class FomodWizardWindow : Window
         Close(InstallResult.Success(mapping));
     }
 }
-

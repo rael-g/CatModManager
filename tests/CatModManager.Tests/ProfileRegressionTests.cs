@@ -4,6 +4,7 @@ using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Core.Vfs;
 using CatModManager.VirtualFileSystem;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests;
 
@@ -50,7 +51,7 @@ public class ProfileRegressionTests : IDisposable
             _mockModManagementService,
             _mockProcessService,
             new VfsOrchestrationService(
-                new SimpleConflictResolver(_mockLog),
+                new SimpleConflictResolver(_mockLog, new SevenZipArchiveExtractor()),
                 new NullHardlinkStateStore(),
                 _stateService,
                 _mockLog),

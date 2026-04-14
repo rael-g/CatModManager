@@ -21,7 +21,7 @@ public class REEnginePlugin : ICmmPlugin
         ctx.Ui.RegisterInspectorTab(tab);
         ctx.Ui.RegisterGameLaunchHook(hook);
 
-        var installer = new ReEngineModInstaller(ctx.State);
+        var installer = new ReEngineModInstaller(ctx.State, ctx.ArchiveExtractor);
         ctx.Ui.RegisterModInstaller(installer);
 
         ctx.Log.Log($"[{DisplayName}] Initialized — RE2R, RE3R, RE7, RE Village, RE4R, RE9, DMC5, MH Rise, MH Wilds, DD2, SF6.");

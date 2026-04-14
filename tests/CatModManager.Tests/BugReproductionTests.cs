@@ -49,7 +49,7 @@ public class BugReproductionTests : IDisposable
             mockModManagementService, 
             mockProcessService,
             new VfsOrchestrationService(
-                new SimpleConflictResolver(_logService),
+                new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor()),
                 new NullHardlinkStateStore(),
                 stateService,
                 _logService),
@@ -127,7 +127,7 @@ public class BugReproductionTests : IDisposable
     [Fact]
     public async Task SimpleConflictResolver_Should_Not_Exit_Immediately_If_ForbiddenPath_Is_Root()
     {
-        var resolver = new SimpleConflictResolver(_logService);
+        var resolver = new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor());
         string baseDir = Path.Combine(_tempDir, "BaseFolder");
         Directory.CreateDirectory(baseDir);
         File.WriteAllText(Path.Combine(baseDir, "game.exe"), "content");
@@ -141,7 +141,7 @@ public class BugReproductionTests : IDisposable
     [Fact]
     public async Task SimpleConflictResolver_Should_Prevent_Infinite_Recursion_If_Mounted_Inside()
     {
-        var resolver = new SimpleConflictResolver(_logService);
+        var resolver = new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor());
         string baseDir = Path.Combine(_tempDir, "GameRoot");
         string mountPoint = Path.Combine(baseDir, "Data"); 
         Directory.CreateDirectory(mountPoint);
@@ -174,7 +174,7 @@ public class BugReproductionTests : IDisposable
             mockModManagementService, 
             mockProcessService,
             new VfsOrchestrationService(
-                new SimpleConflictResolver(_logService),
+                new SimpleConflictResolver(_logService, new SevenZipArchiveExtractor()),
                 new NullHardlinkStateStore(),
                 stateService,
                 _logService),
