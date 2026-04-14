@@ -31,10 +31,10 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly UiExtensionHost?         _uiExtensionHost;
     private readonly PluginBrowserViewModel?  _pluginBrowserVm;
 
-    // Coordinators (extracted logic)
-    private readonly ProfileCoordinator         _profiles;
-    private readonly VfsLifecycleCoordinator    _vfs;
-    private readonly ModInstallationCoordinator _installer;
+    // Coordinators (specialized logic)
+    public ProfileCoordinator         Profiles  { get; }
+    public VfsLifecycleCoordinator    Vfs       { get; }
+    public ModInstallationCoordinator Installer { get; }
 
     // Sub-ViewModels
     public ProfileManagerViewModel ProfileManager { get; }
@@ -43,18 +43,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ModInspectorViewModel    Inspector      { get; }
     public ExternalToolsViewModel   Tools          { get; }
 
-    // Proxied properties from coordinators
-    public bool   IsVfsMounted      => _vfs.IsVfsMounted;
-    public string SafeSwapStatusText => _vfs.SafeSwapStatusText;
-    public IBrush SafeSwapStatusColor => _vfs.SafeSwapStatusColor;
-    public string MountButtonText    => _vfs.MountButtonText;
-    public string MountButtonIcon    => _vfs.MountButtonIcon;
-    public IBrush MountButtonColor   => _vfs.MountButtonColor;
-
-    public bool   IsInstalling       => _installer.IsInstalling;
-    public double TotalInstallProgress => _installer.TotalInstallProgress;
-    public bool   IsTotalProgressIndeterminate => _installer.IsTotalProgressIndeterminate;
-    public bool   HasActiveDownloads => _sessionState.CheckHasActiveDownloads?.Invoke() ?? false;
+    public bool HasActiveDownloads => _sessionState.CheckHasActiveDownloads?.Invoke() ?? false;
 
     public string AppDataPath => _pathService.BaseDataPath;
 
@@ -107,18 +96,18 @@ public partial class MainWindowViewModel : ObservableObject
         Tools      = new ExternalToolsViewModel(processService, vfsOrchestrator, logService);
 
         // 2. Initialize Coordinators
-        _profiles = new ProfileCoordinator(profileService, configService, logService, sessionState, () => GameConfig, () => ModList, RefreshModMountPointDisplayNames, SyncActiveModsToState);
-        _vfs      = new VfsLifecycleCoordinator(vfsOrchestrator, logService, () => GameConfig, () => ModList, SyncActiveModsToState);
-        _installer = new ModInstallationCoordinator(modManagementService, modScanner, fileService, logService, sessionState, uiExtensionHost, () => GameConfig, () => ModList, (m, s) => { });
+        Profiles  = new ProfileCoordinator(profileService, configService, logService, sessionState, () => GameConfig, () => ModList, RefreshModMountPointDisplayNames, SyncActiveModsToState);
+        Vfs       = new VfsLifecycleCoordinator(vfsOrchestrator, logService, () => GameConfig, () => ModList, SyncActiveModsToState);
+        Installer = new ModInstallationCoordinator(modManagementService, modScanner, fileService, logService, sessionState, uiExtensionHost, () => GameConfig, () => ModList, (m, s) => { });
 
         // 3. Wire Events & Callbacks
-        _vfs.PropertyChanged       += (s, e) => OnPropertyChanged(e.PropertyName);
-        _installer.PropertyChanged += (s, e) => OnPropertyChanged(e.PropertyName);
+        Vfs.PropertyChanged       += (s, e) => OnPropertyChanged(e.PropertyName);
+        Installer.PropertyChanged += (s, e) => OnPropertyChanged(e.PropertyName);
         
         ProfileManager = new ProfileManagerViewModel(profileService, pathService, fileService, configService, logService);
-        ProfileManager.BuildSaveData  = () => _profiles.BuildCurrentProfile(ProfileManager.CurrentProfileName ?? "Untitled");
-        ProfileManager.IsVfsMounted   = () => IsVfsMounted;
-        ProfileManager.ProfileLoaded += p => _profiles.ApplyLoadedProfile(p);
+        ProfileManager.BuildSaveData  = () => Profiles.BuildCurrentProfile(ProfileManager.CurrentProfileName ?? "Untitled");
+        ProfileManager.IsVfsMounted   = () => Vfs.IsVfsMounted;
+        ProfileManager.ProfileLoaded += p => Profiles.ApplyLoadedProfile(p);
 
         GameConfig.AutoSave = () => ProfileManager.AutoSave();
         GameConfig.Initialize();
@@ -130,16 +119,16 @@ public partial class MainWindowViewModel : ObservableObject
         ModList.SyncActiveMods   = SyncActiveModsToState;
         ModList.SelectedModChanged += mod => { Inspector.OnModChanged(mod); OnPropertyChanged(nameof(SelectedModMountPointName)); };
 
-        Tools.IsVfsMounted  = () => IsVfsMounted;
+        Tools.IsVfsMounted  = () => Vfs.IsVfsMounted;
         Tools.EnsureMounted = async () =>
         {
-            if (IsVfsMounted) return OperationResult.Success();
-            return await _vfs.ToggleMountInternal();
+            if (Vfs.IsVfsMounted) return OperationResult.Success();
+            return await Vfs.ToggleMountInternal();
         };
         Tools.AutoSave = () => ProfileManager.AutoSave();
 
         _sessionState.RequestInstallModAction = (path, _) => 
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => _installer.InstallModAtMountPointAsync(path, null));
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => Installer.InstallModAtMountPointAsync(path, null));
 
         _logService.OnLog += AddLog;
         _vfsOrchestrator.RecoverStaleMounts();
@@ -149,15 +138,15 @@ public partial class MainWindowViewModel : ObservableObject
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
-    [RelayCommand] private Task ToggleMount() => _vfs.ToggleMount();
+    [RelayCommand] private Task ToggleMount() => Vfs.ToggleMount();
 
     [RelayCommand]
     private async Task LaunchGame()
     {
         if (GameConfig.ActiveGameSupport == null) { StatusMessage = "Select a game first."; return; }
-        if (!IsVfsMounted)
+        if (!Vfs.IsVfsMounted)
         {
-            var res = await _vfs.ToggleMountInternal();
+            var res = await Vfs.ToggleMountInternal();
             if (!res.IsSuccess) { StatusMessage = $"Mount failed: {res.ErrorMessage}"; return; }
         }
 
@@ -171,7 +160,7 @@ public partial class MainWindowViewModel : ObservableObject
         catch (Exception ex) { _logService.LogError("Launch failed", ex); StatusMessage = $"Launch error: {ex.Message}"; }
     }
 
-    [RelayCommand] private async Task AddMod(string? path = null) => await _installer.InstallModAtMountPointAsync(path ?? "", null);
+    [RelayCommand] private async Task AddMod(string? path = null) => await Installer.InstallModAtMountPointAsync(path ?? "", null);
     [RelayCommand] private async Task AddModFromFolder() { /* handled in coordinator-like flow in view if needed, or proxy here */ }
 
     [RelayCommand]
@@ -219,8 +208,12 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand] private void OpenDataSubFolder() => _ = OpenGameDataFolder();
     [RelayCommand] private async Task OpenGameDataFolder()
     {
-        var sub = GameConfig.DataSubFolder;
+        var points = GameConfig.EffectiveMountPoints;
+        if (points.Count == 0) { await _processService.OpenFolderAsync(GameConfig.BaseFolderPath ?? ""); return; }
+        
+        var sub = points[0].Path;
         if (string.IsNullOrEmpty(sub)) { await _processService.OpenFolderAsync(GameConfig.BaseFolderPath ?? ""); return; }
+        
         var expanded = Environment.ExpandEnvironmentVariables(sub);
         string folder = Path.IsPathRooted(expanded) ? expanded :
             !string.IsNullOrEmpty(GameConfig.BaseFolderPath) ? Path.Combine(GameConfig.BaseFolderPath, expanded) : expanded;
@@ -253,7 +246,6 @@ public partial class MainWindowViewModel : ObservableObject
         _sessionState.DownloadsFolderPath = GameConfig.DownloadsFolderPath;
         _sessionState.GameExecutablePath = GameConfig.GameExecutablePath;
         _sessionState.CurrentProfileName = ProfileManager.CurrentProfileName;
-        _sessionState.DataSubFolder = GameConfig.DataSubFolder;
     }
 
     private void AddLog(string msg)
@@ -268,10 +260,10 @@ public partial class MainWindowViewModel : ObservableObject
     {
         _logService.Log("Shutdown detected...");
         await _pluginLoader.ShutdownAllAsync();
-        _installer.CancelAll();
-        await _installer.WaitForTasks();
+        Installer.CancelAll();
+        await Installer.WaitForTasks();
         await _vfsOrchestrator.ShutdownCleanupAsync();
-        _profiles.SaveLastProfileName(ProfileManager.CurrentProfileName);
+        Profiles.SaveLastProfileName(ProfileManager.CurrentProfileName);
     }
 }
 
