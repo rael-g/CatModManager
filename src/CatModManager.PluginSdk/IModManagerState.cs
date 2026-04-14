@@ -15,8 +15,6 @@ public interface IModManagerState
     /// <summary>Nexus Mods game domain (e.g. "skyrimspecialedition"). Used by the NexusMods plugin for Browse.</summary>
     string?                 NexusDomain         { get; }
     string?                 CurrentProfileName  { get; }
-    /// <summary>Relative sub-folder the VFS mounts in (empty = game root). Use to determine routing mode in installers.</summary>
-    string?                 DataSubFolder       { get; }
 
     /// <summary>Raised on the UI thread when the active profile changes.</summary>
     event Action<string>? ProfileChanged;

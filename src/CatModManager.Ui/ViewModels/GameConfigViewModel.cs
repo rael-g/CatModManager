@@ -25,7 +25,6 @@ public partial class GameConfigViewModel : ViewModelBase
     [ObservableProperty] private string? _baseFolderPath;
     [ObservableProperty] private string? _gameExecutablePath;
     [ObservableProperty] private string? _launchArguments;
-    [ObservableProperty] private string? _dataSubFolder;
     [ObservableProperty] private string? _downloadsFolderPath;
     [ObservableProperty] private IGameSupport _activeGameSupport;
 
@@ -42,17 +41,12 @@ public partial class GameConfigViewModel : ViewModelBase
     {
         get
         {
-            // First entry is always the DataSubFolder default mount point.
-            var result = new List<MountPointDef>
-            {
-                new MountPointDef("default", "Default", DataSubFolder ?? "")
-            };
+            var result = new List<MountPointDef>();
 
-            // Then game-defined additional mount points (skip "default" id).
+            // First game-defined additional mount points.
             // If a UserMountPoint overrides one (same Id), the user version wins.
             foreach (var mp in ActiveGameSupport?.GameDefinedMountPoints ?? [])
             {
-                if (string.Equals(mp.Id, "default", StringComparison.OrdinalIgnoreCase)) continue;
                 var userOverride = UserMountPoints.FirstOrDefault(u =>
                     string.Equals(u.Id, mp.Id, StringComparison.OrdinalIgnoreCase));
                 result.Add(userOverride ?? mp);
@@ -104,25 +98,6 @@ public partial class GameConfigViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Resolved absolute path for the default (DataSubFolder) mount point.
-    /// Expands environment variables and combines with BaseFolderPath for relative paths.
-    /// </summary>
-    public string DefaultMountPointAbsolutePath
-    {
-        get
-        {
-            var sub = DataSubFolder;
-            if (string.IsNullOrEmpty(sub))
-                return BaseFolderPath ?? "(game folder)";
-            var expanded = Environment.ExpandEnvironmentVariables(sub);
-            if (Path.IsPathRooted(expanded)) return expanded;
-            if (!string.IsNullOrEmpty(BaseFolderPath))
-                return Path.Combine(BaseFolderPath, expanded);
-            return sub;
-        }
-    }
-
     public ObservableCollection<IGameSupport> AvailableGameSupports { get; } = new();
 
     public GameConfigViewModel(
@@ -160,9 +135,8 @@ public partial class GameConfigViewModel : ViewModelBase
 
     partial void OnGameExecutablePathChanged(string? value) { AutoSave?.Invoke(); DetectSupport(value); }
     partial void OnModsFolderPathChanged(string? value)     => AutoSave?.Invoke();
-    partial void OnDataSubFolderChanged(string? value)      { AutoSave?.Invoke(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(DefaultMountPointAbsolutePath)); }
     partial void OnDownloadsFolderPathChanged(string? value) => AutoSave?.Invoke();
-    partial void OnBaseFolderPathChanged(string? value)     { AutoSave?.Invoke(); OnPropertyChanged(nameof(DefaultMountPointAbsolutePath)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
+    partial void OnBaseFolderPathChanged(string? value)     { AutoSave?.Invoke(); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
     partial void OnLaunchArgumentsChanged(string? value)    => AutoSave?.Invoke();
     partial void OnActiveGameSupportChanged(IGameSupport value) { AutoSave?.Invoke(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(GameDefinedMountPoints)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
 
@@ -194,7 +168,6 @@ public partial class GameConfigViewModel : ViewModelBase
         AutoSave = null;
         GameExecutablePath  = result.ExecutablePath;
         BaseFolderPath      = result.GameFolder;
-        DataSubFolder       = mode.DataSubFolder;
         ModsFolderPath      = Path.Combine(result.GameFolder, "mods");
         DownloadsFolderPath = Path.Combine(result.GameFolder, "downloads");
         ActiveGameSupport   = mode;
@@ -218,7 +191,6 @@ public partial class GameConfigViewModel : ViewModelBase
                 ActiveGameSupport = detected;
                 AutoSave = saved;
                 _logService.Log($"Auto-detected Game Support: {detected.DisplayName}");
-                DataSubFolder = detected.DataSubFolder;
             }
         }
         if (string.IsNullOrEmpty(BaseFolderPath) && !string.IsNullOrEmpty(value))

@@ -180,22 +180,6 @@
                             </Grid>
                             <Border Padding="12,6,12,8">
                                 <StackPanel Spacing="4">
-                                    <!-- Default mount point (from DataSubFolder) — editable, predefined -->
-                                    <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6">
-                                        <Grid ColumnDefinitions="*, Auto, Auto, Auto">
-                                            <StackPanel Grid.Column="0" Spacing="1">
-                                                <TextBlock Text="Default" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource AccentColor}"/>
-                                                <TextBlock Text="{Binding GameConfig.DefaultMountPointAbsolutePath}"
-                                                           FontSize="10" FontFamily="Cascadia Code, Consolas, monospace"
-                                                           Foreground="{DynamicResource TextSubtle}"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           ToolTip.Tip="{Binding GameConfig.DefaultMountPointAbsolutePath}"/>
-                                            </StackPanel>
-                                            <Button Grid.Column="1" Command="{Binding OpenDataSubFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                            <Button Grid.Column="2" Click="SelectDataSubFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
-                                            <Button Grid.Column="3" Content="⊘" Classes="small-icon" IsHitTestVisible="False" Opacity="0.4" ToolTip.Tip="Predefined (read-only)"/>
-                                        </Grid>
-                                    </Border>
                                     <!-- Game-defined mount points (read-only, resolved absolute paths) -->
                                     <ItemsControl ItemsSource="{Binding GameConfig.ResolvedGameDefinedMountPoints}">
                                         <ItemsControl.ItemTemplate>
@@ -337,8 +321,8 @@
 
                             <Button Command="{Binding ToggleMountCommand}" Classes="mount-btn">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding MountButtonIcon}" Foreground="{Binding MountButtonColor}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding MountButtonText}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Vfs.MountButtonIcon}" Foreground="{Binding Vfs.MountButtonColor}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Vfs.MountButtonText}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
 
@@ -678,16 +662,16 @@
         <Border Grid.Row="2" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Padding="12,0">
             <Grid ColumnDefinitions="*, Auto">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="●" Foreground="{Binding MountButtonColor}" FontSize="8" VerticalAlignment="Center" IsVisible="{Binding !IsInstalling}"/>
-                    <ProgressBar Value="{Binding TotalInstallProgress}" Maximum="100" Width="40" Height="4" IsVisible="{Binding IsInstalling}" 
-                                 IsIndeterminate="{Binding IsTotalProgressIndeterminate}"
+                    <TextBlock Text="●" Foreground="{Binding Vfs.MountButtonColor}" FontSize="8" VerticalAlignment="Center" IsVisible="{Binding !Installer.IsInstalling}"/>
+                    <ProgressBar Value="{Binding Installer.TotalInstallProgress}" Maximum="100" Width="40" Height="4" IsVisible="{Binding Installer.IsInstalling}" 
+                                 IsIndeterminate="{Binding Installer.IsTotalProgressIndeterminate}"
                                  VerticalAlignment="Center" Background="{DynamicResource BorderColor}" Foreground="{DynamicResource AccentColor}"/>
                     <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
                     <TextBlock Text="{Binding ModList.AllMods.Count, StringFormat='{}{0} Mods'}" FontSize="10" Foreground="{DynamicResource TextSubtle}"/>
                     <TextBlock Text="·" Foreground="{DynamicResource TextSubtle}"/>
-                    <TextBlock Text="{Binding SafeSwapStatusText}" Foreground="{Binding SafeSwapStatusColor}" FontSize="10" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding Vfs.SafeSwapStatusText}" Foreground="{Binding Vfs.SafeSwapStatusColor}" FontSize="10" FontWeight="SemiBold"/>
                 </StackPanel>
             </Grid>
         </Border>

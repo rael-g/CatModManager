@@ -88,7 +88,6 @@ public partial class VfsLifecycleCoordinator : ObservableObject
             var res = await _vfsOrchestrator.MountAsync(new MountOptions
             {
                 GameFolderPath = config.BaseFolderPath,
-                DataSubFolder  = config.DataSubFolder,
                 ActiveMods     = modList.AllMods.Where(m => m.IsEnabled && !m.IsBroken).ToList(),
                 MountPoints    = config.EffectiveMountPoints.ToList()
             });

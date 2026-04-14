@@ -72,12 +72,13 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         {
             _lastGameFolderPath = options.GameFolderPath;
 
-            var mountPoints = BuildEffectiveMountPoints(options);
+            var mountPoints = options.MountPoints;
+            if (mountPoints.Count == 0)
+                return OperationResult.Failure("ERROR: No mount points defined for this profile.");
 
             var mountInfo = new MountInfo
             {
                 GameFolderPath = options.GameFolderPath,
-                DataSubFolder  = options.DataSubFolder,
                 ActiveMods     = options.ActiveMods.Cast<IModInfo>().ToList()
             };
             foreach (var hook in _vfsHooks)
@@ -97,7 +98,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
                 string targetPath = ResolveMountPointPath(options.GameFolderPath, mp.Path);
 
                 var vfs = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore));
-                await Task.Run(() => vfs.Mount(options.GameFolderPath, modsForMp, GetDataSubFolder(mp, options)));
+                await Task.Run(() => vfs.Mount(targetPath, modsForMp));
                 _mounted.Add(vfs);
 
                 _logService.Log($"  [{mp.Name}] → {targetPath} ({modsForMp.Count} mod(s))");
@@ -137,26 +138,11 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         }
     }
 
-    private static List<MountPointDef> BuildEffectiveMountPoints(MountOptions options)
-    {
-        if (options.MountPoints.Count > 0)
-            return options.MountPoints;
-
-        // Legacy: single mount point from DataSubFolder
-        return [new MountPointDef("default", "Default", options.DataSubFolder ?? "")];
-    }
-
     private static bool MountPointMatches(Mod mod, MountPointDef mp, MountPointDef defaultMp)
     {
         if (string.IsNullOrEmpty(mod.MountPointId))
             return mp == defaultMp;
         return string.Equals(mod.MountPointId, mp.Id, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string? GetDataSubFolder(MountPointDef mp, MountOptions options)
-    {
-        if (string.IsNullOrEmpty(mp.Path)) return null;
-        return Environment.ExpandEnvironmentVariables(mp.Path);
     }
 
     private static string ResolveMountPointPath(string gameFolder, string mpPath)

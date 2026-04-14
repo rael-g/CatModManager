@@ -6,7 +6,6 @@ namespace CatModManager.PluginSdk;
 public sealed class MountInfo
 {
     public string? GameFolderPath { get; init; }
-    public string? DataSubFolder  { get; init; }
     public IReadOnlyList<IModInfo> ActiveMods { get; init; } = [];
 }
 

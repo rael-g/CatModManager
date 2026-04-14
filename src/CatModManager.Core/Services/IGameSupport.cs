@@ -17,11 +17,6 @@ public interface IGameSupport
     int SteamAppId { get; }
 
     /// <summary>
-    /// Relative path inside the game folder where the VFS mounts (e.g. "Data" for Skyrim).
-    /// </summary>
-    string DataSubFolder { get; }
-
-    /// <summary>
     /// Files/folders (relative to the game root) required for detection.
     /// The first .exe entry is treated as the primary executable.
     /// </summary>
@@ -29,7 +24,6 @@ public interface IGameSupport
 
     /// <summary>
     /// Predefined mount points for this game (read-only; from game definition).
-    /// Empty list = use <see cref="DataSubFolder"/> as the single default mount point.
     /// </summary>
     IReadOnlyList<MountPointDef> GameDefinedMountPoints { get; }
 }
@@ -44,7 +38,6 @@ public class GenericGameSupport : IGameSupport
 
     public string? NexusDomain => null;
     public int SteamAppId => 0;
-    public string DataSubFolder => "";
     public string[] RequiredFiles => [];
     public IReadOnlyList<MountPointDef> GameDefinedMountPoints => [];
 }

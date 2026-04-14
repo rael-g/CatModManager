@@ -28,8 +28,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         
         DataContextChanged += OnDataContextChanged;
-
-        // ... rest of constructor logic ...
         
         Closing += async (s, e) => {
             if (_isShuttingDown) return;
@@ -311,32 +309,9 @@ public partial class MainWindow : Window
             vm.GameConfig.DownloadsFolderPath = folders[0].Path.LocalPath;
     }
 
-    private async void SelectDataSubFolder_Click(object sender, RoutedEventArgs e)
+    private void SelectDataSubFolder_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainWindowViewModel vm) return;
-        var topLevel = GetTopLevel(this);
-        var dataSub = vm.GameConfig.DataSubFolder;
-        var currentFull = !string.IsNullOrEmpty(dataSub)
-            ? (System.IO.Path.IsPathRooted(dataSub)
-                ? dataSub
-                : (!string.IsNullOrEmpty(vm.GameConfig.BaseFolderPath)
-                    ? System.IO.Path.Combine(vm.GameConfig.BaseFolderPath, dataSub)
-                    : null))
-            : null;
-        var folders = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "Select Data Subfolder",
-            AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(currentFull, vm.GameConfig.BaseFolderPath)
-        });
-        if (folders.Count >= 1)
-        {
-            var selected = folders[0].Path.LocalPath;
-            if (!string.IsNullOrEmpty(vm.GameConfig.BaseFolderPath) && selected.StartsWith(vm.GameConfig.BaseFolderPath, StringComparison.OrdinalIgnoreCase))
-                vm.GameConfig.DataSubFolder = System.IO.Path.GetRelativePath(vm.GameConfig.BaseFolderPath, selected);
-            else
-                vm.GameConfig.DataSubFolder = selected;
-        }
+        // DataSubFolder removal: this button logic is now handled via Mount Points in the UI.
     }
 
     private async void AddMod_Click(object sender, RoutedEventArgs e)
@@ -524,7 +499,7 @@ public partial class MainWindow : Window
         string? chosen = await ShowMountPointPickerDialog(vm, selectedMod.MountPointId);
         if (chosen == "cancelled") return;
 
-        // The first entry is the default (DataSubFolder); null MountPointId means "use default".
+        // The first entry is the default; null MountPointId means "use default".
         var defaultId = vm.GameConfig.EffectiveMountPoints.Count > 0
             ? vm.GameConfig.EffectiveMountPoints[0].Id : null;
         selectedMod.MountPointId = (chosen == null || chosen == defaultId) ? null : chosen;

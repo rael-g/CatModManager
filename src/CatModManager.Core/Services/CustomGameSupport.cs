@@ -28,7 +28,6 @@ public class GameDefinition
     /// <summary>
     /// Predefined mount points for this game (from TOML).
     /// The first entry is the default install target.
-    /// If empty, a single default mount point is synthesised from DataSubFolder.
     /// </summary>
     public List<MountPointDef> MountPoints { get; set; } = new();
 }
@@ -43,8 +42,18 @@ public class CustomGameSupport : IGameSupport
     public int SteamAppId => _def.SteamAppId;
     public string DataSubFolder => _def.DataSubFolder;
     public string[] RequiredFiles => _def.RequiredFiles;
-    public IReadOnlyList<MountPointDef> GameDefinedMountPoints =>
-        _def.MountPoints.Select(mp => new MountPointDef(mp.Id, mp.Name, mp.Path, isGameDefined: true)).ToList();
+
+    public IReadOnlyList<MountPointDef> GameDefinedMountPoints
+    {
+        get
+        {
+            if (_def.MountPoints.Count > 0)
+                return _def.MountPoints.Select(mp => new MountPointDef(mp.Id, mp.Name, mp.Path, isGameDefined: true)).ToList();
+
+            // Fallback: Create a default mount point from the legacy DataSubFolder property.
+            return [new MountPointDef("default", "Default", _def.DataSubFolder, isGameDefined: true)];
+        }
+    }
 
     public CustomGameSupport(GameDefinition def) => _def = def;
 

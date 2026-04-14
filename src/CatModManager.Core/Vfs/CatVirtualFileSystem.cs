@@ -29,19 +29,16 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
         _driver   = driver;
     }
 
-    public void Mount(string gameFolderPath, List<Mod> activeMods, string? dataSubFolder = null)
+    public void Mount(string gameFolderPath, List<Mod> activeMods)
     {
         if (IsMounted) return;
 
         try
         {
-            string mountPoint = string.IsNullOrEmpty(dataSubFolder)
-                ? gameFolderPath
-                : Path.IsPathRooted(dataSubFolder)
-                    ? dataSubFolder
-                    : Path.Combine(gameFolderPath, dataSubFolder);
+            // MountPoint is now implicitly gameFolderPath (already resolved by orchestrator)
+            string mountPoint = gameFolderPath;
 
-            var rawMap = _resolver.ResolveConflicts(activeMods, gameFolderPath, dataSubFolder, mountPoint);
+            var rawMap = _resolver.ResolveConflicts(activeMods, gameFolderPath, null, mountPoint);
 
             var fileMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
             foreach (var kvp in rawMap)

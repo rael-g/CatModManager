@@ -20,7 +20,6 @@ public sealed class AppSessionState
     public string?                 GameId            { get; set; }
     public string?                 NexusDomain       { get; set; }
     public string?                 CurrentProfileName { get; set; }
-    public string?                 DataSubFolder     { get; set; }
 
     // ── Events fired by MainWindowViewModel ───────────────────────────────────
 

@@ -22,7 +22,6 @@ public class ModManagerStateAdapter : IModManagerState
     public string? GameId              => _state.GameId;
     public string? NexusDomain         => _state.NexusDomain;
     public string? CurrentProfileName  => _state.CurrentProfileName;
-    public string? DataSubFolder       => _state.DataSubFolder;
 
     public event Action<string>? ProfileChanged { add => _state.ProfileChanged += value; remove => _state.ProfileChanged -= value; }
 
