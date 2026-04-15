@@ -1,0 +1,84 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Xunit;
+using NSubstitute;
+using CatModManager.PluginSdk;
+using CmmPlugin.FomodInstaller.Parser;
+
+namespace CatModManager.Tests.Plugins.FomodInstaller;
+
+public class FomodParserTests : IDisposable
+{
+    private readonly string _tempDir;
+    private readonly string _dummyZip;
+
+    public FomodParserTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), "FomodTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_tempDir);
+        _dummyZip = Path.Combine(_tempDir, "dummy.zip");
+        File.WriteAllText(_dummyZip, "not a real zip but file must exist");
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true);
+    }
+
+    private const string BasicFomodXml = @"
+<config xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xsi:noNamespaceSchemaLocation=""http://lite-mode.com/fomod/1.0/config.xsd"">
+    <moduleName>Test Mod</moduleName>
+    <requiredInstallFiles>
+        <file source=""Core/test.esp"" destination=""test.esp""/>
+    </requiredInstallFiles>
+</config>";
+
+    [Fact]
+    public void IsFomod_ReturnsTrue_IfXmlExists()
+    {
+        var mockExtractor = Substitute.For<IArchiveExtractor>();
+        mockExtractor.GetFileList(Arg.Any<string>()).Returns(new[] { "fomod/ModuleConfig.xml" });
+        
+        bool isFomod = FomodParser.IsFomod(_dummyZip, mockExtractor);
+        
+        Assert.True(isFomod);
+    }
+
+    [Fact]
+    public void Parse_Basic_ReturnsCorrectNameAndFiles()
+    {
+        var mockExtractor = Substitute.For<IArchiveExtractor>();
+        string configPath = "fomod/ModuleConfig.xml";
+        
+        mockExtractor.GetFileList(Arg.Any<string>()).Returns(new[] { configPath });
+        
+        var xmlStream = new MemoryStream(Encoding.UTF8.GetBytes(BasicFomodXml));
+        mockExtractor.OpenFileStream(Arg.Any<string>(), configPath).Returns(xmlStream);
+
+        var config = FomodParser.Parse(_dummyZip, mockExtractor);
+
+        Assert.Equal("Test Mod", config.ModuleName);
+        Assert.Single(config.RequiredInstallFiles);
+        Assert.Equal("Core/test.esp", config.RequiredInstallFiles[0].Source);
+    }
+
+    [Fact]
+    public void Parse_WithWrapperFolder_DetectsPrefix()
+    {
+        var mockExtractor = Substitute.For<IArchiveExtractor>();
+        string nestedConfig = "MyAwesomeMod/fomod/ModuleConfig.xml";
+        
+        mockExtractor.GetFileList(Arg.Any<string>()).Returns(new[] { nestedConfig });
+        
+        var xmlStream = new MemoryStream(Encoding.UTF8.GetBytes(BasicFomodXml));
+        mockExtractor.OpenFileStream(Arg.Any<string>(), nestedConfig).Returns(xmlStream);
+
+        var config = FomodParser.Parse(_dummyZip, mockExtractor);
+
+        Assert.Equal("MyAwesomeMod/", config.WrapperPrefix);
+    }
+}

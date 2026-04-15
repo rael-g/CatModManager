@@ -11,10 +11,17 @@ public class CatPathService : ICatPathService
     public string ActiveMountsFile => Path.Combine(BaseDataPath, "active_mounts.toml");
     public string DownloadsPath => Path.Combine(BaseDataPath, "downloads");
 
-    public CatPathService()
+    public CatPathService(string? overrideBaseDir = null)
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        BaseDataPath = Path.GetFullPath(Path.Combine(localAppData, "catmodmanager"));
+        if (overrideBaseDir != null)
+        {
+            BaseDataPath = overrideBaseDir;
+        }
+        else
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            BaseDataPath = Path.GetFullPath(Path.Combine(localAppData, "catmodmanager"));
+        }
         
         // Ensure all critical directories exist immediately in the correct OS location
         Directory.CreateDirectory(BaseDataPath);
