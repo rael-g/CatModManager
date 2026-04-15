@@ -250,10 +250,18 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void AddLog(string msg)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => {
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
             Logs.Insert(0, msg);
             if (Logs.Count > 100) Logs.RemoveAt(100);
-        });
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => {
+                Logs.Insert(0, msg);
+                if (Logs.Count > 100) Logs.RemoveAt(100);
+            });
+        }
     }
 
     public async Task Shutdown()
