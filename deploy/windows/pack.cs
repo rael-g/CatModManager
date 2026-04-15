@@ -6,10 +6,12 @@
 //   • .NET 10 SDK
 //   • Inno Setup 6  (https://jrsoftware.org/isinfo.php)
 
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net.Http;
-
-const string WinFspUrl = "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi";
+using System.IO;
+using System.Linq;
+using System.Text;
 
 if (args.Length == 0)
 {
@@ -20,33 +22,47 @@ if (args.Length == 0)
 string version = args[0];
 string iscc    = args.Length > 1 ? args[1] : FindIscc();
 
-// Always work relative to this script's own directory, regardless of where
-// dotnet run was invoked from.
+// Always work relative to this script's own directory
 Directory.SetCurrentDirectory(ScriptDir());
 
-string project   = Path.GetFullPath(@"..\..\src\CatModManager.Ui\CatModManager.Ui.csproj");
-string winfspMsi = Path.Combine(Path.GetTempPath(), "winfsp-setup.msi");
+string uiProject = Path.GetFullPath(@"..\..\src\CatModManager.Ui\CatModManager.Ui.csproj");
+string pluginsDir = Path.GetFullPath(@"..\..\src\plugins");
 
-// ── 1. Publish ───────────────────────────────────────────────────────────────
-Log("Publishing (win-x64, self-contained)...");
-Run("dotnet", $"publish \"{project}\" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish");
+// ── 1. Clean ─────────────────────────────────────────────────────────────────
+if (Directory.Exists("publish")) Directory.Delete("publish", true);
+Directory.CreateDirectory("publish");
 
-// ── 2. Download WinFsp MSI ───────────────────────────────────────────────────
-if (!File.Exists(winfspMsi))
+// ── 2. Publish UI ───────────────────────────────────────────────────────────
+Log("Publishing UI (win-x64, self-contained)...");
+Run("dotnet", $"publish \"{uiProject}\" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish");
+
+// ── 3. Publish Plugins ───────────────────────────────────────────────────────
+Log("Scanning and publishing plugins...");
+var plugins = new List<PluginInfo>();
+if (Directory.Exists(pluginsDir))
 {
-    Log("Downloading WinFsp MSI...");
-    using var http = new HttpClient();
-    var bytes = await http.GetByteArrayAsync(WinFspUrl);
-    await File.WriteAllBytesAsync(winfspMsi, bytes);
-}
-else
-{
-    Log("WinFsp MSI already present, skipping download.");
+    foreach (var dir in Directory.GetDirectories(pluginsDir))
+    {
+        var csproj = Directory.GetFiles(dir, "*.csproj").FirstOrDefault();
+        if (csproj == null) continue;
+
+        string pluginName = Path.GetFileNameWithoutExtension(csproj);
+        Log($"  Publishing {pluginName}...");
+        
+        string outputDir = Path.Combine("publish", "plugins", pluginName);
+        Run("dotnet", $"publish \"{csproj}\" -c Release -r win-x64 --self-contained false -o \"{outputDir}\"");
+        
+        plugins.Add(new PluginInfo(pluginName, outputDir));
+    }
 }
 
-// ── 3. Compile Inno Setup installer ─────────────────────────────────────────
+// ── 4. Generate plugins_generated.iss ───────────────────────────────────────
+Log("Generating plugins_generated.iss...");
+GeneratePluginsIss(plugins);
+
+// ── 5. Compile Inno Setup installer ─────────────────────────────────────────
 Log("Compiling installer (Inno Setup)...");
-Run(iscc, $"/DAppVersion={version} /DWinFspMsi={winfspMsi} CatModManager.iss");
+Run(iscc, $"/DAppVersion={version} CatModManager.iss");
 
 Console.WriteLine();
 Console.WriteLine($"Done.  dist\\CatModManagerSetup-{version}.exe");
@@ -67,6 +83,32 @@ static void Run(string exe, string arguments)
     }
 }
 
+static void GeneratePluginsIss(List<PluginInfo> plugins)
+{
+    var sb = new StringBuilder();
+    sb.AppendLine("; AUTO-GERADO por pack.cs — não editar manualmente");
+    sb.AppendLine();
+    
+    sb.AppendLine("[Components]");
+    foreach (var p in plugins)
+    {
+        string id = p.Name.Replace("CmmPlugin.", "").ToLowerInvariant();
+        // Clean description based on common plugin names
+        string desc = p.Name.Replace("CmmPlugin.", "") + " Plugin";
+        sb.AppendLine($"Name: \"plugins\\{id}\"; Description: \"{desc}\"; Flags: disablenouninstallwarning");
+    }
+    sb.AppendLine();
+
+    sb.AppendLine("[Files]");
+    foreach (var p in plugins)
+    {
+        string id = p.Name.Replace("CmmPlugin.", "").ToLowerInvariant();
+        sb.AppendLine($"Source: \"publish\\plugins\\{p.Name}\\*\"; DestDir: \"{{app}}\\plugins\\{p.Name}\"; Components: plugins\\{id}; Flags: ignoreversion recursesubdirs");
+    }
+
+    File.WriteAllText("plugins_generated.iss", sb.ToString(), Encoding.UTF8);
+}
+
 static string FindIscc()
 {
     string[] candidates =
@@ -79,13 +121,10 @@ static string FindIscc()
     if (found is not null) return found;
 
     Console.Error.WriteLine("ERROR: ISCC.exe not found. Install Inno Setup 6 from https://jrsoftware.org/isinfo.php");
-    Console.Error.WriteLine("       Or pass the path explicitly: dotnet run --file pack.cs -- <version> \"C:\\path\\to\\ISCC.exe\"");
     Environment.Exit(1);
     return null!;
 }
 
-// Walks up from cwd until it finds this script file, returns that directory.
-// Falls back to cwd if not found (e.g. running from the script's own dir).
 static string ScriptDir()
 {
     const string scriptName = "pack.cs";
@@ -96,6 +135,7 @@ static string ScriptDir()
             return Path.Combine(dir.FullName, "deploy", "windows");
         dir = dir.Parent;
     }
-    // Already in the script's directory
     return Directory.GetCurrentDirectory();
 }
+
+record PluginInfo(string Name, string Path);
