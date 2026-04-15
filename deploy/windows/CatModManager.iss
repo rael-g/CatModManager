@@ -1,13 +1,9 @@
 ; Cat Mod Manager — Inno Setup 6 Script
 ; Build: ISCC /DAppVersion=1.2.0 CatModManager.iss
-;        (or use pack.ps1 which sets the version automatically)
+;        (or use pack.cs which sets the version automatically)
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
-#endif
-
-#ifndef WinFspMsi
-  #define WinFspMsi "winfsp-setup.msi"
 #endif
 
 #define AppName      "Cat Mod Manager"
@@ -65,6 +61,13 @@ Name: "english";             MessagesFile: "compiler:Default.isl"
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 
 ; ─────────────────────────────────────────────────────────────────────────────
+[Components]
+Name: "main"; Description: "Cat Mod Manager (Core Application)"; Types: full custom; Flags: fixed
+
+; Include auto-generated plugin components
+#include "plugins_generated.iss"
+
+; ─────────────────────────────────────────────────────────────────────────────
 [Tasks]
 
 ; Desktop shortcut — unchecked by default (user opts in)
@@ -73,38 +76,20 @@ Name: "desktopicon"; \
   GroupDescription: "Additional shortcuts:"; \
   Flags: unchecked
 
-; WinFsp — shown only when not already installed (checked by default when shown)
-Name: "winfsp"; \
-  Description: "Install &WinFsp driver  (required for VFS mod mounting — launches its own installer)"; \
-  GroupDescription: "Prerequisites:"; \
-  Check: WinFspNotInstalled
-
 ; ─────────────────────────────────────────────────────────────────────────────
 [Files]
 
 ; Application binaries
 Source: "publish\*"; \
   DestDir: "{app}"; \
+  Components: main; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Game definitions — installed once, never overwritten on upgrade/reinstall
-Source: "..\..\samples\game_definitions\skyrim.toml"; \
+; Game definitions — all samples via wildcard. 
+; Installed once, never overwritten on upgrade if user customized them.
+Source: "..\..\samples\game_definitions\*"; \
   DestDir: "{localappdata}\catmodmanager\game_definitions"; \
   Flags: onlyifdoesntexist uninsneveruninstall
-
-Source: "..\..\samples\game_definitions\cyberpunk.toml"; \
-  DestDir: "{localappdata}\catmodmanager\game_definitions"; \
-  Flags: onlyifdoesntexist uninsneveruninstall
-
-Source: "..\..\samples\game_definitions\liesofp.toml"; \
-  DestDir: "{localappdata}\catmodmanager\game_definitions"; \
-  Flags: onlyifdoesntexist uninsneveruninstall
-
-; WinFsp MSI — bundled, extracted to %TEMP% only when the task is selected
-Source: "{#WinFspMsi}"; \
-  DestDir: "{tmp}"; \
-  Flags: deleteafterinstall; \
-  Tasks: winfsp
 
 ; ─────────────────────────────────────────────────────────────────────────────
 [Icons]
@@ -112,7 +97,8 @@ Source: "{#WinFspMsi}"; \
 ; Start Menu
 Name: "{autoprograms}\{#AppName}"; \
   Filename: "{app}\{#AppExeName}"; \
-  IconFilename: "{app}\{#AppExeName}"
+  IconFilename: "{app}\{#AppExeName}"; \
+  Components: main
 
 ; Desktop (optional task)
 Name: "{autodesktop}\{#AppName}"; \
@@ -122,13 +108,6 @@ Name: "{autodesktop}\{#AppName}"; \
 
 ; ─────────────────────────────────────────────────────────────────────────────
 [Run]
-
-; WinFsp: launches the MSI with its own installer UI (handles its own UAC)
-Filename: "msiexec.exe"; \
-  Parameters: "/i ""{tmp}\winfsp-setup.msi"""; \
-  StatusMsg: "Installing WinFsp driver..."; \
-  Tasks: winfsp; \
-  Flags: waituntilterminated
 
 ; Offer to launch CMM after setup completes
 Filename: "{app}\{#AppExeName}"; \
@@ -160,14 +139,3 @@ Root: HKCU; Subkey: "Software\Classes\CatModManager.Profile\DefaultIcon"; \
 Root: HKCU; Subkey: "Software\Classes\CatModManager.Profile\shell\open\command"; \
   ValueType: string; \
   ValueData: """{app}\{#AppExeName}"" ""%1"""
-
-; ─────────────────────────────────────────────────────────────────────────────
-[Code]
-
-{ Returns True when WinFsp is NOT installed — used to show the task checkbox only
-  when the driver is actually missing. }
-function WinFspNotInstalled: Boolean;
-begin
-  Result := not (RegKeyExists(HKLM, 'SOFTWARE\WinFsp') or
-                 RegKeyExists(HKLM, 'SOFTWARE\WOW6432Node\WinFsp'));
-end;
