@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using CatModManager.PluginSdk;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -6,53 +7,113 @@ using Nett;
 
 namespace CatModManager.Core.Models;
 
-public partial class Mod : ObservableObject, IModInfo
+/// <summary>
+/// Data model for a Mod. 
+/// Inherits from ObservableObject for UI binding, but uses manual properties
+/// to ensure compatibility with Nett's reflection-based serialization.
+/// </summary>
+public class Mod : ObservableObject, IModInfo
 {
-    [ObservableProperty]
     private string _name = string.Empty;
+    public string Name 
+    { 
+        get => _name; 
+        set => SetProperty(ref _name, value); 
+    }
 
-    [ObservableProperty]
     private string _modRootPath = string.Empty;
+    public string ModRootPath 
+    { 
+        get => _modRootPath; 
+        set => SetProperty(ref _modRootPath, value); 
+    }
 
-    [ObservableProperty]
     private int _priority;
+    public int Priority 
+    { 
+        get => _priority; 
+        set => SetProperty(ref _priority, value); 
+    }
 
-    [ObservableProperty]
     private bool _isEnabled = true;
+    public bool IsEnabled 
+    { 
+        get => _isEnabled; 
+        set => SetProperty(ref _isEnabled, value); 
+    }
 
-    [ObservableProperty]
     private bool _isArchive;
+    public bool IsArchive 
+    { 
+        get => _isArchive; 
+        set => SetProperty(ref _isArchive, value); 
+    }
 
+    [TomlIgnore]
     public bool IsDirectory => !IsArchive && Directory.Exists(ModRootPath);
+    
+    [TomlIgnore]
     public bool IsPhysicalArchive => IsArchive && File.Exists(ModRootPath);
 
-    [ObservableProperty]
     private string _category = "Uncategorized";
+    public string Category 
+    { 
+        get => _category; 
+        set => SetProperty(ref _category, value); 
+    }
 
-    [ObservableProperty]
     private string _version = "1.0.0";
+    public string Version 
+    { 
+        get => _version; 
+        set => SetProperty(ref _version, value); 
+    }
 
-    [ObservableProperty]
     private bool _isSeparator;
+    public bool IsSeparator 
+    { 
+        get => _isSeparator; 
+        set => SetProperty(ref _isSeparator, value); 
+    }
 
-    [ObservableProperty]
     private string? _mountPointId;
+    public string? MountPointId 
+    { 
+        get => _mountPointId; 
+        set => SetProperty(ref _mountPointId, value); 
+    }
 
-    [ObservableProperty]
-    [property: TomlIgnore]
     private string? _mountPointDisplayName;
+    [TomlIgnore]
+    public string? MountPointDisplayName 
+    { 
+        get => _mountPointDisplayName; 
+        set => SetProperty(ref _mountPointDisplayName, value); 
+    }
 
-    [ObservableProperty]
-    [property: TomlIgnore]
     private bool _isInstalling;
+    [TomlIgnore]
+    public bool IsInstalling 
+    { 
+        get => _isInstalling; 
+        set => SetProperty(ref _isInstalling, value); 
+    }
 
-    [ObservableProperty]
-    [property: TomlIgnore]
     private bool _isBroken;
+    [TomlIgnore]
+    public bool IsBroken 
+    { 
+        get => _isBroken; 
+        set => SetProperty(ref _isBroken, value); 
+    }
 
-    [ObservableProperty]
-    [property: TomlIgnore]
     private double _installProgress;
+    [TomlIgnore]
+    public double InstallProgress 
+    { 
+        get => _installProgress; 
+        set => SetProperty(ref _installProgress, value); 
+    }
 
     private System.Threading.CancellationTokenSource? _installCts;
 
@@ -70,15 +131,8 @@ public partial class Mod : ObservableObject, IModInfo
     {
         if (_installCts != null)
         {
-            System.Diagnostics.Debug.WriteLine($"[Mod] Cancelling install for {Name}");
             _installCts.Cancel();
         }
-    }
-
-    public bool HasRootSubfolder
-    {
-        get => !string.IsNullOrEmpty(ModRootPath) && Directory.Exists(Path.Combine(ModRootPath, "Root"));
-        set { }
     }
 
     public Mod() { }
