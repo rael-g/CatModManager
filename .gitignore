@@ -75,6 +75,11 @@ $RECYCLE.BIN/
 # CMM — custom exclusions
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Deployment artifacts
+deploy/windows/publish/
+deploy/windows/dist/
+deploy/windows/plugins_generated.iss
+
 # AI assistant context files
 CLAUDE.md
 GEMINI.md
