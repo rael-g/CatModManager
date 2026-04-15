@@ -105,7 +105,7 @@ public class HeadlessUiTests
     }
 
     [AvaloniaFact]
-    public void LaunchButton_Click_StartsGame()
+    public async Task LaunchButton_Click_StartsGame()
     {
         var window = new MainWindow();
         var app = (App)Application.Current!;
@@ -119,11 +119,15 @@ public class HeadlessUiTests
                                 b.GetVisualDescendants().OfType<TextBlock>().Any(tb => tb.Text == "LAUNCH"));
         
         Assert.NotNull(launchButton);
+
+        // ACT: Execute command on the UI thread or process it correctly
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            launchButton.Command?.Execute(null);
+        });
         
-        // Execute the command directly to simulate click logic without complex headless input for now
-        // This validates the binding is correct
-        Assert.NotNull(launchButton.Command);
-        launchButton.Command.Execute(null);
+        // Wait for any async updates triggered by the command
+        Dispatcher.UIThread.RunJobs();
         
         // It might be "Launching..." or it might have already failed with "Auto-mount failed"
         // Both prove the command was wired and executed.

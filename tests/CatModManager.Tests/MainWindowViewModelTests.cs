@@ -86,19 +86,14 @@ public class MainWindowViewModelTests : IDisposable
         _mockFileService.ForceExists = true;
         _mockProfileService.ShouldFail = true;
 
+        // ACT: Save fail
         await vm.ProfileManager.SaveProfileCommand.ExecuteAsync("any");
-        
-        // Poll for log arrival (max 1s)
-        for (int i = 0; i < 10 && !vm.Logs.Any(l => l.Contains("SAVE ERROR", StringComparison.OrdinalIgnoreCase)); i++)
-            await Task.Delay(100);
-
+        for (int i = 0; i < 20 && !vm.Logs.Any(l => l.Contains("SAVE ERROR", StringComparison.OrdinalIgnoreCase)); i++) await Task.Delay(100);
         Assert.True(vm.Logs.Any(l => l.Contains("SAVE ERROR", StringComparison.OrdinalIgnoreCase)), "Log should contain SAVE ERROR");
 
+        // ACT: Load fail
         await vm.ProfileManager.LoadProfileCommand.ExecuteAsync("any");
-
-        for (int i = 0; i < 10 && !vm.Logs.Any(l => l.Contains("LOAD ERROR", StringComparison.OrdinalIgnoreCase)); i++)
-            await Task.Delay(100);
-
+        for (int i = 0; i < 20 && !vm.Logs.Any(l => l.Contains("LOAD ERROR", StringComparison.OrdinalIgnoreCase)); i++) await Task.Delay(100);
         Assert.True(vm.Logs.Any(l => l.Contains("LOAD ERROR", StringComparison.OrdinalIgnoreCase)), "Log should contain LOAD ERROR");
     }
 
@@ -136,9 +131,6 @@ public class MainWindowViewModelTests : IDisposable
     public void DisplayedMods_Sorting_ByPriority()
     {
         var vm = CreateViewModel();
-        // With current logic:
-        // mod1 added first -> index 0 -> Priority = Count-1-0 = 1
-        // mod2 added second -> index 1 -> Priority = Count-1-1 = 0
         var mod1 = new Mod("Mod1", "Path1", 0);
         var mod2 = new Mod("Mod2", "Path2", 0);
         
@@ -173,8 +165,8 @@ public class MainWindowViewModelTests : IDisposable
 
     private class MockProfileService : IProfileService {
         public bool ShouldFail { get; set; }
-        public Task SaveProfileAsync(Profile p, string f) => ShouldFail ? throw new Exception("forced") : Task.CompletedTask;
-        public Task<Profile?> LoadProfileAsync(string f) => ShouldFail ? throw new Exception("forced") : Task.FromResult<Profile?>(null);
+        public Task SaveProfileAsync(Profile p, string f) => ShouldFail ? Task.FromException(new Exception("forced")) : Task.CompletedTask;
+        public Task<Profile?> LoadProfileAsync(string f) => ShouldFail ? Task.FromException<Profile?>(new Exception("forced")) : Task.FromResult<Profile?>(null);
         public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
     }
 

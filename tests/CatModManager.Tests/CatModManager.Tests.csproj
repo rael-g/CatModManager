@@ -30,6 +30,9 @@
     <ProjectReference Include="..\..\src\CatModManager.Core\CatModManager.Core.csproj" />
     <ProjectReference Include="..\..\src\CatModManager.VirtualFileSystem\CatModManager.VirtualFileSystem.csproj" />
     <ProjectReference Include="..\..\src\CatModManager.Ui\CatModManager.Ui.csproj" />
+    <ProjectReference Include="..\..\src\plugins\CmmPlugin.REEngine\CmmPlugin.REEngine.csproj" />
+    <ProjectReference Include="..\..\src\plugins\CmmPlugin.FomodInstaller\CmmPlugin.FomodInstaller.csproj" />
+    <ProjectReference Include="..\..\src\plugins\CmmPlugin.BethesdaTools\CmmPlugin.BethesdaTools.csproj" />
   </ItemGroup>
 
 </Project>

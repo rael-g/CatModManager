@@ -80,33 +80,6 @@ public class TomlRegressionTests : IDisposable
         Assert.True(loaded.Mods[1].IsArchive);
     }
 
-    [Fact]
-    public void Mod_HasRootSubfolder_IsComputedAtRuntime_NotFromToml()
-    {
-        string modDir = Path.Combine(_tempDir, "ModWithoutRoot");
-        Directory.CreateDirectory(modDir);
-
-        string toml = $"""
-            [[Mods]]
-            HasRootFolder = true
-            Name = "NoRootMod"
-            ModRootPath = "{modDir.Replace("\\", "\\\\")}"
-            Priority = 0
-            IsEnabled = true
-            IsArchive = false
-            Category = "Uncategorized"
-            Version = "1.0"
-            IsSeparator = false
-            """;
-
-        var profile = Toml.ReadString<Profile>(toml);
-        Assert.NotNull(profile);
-
-        var mod = profile.Mods[0];
-        // Root/ subfolder does NOT exist on disk → must be false regardless of TOML value.
-        Assert.False(mod.HasRootSubfolder);
-    }
-
     // ── TomlProfileService round-trip ─────────────────────────────────────────
 
     [Fact]

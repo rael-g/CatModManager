@@ -72,12 +72,14 @@ public class VfsOrchestrationServiceTests
         var service = CreateService();
         var options = new MountOptions { 
             GameFolderPath = "C:\\Game",
+            ActiveMods = new List<Mod> { new Mod("Test", "Path", 1) },
             MountPoints = new List<MountPointDef> { new MountPointDef("default", "Default", "") }
         };
         
         await service.MountAsync(options);
-        var result = await service.MountAsync(options);
+        Assert.True(service.IsMounted);
 
+        var result = await service.MountAsync(options);
         Assert.False(result.IsSuccess);
     }
 
