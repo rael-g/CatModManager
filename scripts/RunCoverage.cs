@@ -38,7 +38,7 @@ try
     // 2. Gerar resumo de texto
     Console.WriteLine("[2/2] Generating report...");
     Directory.CreateDirectory(reportDir);
-    Run("reportgenerator", $"-reports:\"{xml}\" -targetdir:\"{reportDir}\" -reporttypes:\"TextSummary;HtmlSummary\" -filefilters:\"-tests/**\"", rootDir);
+    Run("reportgenerator", $"-reports:\"{xml}\" -targetdir:\"{reportDir}\" -reporttypes:\"TextSummary;HtmlSummary\" -assemblyfilters:\"+CatModManager.Core;+CatModManager.Ui;+CatModManager.VirtualFileSystem;+CatModManager.PluginSdk;+CmmPlugin.*\" -filefilters:\"-tests/**\"", rootDir);
 
     // 3. Exibir no terminal
     string summary = Path.Combine(reportDir, "Summary.txt");

@@ -139,6 +139,8 @@ public class ModManagementServiceTests : IDisposable
         public void DeleteFile(string p) => File.Delete(p);
         public void DeleteDirectory(string p, bool r) => Directory.Delete(p, r);
         public void MoveDirectory(string f, string t) => Directory.Move(f, t);
+        public string ReadAllText(string path) => "";
+        public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
     }
 
     public void Dispose()

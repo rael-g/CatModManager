@@ -252,6 +252,9 @@ public class BugReproductionTests : IDisposable
             _paths.Remove(Path.GetFullPath(fromPath));
             _paths.Add(Path.GetFullPath(targetPath));
         }
+
+        public string ReadAllText(string path) => _fileContents.TryGetValue(Path.GetFullPath(path), out var c) ? c : "";
+        public string[] GetFiles(string path, string pattern, bool rec) => _paths.Where(p => p.StartsWith(Path.GetFullPath(path))).ToArray();
     }
     private sealed class NullHardlinkStateStore : IHardlinkStateStore
     {

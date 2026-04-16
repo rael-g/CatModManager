@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace CatModManager.Core.Services;
 
@@ -12,4 +12,8 @@ public interface IFileService
     void DeleteFile(string path);
     void DeleteDirectory(string path, bool recursive);
     void MoveDirectory(string fromPath, string targetPath);
+    
+    // New methods for scanners
+    string ReadAllText(string path);
+    string[] GetFiles(string path, string searchPattern, bool recursive = false);
 }

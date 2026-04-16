@@ -8,18 +8,24 @@ namespace CatModManager.Core.Services.GameDiscovery;
 
 public class EpicScanner : IGameScanner
 {
+    private readonly IFileService _fileService;
     private static readonly string ManifestsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "Epic", "EpicGamesLauncher", "Data", "Manifests");
 
-    public string PlatformName => "Epic";
+    public EpicScanner(IFileService fileService)
+    {
+        _fileService = fileService;
+    }
+
+    public string StoreName => "Epic";
 
     public IEnumerable<GameInstallationInfo> Scan(CancellationToken ct)
     {
-        if (!Directory.Exists(ManifestsPath)) return Array.Empty<GameInstallationInfo>();
+        if (!_fileService.DirectoryExists(ManifestsPath)) return Array.Empty<GameInstallationInfo>();
 
         var results = new List<GameInstallationInfo>();
-        foreach (var item in Directory.GetFiles(ManifestsPath, "*.item"))
+        foreach (var item in _fileService.GetFiles(ManifestsPath, "*.item"))
         {
             ct.ThrowIfCancellationRequested();
             string? installLocation = null;       
@@ -28,7 +34,8 @@ public class EpicScanner : IGameScanner
 
             try
             {
-                using var doc = JsonDocument.Parse(File.ReadAllText(item));
+                var content = _fileService.ReadAllText(item);
+                using var doc = JsonDocument.Parse(content);
                 var root = doc.RootElement;       
 
                 installLocation = root.TryGetProperty("InstallLocation",  out var il) ? il.GetString() : null;

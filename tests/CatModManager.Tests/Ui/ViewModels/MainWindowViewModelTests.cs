@@ -219,6 +219,8 @@ public class MainWindowViewModelTests : IDisposable
         public void DeleteFile(string p) { }
         public void DeleteDirectory(string p, bool r) { }
         public void MoveDirectory(string fromPath, string targetPath) { }
+        public string ReadAllText(string path) => "";
+        public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
 
     }
 

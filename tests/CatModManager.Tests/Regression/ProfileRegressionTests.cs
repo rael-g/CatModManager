@@ -159,7 +159,9 @@ public class ProfileRegressionTests : IDisposable
         public Task SaveProfileAsync(Profile p, string path) 
         { 
             SaveCount++; 
-            _storage[path] = p;
+            // Use path as key but normalize it for the dictionary
+            string key = Path.GetFullPath(path);
+            _storage[key] = p;
             if (!Directory.Exists(Path.GetDirectoryName(path)!)) Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, ""); 
             return Task.CompletedTask; 
@@ -167,7 +169,8 @@ public class ProfileRegressionTests : IDisposable
 
         public Task<Profile?> LoadProfileAsync(string p) 
         {
-            if (_storage.TryGetValue(p, out var profile)) return Task.FromResult<Profile?>(profile);
+            string key = Path.GetFullPath(p);
+            if (_storage.TryGetValue(key, out var profile)) return Task.FromResult<Profile?>(profile);
             return Task.FromResult<Profile?>(null);
         }
 
@@ -192,6 +195,8 @@ public class ProfileRegressionTests : IDisposable
         public void DeleteFile(string p) { }
         public void DeleteDirectory(string p, bool r) { }
         public void MoveDirectory(string fromPath, string targetPath) { }
+        public string ReadAllText(string path) => "";
+        public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
     }
 
     private class MockProcessService : IProcessService {
