@@ -10,23 +10,35 @@ namespace CatModManager.Core.Services;
 
 public class TomlProfileService : IProfileService
 {
+    private readonly IFileService _fileService;
+
+    public TomlProfileService(IFileService fileService)
+    {
+        _fileService = fileService;
+    }
+
     public async Task SaveProfileAsync(Profile profile, string filePath)
     {
         var toml = Toml.WriteString(profile);
-        await File.WriteAllTextAsync(filePath, toml);
+        // Using Task.Run for FileService interaction as IFileService isn't fully async yet
+        await Task.Run(() => 
+        {
+            var dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(dir) && !_fileService.DirectoryExists(dir))
+                _fileService.CreateDirectory(dir);
+            
+            _fileService.WriteAllText(filePath, toml);
+        });
     }
 
     public async Task<Profile?> LoadProfileAsync(string filePath)
     {
         try
         {
-            if (!File.Exists(filePath)) return null;
+            if (!_fileService.FileExists(filePath)) return null;
 
-            var toml = await File.ReadAllTextAsync(filePath);
+            var toml = await Task.Run(() => _fileService.ReadAllText(filePath));
             
-            // WORKAROUND: Legacy or "poisoned" TOML files may contain 'CancelInstallCommand'
-            // which causes a crash because Nett cannot map a table to an interface.
-            // We strip these lines manually before parsing to ensure stability.
             if (toml.Contains("CancelInstallCommand"))
             {
                 var lines = toml.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -43,7 +55,6 @@ public class TomlProfileService : IProfileService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[TomlProfileService] LoadProfileAsync failed for '{filePath}': {ex.Message}");
-            // Return a minimal profile to allow the app to start instead of crashing
             return new Profile { Name = Path.GetFileNameWithoutExtension(filePath) };
         }
     }
@@ -52,9 +63,9 @@ public class TomlProfileService : IProfileService
     {
         try
         {
-            if (!Directory.Exists(directoryPath)) return Task.FromResult(Enumerable.Empty<string>());
+            if (!_fileService.DirectoryExists(directoryPath)) return Task.FromResult(Enumerable.Empty<string>());
             
-            var files = Directory.GetFiles(directoryPath, "*.toml")
+            var files = _fileService.GetFiles(directoryPath, "*.toml")
                 .Select(Path.GetFileNameWithoutExtension)
                 .OrderBy(n => n)
                 .ToList();

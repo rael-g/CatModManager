@@ -254,6 +254,7 @@ public class BugReproductionTests : IDisposable
         }
 
         public string ReadAllText(string path) => _fileContents.TryGetValue(Path.GetFullPath(path), out var c) ? c : "";
+        public void WriteAllText(string path, string contents) => _fileContents[Path.GetFullPath(path)] = contents;
         public string[] GetFiles(string path, string pattern, bool rec) => _paths.Where(p => p.StartsWith(Path.GetFullPath(path))).ToArray();
     }
     private sealed class NullHardlinkStateStore : IHardlinkStateStore

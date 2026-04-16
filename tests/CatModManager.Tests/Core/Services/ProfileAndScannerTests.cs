@@ -38,7 +38,7 @@ public class ProfileAndScannerTests : IDisposable
     [Fact]
     public async Task TomlProfileService_Save_And_Load()
     {
-        var service = new TomlProfileService();
+        var service = new TomlProfileService(_fileService);
         string path = Path.Combine(_tempDir, "test.toml");
         var profile = new Profile { Name = "Test", Mods = new List<Mod>() };
 

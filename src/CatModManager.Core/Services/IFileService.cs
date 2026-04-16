@@ -13,7 +13,8 @@ public interface IFileService
     void DeleteDirectory(string path, bool recursive);
     void MoveDirectory(string fromPath, string targetPath);
     
-    // New methods for scanners
+    // New methods for scanners and profile persistence
     string ReadAllText(string path);
+    void WriteAllText(string path, string contents);
     string[] GetFiles(string path, string searchPattern, bool recursive = false);
 }

@@ -140,6 +140,7 @@ public class ModManagementServiceTests : IDisposable
         public void DeleteDirectory(string p, bool r) => Directory.Delete(p, r);
         public void MoveDirectory(string f, string t) => Directory.Move(f, t);
         public string ReadAllText(string path) => "";
+        public void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);
         public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
     }
 
