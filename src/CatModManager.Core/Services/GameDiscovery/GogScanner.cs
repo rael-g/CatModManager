@@ -2,26 +2,30 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Versioning;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace CatModManager.Core.Services.GameDiscovery;
 
-/// <summary>Scans the Windows registry for GOG Galaxy game installations.</summary>
-public static class GogScanner
+public class GogScanner : IGameScanner
 {
     private const string GogGamesKey = @"SOFTWARE\WOW6432Node\GOG.com\Games";
+    public string PlatformName => "GOG";
 
-    [SupportedOSPlatform("windows")]
-    public static IEnumerable<(string ExecutablePath, string InstallFolder, string Name)> GetInstalledGames()
+    public IEnumerable<GameInstallationInfo> Scan(CancellationToken ct)
     {
+        if (!OperatingSystem.IsWindows()) return Array.Empty<GameInstallationInfo>();
+
+        var results = new List<GameInstallationInfo>();
         RegistryKey? root = null;
         try { root = Registry.LocalMachine.OpenSubKey(GogGamesKey); }
-        catch { yield break; }
+        catch { return results; }
 
-        if (root == null) yield break;
+        if (root == null) return results;
 
         foreach (var subName in root.GetSubKeyNames())
         {
+            ct.ThrowIfCancellationRequested();
             RegistryKey? sub = null;
             try { sub = root.OpenSubKey(subName); }
             catch { continue; }
@@ -34,9 +38,12 @@ public static class GogScanner
             sub.Dispose();
 
             if (!string.IsNullOrEmpty(exe) && !string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                yield return (exe, folder, name);
+            {
+                results.Add(new GameInstallationInfo(name, exe, folder, "GOG"));
+            }
         }
 
         root.Dispose();
+        return results;
     }
 }

@@ -9,10 +9,8 @@ namespace CatModManager.Core.Services.GameDiscovery;
 
 public class GameDiscoveryService : IGameDiscoveryService
 {
-    // Minimum size (bytes) for a file to be considered a real game executable.
     private const long MinExeSizeBytes = 512 * 1024; // 512 KB
 
-    // Executables that are never the main game binary.
     private static readonly HashSet<string> _excluded = new(StringComparer.OrdinalIgnoreCase)
     {
         "UnityCrashHandler64.exe", "UnityCrashHandler32.exe",
@@ -29,18 +27,22 @@ public class GameDiscoveryService : IGameDiscoveryService
     };
 
     private readonly IGameSupportService _gameSupportService;
+    private readonly IEnumerable<IGameScanner> _scanners;
 
-    public GameDiscoveryService(IGameSupportService gameSupportService)
-        => _gameSupportService = gameSupportService;
+    public GameDiscoveryService(IGameSupportService gameSupportService, IEnumerable<IGameScanner> scanners)
+    {
+        _gameSupportService = gameSupportService;
+        _scanners = scanners;
+    }
 
     public Task<IReadOnlyList<GameInstallation>> ScanAsync(CancellationToken ct = default)
         => Task.Run(() => Scan(ct), ct);
 
     private IReadOnlyList<GameInstallation> Scan(CancellationToken ct)
     {
-        var results       = new List<GameInstallation>();
-        var seenFolders   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenExes      = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var results = new List<GameInstallation>();
+        var seenFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenExes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var supports = _gameSupportService.GetAllSupports()
                            .Where(s => s.GameId != "generic")
@@ -51,71 +53,38 @@ public class GameDiscoveryService : IGameDiscoveryService
             .GroupBy(s => s.SteamAppId)
             .ToDictionary(g => g.Key, g => g.First());
 
-        if (OperatingSystem.IsWindows())
+        foreach (var scanner in _scanners)
         {
+            ct.ThrowIfCancellationRequested();
             try
             {
-                foreach (var (appId, name, installDir, commonPath) in SteamScanner.GetInstalledApps())
+                foreach (var info in scanner.Scan(ct))
                 {
                     ct.ThrowIfCancellationRequested();
+                    if (string.IsNullOrEmpty(info.InstallDir) || !Directory.Exists(info.InstallDir)) continue;
+                    if (!seenFolders.Add(info.InstallDir)) continue;
 
-                    var gameFolder = Path.GetFullPath(Path.Combine(commonPath, installDir));
-                    if (!Directory.Exists(gameFolder) || !seenFolders.Add(gameFolder)) continue;
+                    IGameSupport? knownSupport = null;
+                    if (info.StoreName == "Steam" && info.AppId.HasValue)
+                        knownSupport = bySteamId.GetValueOrDefault((int)info.AppId.Value);
 
-                    IGameSupport? knownSupport = bySteamId.GetValueOrDefault(appId);
-                    var exe = FindExe(gameFolder, knownSupport, name);
-                    if (exe == null || !seenExes.Add(exe)) continue;
+                    var exe = info.ExePath;
+                    if (string.IsNullOrEmpty(exe) || !File.Exists(exe))
+                        exe = FindExe(info.InstallDir, knownSupport, info.Name);
+
+                    if (string.IsNullOrEmpty(exe) || !seenExes.Add(exe)) continue;
 
                     var detected = knownSupport ?? supports.FirstOrDefault(s => s.CanSupport(exe));
-
-                    results.Add(new GameInstallation(name, exe, gameFolder, "Steam", detected));
+                    results.Add(new GameInstallation(info.Name, exe, info.InstallDir, info.StoreName, detected));
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch { }
+            catch { /* Log error via event bus if needed */ }
         }
-
-        ct.ThrowIfCancellationRequested();
-
-        if (OperatingSystem.IsWindows())
-        {
-            try
-            {
-                foreach (var (exe, folder, name) in GogScanner.GetInstalledGames())
-                {
-                    ct.ThrowIfCancellationRequested();
-                    if (!seenFolders.Add(folder) || !seenExes.Add(exe)) continue;
-
-                    var detected = supports.FirstOrDefault(s => s.CanSupport(exe));
-                    results.Add(new GameInstallation(name, exe, folder, "GOG", detected));
-                }
-            }
-            catch (OperationCanceledException) { throw; }
-            catch { }
-        }
-
-        ct.ThrowIfCancellationRequested();
-
-        try
-        {
-            foreach (var (exe, folder, name) in EpicScanner.GetInstalledGames())
-            {
-                ct.ThrowIfCancellationRequested();
-                if (!seenFolders.Add(folder) || !seenExes.Add(exe)) continue;
-
-                var detected = supports.FirstOrDefault(s => s.CanSupport(exe));
-                results.Add(new GameInstallation(name, exe, folder, "Epic", detected));
-            }
-        }
-        catch (OperationCanceledException) { throw; }
-        catch { }
 
         return results.OrderBy(r => r.DisplayName).ToList();
     }
 
-    /// <summary>
-    /// Finds the main game executable using known support hints, name matching, and file size heuristics.
-    /// </summary>
     private static string? FindExe(string gameFolder, IGameSupport? knownSupport, string gameName)
     {
         if (knownSupport != null)
@@ -124,7 +93,6 @@ public class GameDiscoveryService : IGameDiscoveryService
                 .FirstOrDefault(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
             if (rel != null)
             {
-                // RequiredFiles is an explicit hint from game support — skip size filter.
                 var full = Path.GetFullPath(Path.Combine(gameFolder, rel));
                 if (File.Exists(full)) return full;
             }
@@ -142,7 +110,6 @@ public class GameDiscoveryService : IGameDiscoveryService
             .Where(e => new FileInfo(e).Length >= MinExeSizeBytes)
             .ToList();
 
-        // Fall back to the largest one if all root exes are small launchers, to avoid missing the game.
         var pool = valid.Count > 0 ? valid : nonExcluded;
         if (pool.Count == 0) return null;
         if (pool.Count == 1) return pool[0];
@@ -155,7 +122,6 @@ public class GameDiscoveryService : IGameDiscoveryService
                 .Contains(nameToken, StringComparison.OrdinalIgnoreCase));
         if (byName != null) return byName;
 
-        // Game binaries are typically the largest executables in the folder.
         return pool
             .OrderByDescending(e => new FileInfo(e).Length)
             .First();

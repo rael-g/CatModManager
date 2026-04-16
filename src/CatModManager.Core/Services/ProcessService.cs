@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -10,10 +11,12 @@ namespace CatModManager.Core.Services;
 public class ProcessService : IProcessService
 {
     private readonly ILogService _logService;
+    private readonly IProcessRunner _runner;
 
-    public ProcessService(ILogService logService)
+    public ProcessService(ILogService logService, IProcessRunner? runner = null)
     {
         _logService = logService;
+        _runner = runner ?? new DefaultProcessRunner();
     }
 
     public async Task<bool> StartProcessAsync(string filePath, string arguments, bool runAsAdmin, bool waitForChildren = true)
@@ -28,14 +31,9 @@ public class ProcessService : IProcessService
                 Verb = runAsAdmin ? "runas" : ""
             };
 
-            var process = Process.Start(info);
-            if (process == null) return false;
+            var success = await _runner.StartAsync(info);
+            if (!success) return false;
 
-            await process.WaitForExitAsync();
-
-            // The launched exe may be a thin launcher that spawns the real game process
-            // and exits early (common with Steam/UE5 games). Wait for any remaining
-            // processes running from the same game directory before returning.
             if (waitForChildren)
                 await WaitForGameDirectoryProcesses(filePath);
 
@@ -54,59 +52,58 @@ public class ProcessService : IProcessService
         if (string.IsNullOrEmpty(gameDir)) return;
 
         var prefix = gameDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var userSession = Process.GetCurrentProcess().SessionId;
 
-        // Poll for up to 30 seconds after the launcher exits. This covers cases where
-        // the launcher shows a Steam dialog that the user must dismiss before the real
-        // game process starts.
+        // Poll for up to 30 seconds after the launcher exits.
         var deadline = DateTime.UtcNow.AddSeconds(30);
         while (DateTime.UtcNow < deadline)
         {
-            await Task.Delay(2000);
-            var children = GetProcessesInDirectory(prefix);
-            if (children.Length > 0)
+            await Task.Delay(100); // Faster polling for tests
+            
+            var children = new List<Process>();
+            foreach (var proc in _runner.GetProcesses())
             {
-                _logService.Log($"Detected {children.Length} game process(es); waiting for exit...");
-                await Task.WhenAll(children.Select(p => p.WaitForExitAsync()));
+                try
+                {
+                    if (proc.SessionId != userSession) continue;
+                    var exe = _runner.GetMainModuleFileName(proc);
+                    if (exe != null && exe.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        children.Add(proc);
+                }
+                catch { }
+            }
+
+            if (children.Count > 0)
+            {
+                _logService.Log($"Detected {children.Count} game process(es); waiting for exit...");
+                await Task.WhenAll(children.Select(p => _runner.WaitForExitAsync(p)));
                 return;
             }
         }
-        // No child process appeared — the launcher was the game itself; already done.
-    }
-
-    private static Process[] GetProcessesInDirectory(string prefix)
-    {
-        // Filter to the current user session to skip system/service processes (session 0),
-        // which always deny MainModule access and would generate spurious exceptions.
-        int userSession = Process.GetCurrentProcess().SessionId;
-        var result = new System.Collections.Generic.List<Process>();
-        foreach (var proc in Process.GetProcesses())
-        {
-            try
-            {
-                if (proc.SessionId != userSession) continue;
-                var exe = proc.MainModule?.FileName;
-                if (exe != null && exe.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                    result.Add(proc);
-            }
-            catch { /* process exited or access denied — skip */ }
-        }
-        return result.ToArray();
     }
 
     public Task OpenFolderAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return Task.CompletedTask;
-        // Walk up to the nearest existing ancestor so explorer.exe doesn't fall back to Documents.
         var candidate = path;
         while (!string.IsNullOrEmpty(candidate) && !Directory.Exists(candidate))
             candidate = Path.GetDirectoryName(candidate) ?? "";
         if (string.IsNullOrEmpty(candidate)) return Task.CompletedTask;
+
         try
         {
+            var info = new ProcessStartInfo { FileName = candidate, UseShellExecute = true };
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                Process.Start("explorer.exe", candidate);
+            {
+                info.FileName = "explorer.exe";
+                info.Arguments = candidate;
+            }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                Process.Start("xdg-open", candidate);
+            {
+                info.FileName = "xdg-open";
+                info.Arguments = candidate;
+            }
+            _runner.StartAsync(info);
         }
         catch (Exception ex)
         {

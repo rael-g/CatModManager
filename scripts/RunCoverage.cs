@@ -1,68 +1,85 @@
-using System;
-using System.Collections.Generic;
+// Cat Mod Manager — Coverage Runner
+// Usage:  dotnet script scripts/RunCoverage.cs
+//         (run from repo root or scripts/ folder)
+//
+// Prerequisites: reportgenerator global tool
+//   dotnet tool install -g dotnet-reportgenerator-globaltool
+
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 
-string tempDir = Path.Combine(Path.GetTempPath(), "CMM_Coverage_Official");
-string currentDir = Directory.GetCurrentDirectory();
-string rootDir = currentDir.EndsWith("scripts") ? Path.GetDirectoryName(currentDir)! : currentDir;
+string rootDir  = FindRoot();
+string tempDir  = Path.Combine(Path.GetTempPath(), "CMM_Coverage");
+string resultsDir = Path.Combine(tempDir, "results");
+string reportDir  = Path.Combine(tempDir, "report");
 
-try 
+try
 {
-    Console.WriteLine("\n" + new string('=', 65));
-    Console.WriteLine(" 🚀 Cat Mod Manager - STABLE COVERAGE ANALYSIS");
     Console.WriteLine(new string('=', 65));
-    
+    Console.WriteLine(" Cat Mod Manager - Coverage");
+    Console.WriteLine(new string('=', 65));
+
     if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
-    Directory.CreateDirectory(tempDir);
+    Directory.CreateDirectory(resultsDir);
 
-    string coverageFile = Path.Combine(tempDir, "coverage.xml");
+    // 1. Rodar testes com coverlet
+    Console.WriteLine("\n[1/2] Running tests...");
+    Run("dotnet", $"test CatModManager.slnx --collect:\"XPlat Code Coverage\" --results-directory \"{resultsDir}\" --nologo -v quiet", rootDir);
 
-    // 1. Usar a ferramenta global dotnet-coverage para rodar tudo de uma vez
-    Console.WriteLine("\n[1/2] 🧪 Running tests with dotnet-coverage...");
-    RunCommand("dotnet-coverage", $"collect \"dotnet test CatModManager.slnx\" -f cobertura -o \"{coverageFile}\"", rootDir);
+    string? xml = Directory
+        .GetFiles(resultsDir, "coverage.cobertura.xml", SearchOption.AllDirectories)
+        .FirstOrDefault();
 
-    if (!File.Exists(coverageFile)) {
-        Console.WriteLine("\n❌ ERROR: Coverage file was not generated.");
-        return;
-    }
-
-    // 2. Gerar resumo via ReportGenerator
-    Console.WriteLine("\n[2/2] 📊 Generating visual summary...");
-    string outputDir = Path.Combine(tempDir, "Output");
-    Directory.CreateDirectory(outputDir);
-
-    RunCommand("reportgenerator", $"-reports:\"{coverageFile}\" -targetdir:\"{outputDir}\" -reporttypes:TextSummary -assemblyfilters:\"+CatModManager*\"", rootDir);
-    
-    // 3. Exibir o resultado
-    string summaryFile = Path.Combine(outputDir, "Summary.txt");
-    if (File.Exists(summaryFile))
+    if (xml is null)
     {
-        Console.WriteLine("\n" + new string('━', 65));
-        Console.WriteLine(File.ReadAllText(summaryFile));
-        Console.WriteLine(new string('━', 65));
+        Console.Error.WriteLine("ERROR: No coverage file generated.");
+        return 1;
     }
 
-} 
-catch (Exception ex) { Console.WriteLine($"\nCRITICAL ERROR: {ex.Message}"); }
+    // 2. Gerar resumo de texto
+    Console.WriteLine("[2/2] Generating report...");
+    Directory.CreateDirectory(reportDir);
+    Run("reportgenerator", $"-reports:\"{xml}\" -targetdir:\"{reportDir}\" -reporttypes:\"TextSummary;HtmlSummary\" -filefilters:\"-tests/**\"", rootDir);
 
-void RunCommand(string Command, string args, string workingDir)
-{
-    var psi = new ProcessStartInfo {
-        FileName = Command, Arguments = args, WorkingDirectory = workingDir,
-        RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true
-    };
-    using var p = Process.Start(psi);
-    if (p != null) {
-        while (!p.StandardOutput.EndOfStream) {
-            string? line = p.StandardOutput.ReadLine();
-            if (line != null && (line.Contains("Passed!") || line.Contains("Failed!") || line.Contains("Total tests:") || line.Contains("Code coverage results")))
-                Console.WriteLine("      " + line.Trim());
-        }
-        p.WaitForExit();
+    // 3. Exibir no terminal
+    string summary = Path.Combine(reportDir, "Summary.txt");
+    if (File.Exists(summary))
+    {
+        Console.WriteLine("\n" + new string('─', 65));
+        Console.Write(File.ReadAllText(summary));
+        Console.WriteLine(new string('─', 65));
     }
 }
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"ERROR: {ex.Message}");
+    return 1;
+}
 
+return 0;
 
+static void Run(string exe, string args, string workDir)
+{
+    var psi = new ProcessStartInfo(exe, args)
+    {
+        WorkingDirectory = workDir,
+        UseShellExecute  = false,
+    };
 
+    using var p = Process.Start(psi) ?? throw new Exception($"Failed to start: {exe}");
+    p.WaitForExit();
+
+    if (p.ExitCode != 0)
+        throw new Exception($"'{exe}' exited with code {p.ExitCode}");
+}
+
+static string FindRoot()
+{
+    var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+    while (dir is not null)
+    {
+        if (File.Exists(Path.Combine(dir.FullName, "CatModManager.slnx")))
+            return dir.FullName;
+        dir = dir.Parent!;
+    }
+    return Directory.GetCurrentDirectory();
+}
