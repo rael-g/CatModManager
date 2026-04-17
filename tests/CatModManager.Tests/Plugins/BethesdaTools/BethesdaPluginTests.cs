@@ -5,11 +5,14 @@ using System.Threading.Tasks;
 using Xunit;
 using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Installers;
+using CmmPlugin.BethesdaTools.Services;
 
 namespace CatModManager.Tests.Plugins.BethesdaTools;
 
 public class BethesdaPluginTests
 {
+    private readonly BethesdaDetector _detector = new(new PhysicalFileService());
+
     [Fact]
     public async Task BethesdaModInstaller_Install_StripsDataPrefix()
     {
@@ -20,7 +23,7 @@ public class BethesdaPluginTests
         mockExtractor.FileList.Add("Data/test.esp");
         mockExtractor.FileList.Add("readme.txt");
         
-        var installer = new BethesdaModInstaller(mockState, mockExtractor);
+        var installer = new BethesdaModInstaller(mockState, mockExtractor, _detector);
 
         // ACT
         var result = await installer.InstallAsync("mod.zip", new MockInstallContext());
@@ -42,7 +45,7 @@ public class BethesdaPluginTests
         mockExtractor.FileList.Add("CoolMod_v1/Data/test.esp");
         mockExtractor.FileList.Add("CoolMod_v1/readme.txt");
         
-        var installer = new BethesdaModInstaller(mockState, mockExtractor);
+        var installer = new BethesdaModInstaller(mockState, mockExtractor, _detector);
 
         // ACT
         var result = await installer.InstallAsync("mod.zip", new MockInstallContext());

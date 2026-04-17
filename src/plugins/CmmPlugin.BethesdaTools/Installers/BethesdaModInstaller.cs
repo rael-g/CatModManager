@@ -16,15 +16,17 @@ public class BethesdaModInstaller : IModInstaller
 {
     private readonly IModManagerState _state;
     private readonly IArchiveExtractor _extractor;
+    private readonly BethesdaDetector _detector;
 
-    public BethesdaModInstaller(IModManagerState state, IArchiveExtractor extractor)
+    public BethesdaModInstaller(IModManagerState state, IArchiveExtractor extractor, BethesdaDetector detector)
     {
         _state = state;
         _extractor = extractor;
+        _detector = detector;
     }
 
     public bool CanInstall(string archivePath) =>
-        BethesdaDetector.IsBethesdaExecutable(_state.GameExecutablePath) &&
+        _detector.IsBethesdaExecutable(_state.GameExecutablePath) &&
         IsArchive(archivePath) &&
         !HasFomodConfig(archivePath);
 

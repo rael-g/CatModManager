@@ -34,6 +34,8 @@
     <ProjectReference Include="..\..\src\plugins\CmmPlugin.REEngine\CmmPlugin.REEngine.csproj" />
     <ProjectReference Include="..\..\src\plugins\CmmPlugin.FomodInstaller\CmmPlugin.FomodInstaller.csproj" />
     <ProjectReference Include="..\..\src\plugins\CmmPlugin.BethesdaTools\CmmPlugin.BethesdaTools.csproj" />
+    <ProjectReference Include="..\..\src\plugins\CmmPlugin.NexusMods\CmmPlugin.NexusMods.csproj" />
+    <ProjectReference Include="..\..\src\plugins\CmmPlugin.SaveManager\CmmPlugin.SaveManager.csproj" />
   </ItemGroup>
 
 </Project>

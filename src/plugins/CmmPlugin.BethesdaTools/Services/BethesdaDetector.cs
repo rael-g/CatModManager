@@ -2,47 +2,46 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using CmmPlugin.BethesdaTools.Models;
+using CatModManager.PluginSdk;
 
 namespace CmmPlugin.BethesdaTools.Services;
 
-public static class BethesdaDetector
+public class BethesdaDetector
 {
+    private readonly IFileService _fileService;
+
+    public BethesdaDetector(IFileService fileService)
+    {
+        _fileService = fileService;
+    }
+
     private static readonly Dictionary<string, BethesdaGame> _known =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            // Skyrim Special Edition / Anniversary Edition
             ["SkyrimSE"]         = new("Skyrim Special Edition", UsesStarFormat: true),
-            // Skyrim Legendary Edition
             ["TESV"]             = new("Skyrim",                 UsesStarFormat: false),
-            // Enderal (Skyrim total conversion)
             ["Enderal"]          = new("Enderal",                UsesStarFormat: false),
             ["EnderalSE"]        = new("Enderal Special Edition",UsesStarFormat: true),
-            // Fallout
             ["Fallout4"]         = new("Fallout4",               UsesStarFormat: true),
             ["Fallout4VR"]       = new("Fallout4VR",             UsesStarFormat: true),
             ["FalloutNV"]        = new("FalloutNV",              UsesStarFormat: false),
             ["Fallout3"]         = new("Fallout3",               UsesStarFormat: false),
-            // The Elder Scrolls
             ["Oblivion"]         = new("Oblivion",               UsesStarFormat: false),
             ["Morrowind"]        = new("Morrowind",              UsesStarFormat: false),
-            // Starfield
             ["Starfield"]        = new("Starfield",              UsesStarFormat: true),
         };
 
-    public static BethesdaGame? Detect(string? executablePath)
+    public BethesdaGame? Detect(string? executablePath)
     {
         if (string.IsNullOrEmpty(executablePath)) return null;
 
-        // Direct match (e.g. SkyrimSE.exe configured as the executable).
         string exeName = Path.GetFileNameWithoutExtension(executablePath);
         if (_known.TryGetValue(exeName, out var game)) return game;
 
-        // Fallback: scan the game folder for a known executable.
-        // Handles launchers (skse64_loader.exe, ModOrganizer.exe, etc.) configured instead of the game exe.
         string? dir = Path.GetDirectoryName(executablePath);
         if (string.IsNullOrEmpty(dir)) return null;
         foreach (var (knownExe, knownGame) in _known)
-            if (File.Exists(Path.Combine(dir, knownExe + ".exe")))
+            if (_fileService.FileExists(Path.Combine(dir, knownExe + ".exe")))
                 return knownGame;
 
         return null;
@@ -54,6 +53,5 @@ public static class BethesdaDetector
         return Path.Combine(localApp, game.LocalAppDataFolder, "plugins.txt");
     }
 
-    public static bool IsBethesdaExecutable(string? executablePath) => Detect(executablePath) != null;
+    public bool IsBethesdaExecutable(string? executablePath) => Detect(executablePath) != null;
 }
-

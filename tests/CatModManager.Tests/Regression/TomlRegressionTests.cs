@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Xunit;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 using Nett;
 
 namespace CatModManager.Tests.Regression;
@@ -15,7 +16,7 @@ namespace CatModManager.Tests.Regression;
 public class TomlRegressionTests : IDisposable
 {
     private readonly string _tempDir;
-    private readonly TomlProfileService _service = new();
+    private readonly TomlProfileService _service = new(new PhysicalFileService());
 
     public TomlRegressionTests()
     {

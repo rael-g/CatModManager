@@ -15,12 +15,15 @@ public class BethesdaToolsPlugin : ICmmPlugin
 
     public void Initialize(IPluginContext context)
     {
-        var loadOrder = new LoadOrderService(context.Log);
-        var vm = new PluginsTabViewModel(loadOrder, context.State, context.Log);
-        var tab = new PluginsInspectorTab(vm);
-        var hook = new BethesdaLaunchHook(loadOrder, context.State, context.Log);
+        var fileService = new PhysicalFileService();
+        var detector = new BethesdaDetector(fileService);
 
-        var installer = new BethesdaModInstaller(context.State, context.ArchiveExtractor);
+        var loadOrder = new LoadOrderService(context.Log);
+        var vm = new PluginsTabViewModel(loadOrder, context.State, context.Log, detector);
+        var tab = new PluginsInspectorTab(vm);
+        var hook = new BethesdaLaunchHook(loadOrder, context.State, context.Log, detector);
+
+        var installer = new BethesdaModInstaller(context.State, context.ArchiveExtractor, detector);
 
         // Refresh load order whenever the active profile changes
         context.State.ProfileChanged += _ => vm.Refresh();
@@ -32,4 +35,3 @@ public class BethesdaToolsPlugin : ICmmPlugin
         context.Log.Log($"[{DisplayName}] Initialized — supports Skyrim, Fallout, Oblivion, Starfield and more.");
     }
 }
-

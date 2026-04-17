@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 using CatModManager.Ui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
