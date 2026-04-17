@@ -18,7 +18,7 @@ public class BethesdaToolsPlugin : ICmmPlugin
         var fileService = new PhysicalFileService();
         var detector = new BethesdaDetector(fileService);
 
-        var loadOrder = new LoadOrderService(context.Log);
+        var loadOrder = new LoadOrderService(context.Log, fileService);
         var vm = new PluginsTabViewModel(loadOrder, context.State, context.Log, detector);
         var tab = new PluginsInspectorTab(vm);
         var hook = new BethesdaLaunchHook(loadOrder, context.State, context.Log, detector);

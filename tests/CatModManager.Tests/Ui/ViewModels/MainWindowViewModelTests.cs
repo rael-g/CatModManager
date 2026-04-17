@@ -221,6 +221,8 @@ public class MainWindowViewModelTests : IDisposable
         public void MoveDirectory(string fromPath, string targetPath) { }
         public string ReadAllText(string path) => "";
         public void WriteAllText(string path, string contents) { }
+        public string[] ReadAllLines(string path) => Array.Empty<string>();
+        public void WriteAllLines(string path, string[] contents) { }
         public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
     }
 

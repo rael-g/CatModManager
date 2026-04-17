@@ -18,10 +18,15 @@ public class LoadOrderService
         new(StringComparer.OrdinalIgnoreCase) { ".esp", ".esm", ".esl" };
 
     private readonly IPluginLogger _log;
+    private readonly IFileService _fileService;
 
     public ObservableCollection<EspEntry> Entries { get; } = new();
 
-    public LoadOrderService(IPluginLogger log) => _log = log;
+    public LoadOrderService(IPluginLogger log, IFileService fileService)
+    {
+        _log = log;
+        _fileService = fileService;
+    }
 
     /// <summary>
     /// Rebuilds the load order from disk + active mods.
@@ -32,20 +37,20 @@ public class LoadOrderService
         // 1. Collect all plugin files available
         var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (!string.IsNullOrEmpty(dataFolderPath) && Directory.Exists(dataFolderPath))
+        if (!string.IsNullOrEmpty(dataFolderPath) && _fileService.DirectoryExists(dataFolderPath))
             foreach (var f in ScanForPlugins(dataFolderPath))
                 discovered.Add(f);
 
         if (activeMods != null)
-            foreach (var mod in activeMods.Where(m => m.IsEnabled && Directory.Exists(m.ModRootPath)))
+            foreach (var mod in activeMods.Where(m => m.IsEnabled && _fileService.DirectoryExists(m.ModRootPath)))
                 foreach (var f in ScanForPlugins(mod.ModRootPath))
                     discovered.Add(f);
 
         // 2. Read existing plugins.txt to get enabled state + order
         var ordered = new List<(string FileName, bool IsEnabled)>();
-        if (!string.IsNullOrEmpty(pluginsTextPath) && File.Exists(pluginsTextPath))
+        if (!string.IsNullOrEmpty(pluginsTextPath) && _fileService.FileExists(pluginsTextPath))
         {
-            foreach (var line in File.ReadAllLines(pluginsTextPath))
+            foreach (var line in _fileService.ReadAllLines(pluginsTextPath))
             {
                 string trimmed = line.Trim();
                 if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
@@ -93,8 +98,11 @@ public class LoadOrderService
                     ? (e.IsEnabled ? $"*{e.FileName}" : e.FileName)
                     : (e.IsEnabled ? e.FileName : $"#{e.FileName}"));
 
-            Directory.CreateDirectory(Path.GetDirectoryName(pluginsTextPath)!);
-            File.WriteAllLines(pluginsTextPath, lines);
+            string? dir = Path.GetDirectoryName(pluginsTextPath);
+            if (!string.IsNullOrEmpty(dir))
+                _fileService.CreateDirectory(dir);
+            
+            _fileService.WriteAllLines(pluginsTextPath, lines.ToArray());
             _log.Log($"[BethesdaTools] plugins.txt written: {Entries.Count(e => e.IsEnabled)} active plugins.");
         }
         catch (Exception ex)
@@ -109,11 +117,11 @@ public class LoadOrderService
             Entries[i].LoadOrder = i;
     }
 
-    private static IEnumerable<string> ScanForPlugins(string folder)
+    private IEnumerable<string> ScanForPlugins(string folder)
     {
         try
         {
-            return Directory.GetFiles(folder)
+            return _fileService.GetFiles(folder, "*")
                 .Where(f => _pluginExtensions.Contains(Path.GetExtension(f)))
                 .Select(Path.GetFileName)
                 .OfType<string>();
@@ -121,4 +129,3 @@ public class LoadOrderService
         catch { return Array.Empty<string>(); }
     }
 }
-

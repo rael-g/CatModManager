@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 using CatModManager.Core.Models;
 using CatModManager.Tests.Support;
 
@@ -141,6 +142,8 @@ public class ModManagementServiceTests : IDisposable
         public void MoveDirectory(string f, string t) => Directory.Move(f, t);
         public string ReadAllText(string path) => "";
         public void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);
+        public string[] ReadAllLines(string path) => Array.Empty<string>();
+        public void WriteAllLines(string path, string[] contents) { }
         public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
     }
 
