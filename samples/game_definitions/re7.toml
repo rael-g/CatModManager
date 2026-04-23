@@ -6,6 +6,9 @@ SteamAppId  = 418370
 
 RequiredFiles = ["re7.exe"]
 
-DataSubFolder = ""
-SaveFolderPattern = '%APPDATA%\RE7'
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""
 
+SaveFolderPattern = "%APPDATA%\\RE7"

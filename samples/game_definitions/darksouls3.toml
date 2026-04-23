@@ -6,7 +6,9 @@ SteamAppId  = 374320
 
 RequiredFiles = ["DarkSoulsIII.exe"]
 
-DataSubFolder = ""
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""
 
 SaveFolderPattern = "%APPDATA%\\DarkSoulsIII\\*"
-

@@ -6,5 +6,7 @@ SteamAppId  = 2054970
 
 RequiredFiles = ["DD2.exe"]
 
-DataSubFolder = ""
-
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""

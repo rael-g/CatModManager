@@ -6,5 +6,7 @@ SteamAppId  = 2246340
 
 RequiredFiles = ["MonsterHunterWilds.exe"]
 
-DataSubFolder = ""
-
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""

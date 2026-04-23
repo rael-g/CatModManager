@@ -6,5 +6,7 @@ SteamAppId  = 1446780
 
 RequiredFiles = ["MonsterHunterRise.exe"]
 
-DataSubFolder = ""
-
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""

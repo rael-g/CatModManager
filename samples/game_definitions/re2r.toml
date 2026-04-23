@@ -6,6 +6,9 @@ SteamAppId  = 883710
 
 RequiredFiles = ["re2.exe"]
 
-DataSubFolder = ""
-SaveFolderPattern = '%APPDATA%\RE2'
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""
 
+SaveFolderPattern = "%APPDATA%\\RE2"

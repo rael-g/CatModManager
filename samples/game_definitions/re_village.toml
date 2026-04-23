@@ -6,6 +6,9 @@ SteamAppId  = 1196590
 
 RequiredFiles = ["re8.exe"]
 
-DataSubFolder = ""
-SaveFolderPattern = '%APPDATA%\RE8'
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""
 
+SaveFolderPattern = "%APPDATA%\\RE8"

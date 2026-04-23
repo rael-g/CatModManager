@@ -6,7 +6,9 @@ SteamAppId  = 1245620
 
 RequiredFiles = ["eldenring.exe"]
 
-DataSubFolder = ""
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""
 
 SaveFolderPattern = "%APPDATA%\\EldenRing\\*"
-

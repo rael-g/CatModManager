@@ -6,6 +6,9 @@ SteamAppId  = 601150
 
 RequiredFiles = ["DevilMayCry5.exe"]
 
-DataSubFolder = ""
-SaveFolderPattern = '%APPDATA%\DMC5'
+[[MountPoints]]
+Id   = "default"
+Name = "Game Root"
+Path = ""
 
+SaveFolderPattern = "%APPDATA%\\DMC5"
