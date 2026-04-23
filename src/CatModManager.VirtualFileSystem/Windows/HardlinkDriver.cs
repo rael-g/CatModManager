@@ -166,6 +166,14 @@ public class HardlinkDriver : IFileSystemDriver
             }
 
             var destPath = Path.Combine(mountPoint, rel);
+
+            // physPath may carry a \\?\ long-path prefix; strip it for comparison.
+            var physPathNorm = physPath.StartsWith(@"\\?\", StringComparison.Ordinal) ? physPath[4..] : physPath;
+
+            // File is already at the destination (unoverridden base game file) — no action needed.
+            if (string.Equals(physPathNorm, destPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+
             Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
 
             string? backupPath = null;
