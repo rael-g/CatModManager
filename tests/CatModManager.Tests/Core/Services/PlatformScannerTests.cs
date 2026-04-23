@@ -6,6 +6,7 @@ using Xunit;
 using NSubstitute;
 using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests.Core.Services;
 

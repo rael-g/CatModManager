@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Ui.ViewModels;
 

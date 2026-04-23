@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Xunit;
 using CatModManager.Core.Services;
+using CatModManager.PluginSdk;
 
 namespace CatModManager.Tests.Core.Services;
 
