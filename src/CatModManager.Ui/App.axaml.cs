@@ -83,6 +83,10 @@ public partial class App : Application
         services.AddSingleton<IFileService, PhysicalFileService>();
         services.AddSingleton<IConfigService, ConfigService>();
         services.AddSingleton<IGameSupportService, GameSupportService>();
+        services.AddSingleton<IRegistryService, WindowsRegistryService>();
+        services.AddSingleton<IGameScanner, SteamScanner>();
+        services.AddSingleton<IGameScanner, GogScanner>();
+        services.AddSingleton<IGameScanner, EpicScanner>();
         services.AddSingleton<IGameDiscoveryService, GameDiscoveryService>();
 
         services.AddSingleton<IArchiveExtractor, SevenZipArchiveExtractor>();

@@ -109,7 +109,7 @@ public partial class MainWindowViewModel : ObservableObject
         ProfileManager.IsVfsMounted   = () => Vfs.IsVfsMounted;
         ProfileManager.ProfileLoaded += p => Profiles.ApplyLoadedProfile(p);
 
-        GameConfig.AutoSave = () => ProfileManager.AutoSave();
+        GameConfig.AutoSave = () => { SyncActiveModsToState(); ProfileManager.AutoSave(); };
         GameConfig.Initialize();
 
         Inspector.SetStatusMessage = msg => StatusMessage = msg;

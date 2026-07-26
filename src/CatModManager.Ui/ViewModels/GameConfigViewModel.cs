@@ -168,8 +168,8 @@ public partial class GameConfigViewModel : ViewModelBase
         AutoSave = null;
         GameExecutablePath  = result.ExecutablePath;
         BaseFolderPath      = result.GameFolder;
-        ModsFolderPath      = Path.Combine(result.GameFolder, "mods");
-        DownloadsFolderPath = Path.Combine(result.GameFolder, "downloads");
+        ModsFolderPath      = Path.Combine(result.GameFolder, "cmm", "mods");
+        DownloadsFolderPath = Path.Combine(result.GameFolder, "cmm", "downloads");
         ActiveGameSupport   = mode;
         AutoSave = savedAutoSave;
         AutoSave?.Invoke();
@@ -198,9 +198,9 @@ public partial class GameConfigViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(BaseFolderPath))
         {
             if (string.IsNullOrEmpty(ModsFolderPath))
-                ModsFolderPath = Path.Combine(BaseFolderPath, "mods");
+                ModsFolderPath = Path.Combine(BaseFolderPath, "cmm", "mods");
             if (string.IsNullOrEmpty(DownloadsFolderPath))
-                DownloadsFolderPath = Path.Combine(BaseFolderPath, "downloads");
+                DownloadsFolderPath = Path.Combine(BaseFolderPath, "cmm", "downloads");
         }
     }
 
