@@ -29,7 +29,9 @@ public class TomlProfileServiceTests
 
         await _service.SaveProfileAsync(profile, path);
 
-        _fileService.Received(1).WriteAllText(path, Arg.Is<string>(s => s.Contains("Name = \"TestProfile\"")));
+        _fileService.Received(1).WriteAllText(path + ".tmp", Arg.Is<string>(s => s.Contains("Name = \"TestProfile\"")));
+        _fileService.Received(1).CopyFile(path + ".tmp", path, true);
+        _fileService.Received(1).DeleteFile(path + ".tmp");
     }
 
     [Fact]

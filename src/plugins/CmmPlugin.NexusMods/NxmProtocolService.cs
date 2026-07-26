@@ -12,6 +12,30 @@ public class NxmProtocolService
 {
     private const string NxmKeyPath = @"Software\Classes\nxm";
 
+    [DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+    private const int SHCNE_ASSOCCHANGED = 0x08000000;
+    private const int SHCNF_IDLIST       = 0x0000;
+
+    /// <summary>
+    /// Tells Explorer/the shell to drop its cached protocol-association table.
+    /// Without this, registry changes made by <see cref="Register"/> or <see cref="Unregister"/>
+    /// are invisible to Explorer-mediated launches (Win+R, browsers using ShellExecute via the
+    /// shell) until Explorer restarts, even though the registry itself is correct.
+    /// </summary>
+    private static void NotifyShellAssociationsChanged()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        try
+        {
+#if WINDOWS
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+#endif
+        }
+        catch { /* best-effort */ }
+    }
+
     public static bool IsRegistered()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -59,6 +83,10 @@ public class NxmProtocolService
         {
             // Silently ignore registration errors
         }
+        finally
+        {
+            NotifyShellAssociationsChanged();
+        }
     }
 
     public static void Unregister()
@@ -75,6 +103,10 @@ public class NxmProtocolService
         catch
         {
             // Silently ignore unregistration errors
+        }
+        finally
+        {
+            NotifyShellAssociationsChanged();
         }
     }
 }

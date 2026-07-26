@@ -394,7 +394,9 @@ public class NexusBrowseWindow : Window
 
         if (_gameId == 0)
         {
-            SetStatus($"Game '{_gameDomain}' not found on Nexus Mods — browse unavailable.");
+            SetStatus(_api.HasApiKey
+                ? $"Game '{_gameDomain}' not found on Nexus Mods — browse unavailable."
+                : "No Nexus API key configured — add one in Nexus settings to browse mods.");
             return;
         }
 

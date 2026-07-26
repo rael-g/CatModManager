@@ -22,13 +22,18 @@ public class TomlProfileService : IProfileService
     {
         var toml = Toml.WriteString(profile);
         // Using Task.Run for FileService interaction as IFileService isn't fully async yet
-        await Task.Run(() => 
+        await Task.Run(() =>
         {
             var dir = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrEmpty(dir) && !_fileService.DirectoryExists(dir))
                 _fileService.CreateDirectory(dir);
-            
-            _fileService.WriteAllText(filePath, toml);
+
+            // Write to a temp file and swap it in, so a crash/kill mid-write can't
+            // leave the profile truncated or blank.
+            var tempPath = filePath + ".tmp";
+            _fileService.WriteAllText(tempPath, toml);
+            _fileService.CopyFile(tempPath, filePath, overwrite: true);
+            _fileService.DeleteFile(tempPath);
         });
     }
 
