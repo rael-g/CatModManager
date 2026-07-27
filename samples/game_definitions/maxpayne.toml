@@ -1,0 +1,15 @@
+GameId      = "maxpayne"
+DisplayName = "Max Payne"
+
+NexusDomain = "maxpayne"
+SteamAppId  = 12140
+
+RequiredFiles = ["MaxPayne.exe"]
+
+# Max Payne has no dedicated mod folder — mods (skins, weapon reskins, custom
+# levels) overwrite files directly under the game's install directory
+# (e.g. database/, textures/, levels/).
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""
