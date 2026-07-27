@@ -319,7 +319,7 @@
 
                             <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="4,8"/>
 
-                            <Button Command="{Binding ToggleMountCommand}" Classes="mount-btn">
+                            <Button Command="{Binding Vfs.ToggleMountCommand}" Classes="mount-btn">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Vfs.MountButtonIcon}" Foreground="{Binding Vfs.MountButtonColor}" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding Vfs.MountButtonText}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
