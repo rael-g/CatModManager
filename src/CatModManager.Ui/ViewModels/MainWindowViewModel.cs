@@ -101,7 +101,11 @@ public partial class MainWindowViewModel : ObservableObject
         Installer = new ModInstallationCoordinator(modManagementService, modScanner, fileService, logService, sessionState, uiExtensionHost, () => GameConfig, () => ModList, (m, s) => { });
 
         // 3. Wire Events & Callbacks
-        Vfs.PropertyChanged       += (s, e) => OnPropertyChanged(e.PropertyName);
+        Vfs.PropertyChanged       += (s, e) =>
+        {
+            if (e.PropertyName == nameof(Vfs.StatusMessage)) StatusMessage = Vfs.StatusMessage;
+            else OnPropertyChanged(e.PropertyName);
+        };
         Installer.PropertyChanged += (s, e) => OnPropertyChanged(e.PropertyName);
         
         ProfileManager = new ProfileManagerViewModel(profileService, pathService, fileService, configService, logService);
