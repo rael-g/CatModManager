@@ -13,6 +13,8 @@ namespace CatModManager.Ui;
 sealed class Program
 {
     private const string PipeName = "CatModManager_IPC_v1";
+    private static readonly string LockPath = Path.Combine(Path.GetTempPath(), "CatModManager_IPC_v1.lock");
+    private static FileStream? _instanceLock;
 
     /// <summary>Fired on the UI thread when a new nxm:// URI arrives via the IPC pipe.</summary>
     public static event Action<string>? NxmReceived;
@@ -33,13 +35,29 @@ sealed class Program
         string? nxmArg = args.FirstOrDefault(a =>
             a.StartsWith("nxm://", StringComparison.OrdinalIgnoreCase));
 
-        // If another CMM instance is already running, forward the link and exit
-        if (TrySendToExistingInstance(nxmArg ?? string.Empty))
-            return;
+        // If another CMM instance is already running, forward the link and exit.
+        // Retried with backoff because an existing instance launched moments ago
+        // may not have its IPC pipe listening yet (e.g. two nxm:// clicks in a row).
+        if (!string.IsNullOrEmpty(nxmArg))
+        {
+            for (int attempt = 0; attempt < 6; attempt++)
+            {
+                if (TrySendToExistingInstance(nxmArg))
+                    return;
+                if (attempt < 5) Thread.Sleep(300);
+            }
+        }
 
-        // We are the primary instance
-        StartPipeServer();
-        if (nxmArg != null) _pendingNxmArg = nxmArg;
+        // Only the instance holding the exclusive lock runs the IPC pipe server.
+        // NamedPipeServerStream on Linux silently unlinks and rebinds an existing
+        // socket file at the same path instead of failing to bind, so without this
+        // gate a second instance can steal the first one's pipe out from under it,
+        // leaving the original instance unreachable for the rest of its lifetime.
+        if (TryAcquireInstanceLock())
+        {
+            StartPipeServer();
+            if (nxmArg != null) _pendingNxmArg = nxmArg;
+        }
 
         // Bootstrap services for emergency VFS cleanup before DI is ready
         var logger = new LogService();
@@ -67,6 +85,19 @@ sealed class Program
             .LogToTrace();
 
     // ── Single-instance IPC ───────────────────────────────────────────────────
+
+    private static bool TryAcquireInstanceLock()
+    {
+        try
+        {
+            _instanceLock = new FileStream(LockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
 
     private static bool TrySendToExistingInstance(string message)
     {
