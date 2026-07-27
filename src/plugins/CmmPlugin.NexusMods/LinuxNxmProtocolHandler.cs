@@ -1,0 +1,115 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+
+namespace CmmPlugin.NexusMods;
+
+/// <summary>
+/// Registers nxm:// on Linux via a per-user .desktop entry plus xdg-mime, the
+/// desktop-agnostic equivalent of the Windows registry approach. There is no
+/// registry: association state lives in a .desktop file under
+/// ~/.local/share/applications and in ~/.config/mimeapps.list (managed by xdg-mime).
+/// Only ever instantiated on Linux (see <see cref="NxmProtocolHandlerFactory"/>).
+/// </summary>
+internal class LinuxNxmProtocolHandler : INxmProtocolHandler
+{
+    private const string DesktopId = "cmm-nxm-handler.desktop";
+    private const string MimeType = "x-scheme-handler/nxm";
+
+    private static string ApplicationsDir =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "applications");
+
+    private static string DesktopFilePath => Path.Combine(ApplicationsDir, DesktopId);
+
+    public bool IsRegistered()
+    {
+        if (!File.Exists(DesktopFilePath)) return false;
+
+        var currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+        if (string.IsNullOrEmpty(currentExe)) return false;
+
+        var content = File.ReadAllText(DesktopFilePath);
+        if (!content.Contains(currentExe, StringComparison.Ordinal)) return false;
+
+        var (output, _) = RunCapture("xdg-mime", $"query default {MimeType}");
+        return output.Trim() == DesktopId;
+    }
+
+    public void Register(string exePath)
+    {
+        try
+        {
+            Directory.CreateDirectory(ApplicationsDir);
+
+            var content =
+                "[Desktop Entry]\n" +
+                "Type=Application\n" +
+                "Name=Cat Mod Manager (NXM Handler)\n" +
+                $"Exec=\"{exePath}\" \"%u\"\n" +
+                "NoDisplay=true\n" +
+                "StartupNotify=false\n" +
+                $"MimeType={MimeType};\n";
+
+            File.WriteAllText(DesktopFilePath, content);
+
+            Run("update-desktop-database", ApplicationsDir);
+            Run("xdg-mime", $"default {DesktopId} {MimeType}");
+        }
+        catch
+        {
+            // Silently ignore registration errors
+        }
+    }
+
+    public void Unregister()
+    {
+        try
+        {
+            if (File.Exists(DesktopFilePath)) File.Delete(DesktopFilePath);
+            Run("update-desktop-database", ApplicationsDir);
+        }
+        catch
+        {
+            // Silently ignore unregistration errors
+        }
+    }
+
+    private static void Run(string fileName, string arguments)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo(fileName, arguments)
+            {
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+            });
+            proc?.WaitForExit(5000);
+        }
+        catch
+        {
+            // xdg-utils may not be installed; registration best-effort only.
+        }
+    }
+
+    private static (string Output, int ExitCode) RunCapture(string fileName, string arguments)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo(fileName, arguments)
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            if (proc == null) return (string.Empty, -1);
+            string output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(5000);
+            return (output, proc.ExitCode);
+        }
+        catch
+        {
+            return (string.Empty, -1);
+        }
+    }
+}
