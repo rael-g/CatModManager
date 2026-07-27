@@ -40,7 +40,7 @@ SaveFolderPattern = ""C:\\Saves\\Test""
         detector.Load(_tempDir);
 
         Assert.True(detector.Count >= 1);
-        var def = detector.Detect("C:\\Games\\game.exe");
+        var def = detector.Detect(Path.Combine("Games", "game.exe"));
         Assert.NotNull(def);
         Assert.Equal("TestGame", def!.GameId);
         Assert.Equal("C:\\Saves\\Test", def.SaveFolderPattern);
