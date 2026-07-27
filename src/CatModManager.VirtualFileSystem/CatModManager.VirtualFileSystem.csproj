@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="LTRData.FuseDotNet" Version="1.0.0.14" />
+    <PackageReference Include="Mono.Fuse.NETStandard" Version="1.1.0" />
     <PackageReference Include="winfsp.net" Version="2.1.25156" />
   </ItemGroup>
 
