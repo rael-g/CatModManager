@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Xunit;
 using NSubstitute;
@@ -24,17 +25,17 @@ public class LoadOrderServiceTests
     public void Refresh_MergesDiscoveredAndOrderedPlugins()
     {
         // ARRANGE
-        string dataDir = "C:\\Skyrim\\Data";
-        string pluginsTxt = "C:\\AppData\\plugins.txt";
+        string dataDir = Path.Combine("Skyrim", "Data");
+        string pluginsTxt = Path.Combine("AppData", "plugins.txt");
 
         _fileService.DirectoryExists(dataDir).Returns(true);
         _fileService.FileExists(pluginsTxt).Returns(true);
 
         // Discovered on disk
         _fileService.GetFiles(dataDir, "*").Returns(new[] {
-            "C:\\Skyrim\\Data\\Skyrim.esm",
-            "C:\\Skyrim\\Data\\Update.esm",
-            "C:\\Skyrim\\Data\\NewMod.esp"
+            Path.Combine(dataDir, "Skyrim.esm"),
+            Path.Combine(dataDir, "Update.esm"),
+            Path.Combine(dataDir, "NewMod.esp")
         });
 
         // Existing order in plugins.txt (Skyrim.esm enabled, Update.esm disabled)
@@ -67,11 +68,12 @@ public class LoadOrderServiceTests
     {
         // ARRANGE
         var mod1 = Substitute.For<IModInfo>();
+        string modRoot = Path.Combine("Mods", "Mod1");
         mod1.IsEnabled.Returns(true);
-        mod1.ModRootPath.Returns("C:\\Mods\\Mod1");
+        mod1.ModRootPath.Returns(modRoot);
 
-        _fileService.DirectoryExists(mod1.ModRootPath).Returns(true);
-        _fileService.GetFiles(mod1.ModRootPath, "*").Returns(new[] { "C:\\Mods\\Mod1\\Mod1Plugin.esp" });
+        _fileService.DirectoryExists(modRoot).Returns(true);
+        _fileService.GetFiles(modRoot, "*").Returns(new[] { Path.Combine(modRoot, "Mod1Plugin.esp") });
 
         // ACT
         _service.Refresh(null, null, new[] { mod1 });
