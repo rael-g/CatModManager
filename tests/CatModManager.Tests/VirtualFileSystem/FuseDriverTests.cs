@@ -85,7 +85,7 @@ public class FuseDriverTests
     }
 
     [Fact]
-    public void Mount_PassesReadOnlyAndAllowOtherOptions()
+    public void Mount_PassesReadOnlyAndNonEmptyOptions()
     {
         var (driver, factory) = Make();
         driver.Mount("/game", new StubFs());
@@ -93,7 +93,12 @@ public class FuseDriverTests
         var opts = factory.LastCreated!.LastOptions!;
         Assert.Contains("-o", opts);
         Assert.Contains("ro", opts);
-        Assert.Contains("allow_other", opts);
+        // The mount point is always the game's own (non-empty) folder, so
+        // libfuse requires `nonempty`. No `allow_other`: that needs
+        // `user_allow_other` in /etc/fuse.conf, which we can't require of users,
+        // and CMM + the game always run as the same OS user anyway.
+        Assert.Contains("nonempty", opts);
+        Assert.DoesNotContain("allow_other", opts);
     }
 
     [Fact]
