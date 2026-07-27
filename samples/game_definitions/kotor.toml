@@ -1,0 +1,25 @@
+GameId      = "kotor"
+DisplayName = "Star Wars: Knights of the Old Republic"
+
+NexusDomain = "kotor"
+SteamAppId  = 32370
+
+RequiredFiles = ["swkotor.exe"]
+
+# Most mods (2DAs, textures, dialogue, scripts) install into Override.
+[[MountPoints]]
+Id   = "override"
+Name = "Override"
+Path = "Override"
+
+# Some mods ship custom .mod modules.
+[[MountPoints]]
+Id   = "modules"
+Name = "Modules"
+Path = "Modules"
+
+# TSLPatcher-based installers and a few mods touch files at game root.
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""
