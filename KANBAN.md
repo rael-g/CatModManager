@@ -4,6 +4,18 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## To Do
 
+- **[GRAVE] Sem recuperação de mount FUSE órfão após crash no Linux.** Se o processo do CMM morre
+  (crash, `kill`, etc.) enquanto um mount FUSE está ativo, o kernel mantém a entrada de mount
+  registrada mas **desconectada** ("Transport endpoint is not connected" ao acessar) — a pasta do
+  jogo parece ter sumido/vazio até alguém rodar `fusermount -uz` manualmente. Os arquivos reais nunca
+  são afetados (confirmado 2x nesta sessão: KOTOR e Max Payne), mas o susto é grande e não tem
+  recuperação automática. `VfsStateService.RecoverStaleMounts()` (`src/CatModManager.Core/Services/
+  VfsStateService.cs`), que roda na inicialização pra limpar sessões anteriores, só conhece o esquema
+  de hard links do Windows (restaura por `backup_path`) — não existe equivalente pra detectar/desmontar
+  um FUSE órfão no Linux. Fix: no startup (ou no `RecoverStaleMounts` do Linux), verificar
+  `/proc/mounts` por entradas `fuse.CatModManager` que apontem pra pastas de jogos conhecidos e, se
+  encontradas, tentar `fusermount -uz` nelas antes de abrir a UI.
+
 - **Preservar downloads Nexus ao trocar de perfil.** Trocar de perfil no meio de um download do
   Nexus pode cancelar/perder o progresso. Em `src/plugins/CmmPlugin.NexusMods/NexusModsPlugin.cs`,
   `LoadDownloadsForProfile()` troca toda a coleção `Downloads` pelo conjunto do novo perfil (via

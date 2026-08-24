@@ -48,8 +48,44 @@ internal class FuseNativeHost : INativeFuseHost
     public void Unmount()
     {
         if (_mountPoint == null) return;
-        RunFusermount(_mountPoint);
-        _fuseThread?.Join(TimeSpan.FromSeconds(10));
+        string mountPoint = _mountPoint;
+
+        RunFusermount(mountPoint);
+
+        // A false return here means the FUSE-serving thread is still alive after the
+        // OS-level mount was detached — don't pretend that's a clean unmount. If the
+        // app exits while that thread (and its FUSE channel) is still around, the
+        // kernel-level mount entry is severed mid-flight and left disconnected
+        // ("Transport endpoint is not connected") instead of properly torn down.
+        bool threadExited = _fuseThread?.Join(TimeSpan.FromSeconds(10)) ?? true;
+
+        // Belt and suspenders: confirm the kernel actually agrees the mount is gone
+        // before declaring success, rather than trusting fusermount's exit code and
+        // the thread join alone.
+        bool stillMounted = IsMounted(mountPoint);
+
+        if (!threadExited || stillMounted)
+            throw new IOException(
+                $"Unmount of '{mountPoint}' did not fully complete " +
+                $"(fuse thread exited: {threadExited}, still in /proc/mounts: {stillMounted}). " +
+                "Do not close the app while this mount is in this state.");
+    }
+
+    private static bool IsMounted(string mountPoint)
+    {
+        try
+        {
+            foreach (var line in File.ReadLines("/proc/mounts"))
+            {
+                // Fields are whitespace-separated; the mount point is the 2nd field
+                // and may contain octal-escaped spaces (\040) — compare loosely.
+                var fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (fields.Length > 1 && fields[1].Replace("\\040", " ") == mountPoint)
+                    return true;
+            }
+        }
+        catch { /* best-effort check only */ }
+        return false;
     }
 
     public void Dispose()
