@@ -11,7 +11,7 @@
 Instead of physically copying or replacing game files, CMM uses a driver-level overlay:
 
 - **Windows** — NTFS hard links are created at mount time. The game reads mod files through the link; original files are backed up with a dot-prefix. Unmounting removes all links and restores originals. No third-party kernel driver required.
-- **Linux** — A read-only FUSE filesystem is mounted over the game directory. The game sees a merged view of base files and mod overrides. FUSE automatically unmounts if the process exits.
+- **Linux** — A read-only FUSE filesystem is mounted over the game directory. The game sees a merged view of base files and mod overrides. Unmounting cleanly detaches the mount and the original directory reappears untouched — but if CMM is killed or crashes while mounted, the kernel does *not* auto-restore access: it leaves a disconnected mount stub (`Transport endpoint is not connected`) until something runs `fusermount -u`/`-uz` on it. See [KANBAN.md](KANBAN.md) for the planned startup recovery for this case.
 
 Both approaches leave no permanent changes to your game directory.
 
@@ -40,7 +40,7 @@ Both approaches leave no permanent changes to your game directory.
 ### Prerequisites
 
 - .NET 10.0 SDK
-- **Linux only:** FUSE (`sudo apt install fuse` on Debian/Ubuntu, `sudo pacman -S fuse2` on Arch)
+- **Linux only:** `libfuse2` (or `fuse2` on Arch), `fuse3`, `xdg-utils`, `desktop-file-utils` — see [deploy/linux/DEPENDENCIES.md](deploy/linux/DEPENDENCIES.md) for exact package names and what each one is for.
 
 ### Build and Run
 
