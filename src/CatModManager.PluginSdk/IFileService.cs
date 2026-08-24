@@ -19,4 +19,7 @@ public interface IFileService
     string[] ReadAllLines(string path);
     void WriteAllLines(string path, string[] contents);
     string[] GetFiles(string path, string searchPattern, bool recursive = false);
+
+    /// <summary>Immediate subdirectories of <paramref name="path"/>, or empty if it does not exist.</summary>
+    string[] GetDirectories(string path);
 }

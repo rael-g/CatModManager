@@ -37,4 +37,7 @@ public class PhysicalFileService : IFileService
     
     public string[] GetFiles(string path, string searchPattern, bool recursive = false) 
         => Directory.GetFiles(path, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
+
+    public string[] GetDirectories(string path)
+        => Directory.Exists(path) ? Directory.GetDirectories(path) : Array.Empty<string>();
 }

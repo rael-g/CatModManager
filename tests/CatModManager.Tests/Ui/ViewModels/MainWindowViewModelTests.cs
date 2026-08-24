@@ -224,6 +224,7 @@ public class MainWindowViewModelTests : IDisposable
         public string[] ReadAllLines(string path) => Array.Empty<string>();
         public void WriteAllLines(string path, string[] contents) { }
         public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
+        public string[] GetDirectories(string path) => Array.Empty<string>();
     }
 
     private class MockConfigService : IConfigService {

@@ -258,6 +258,7 @@ public class BugReproductionTests : IDisposable
         public string[] ReadAllLines(string path) => Array.Empty<string>();
         public void WriteAllLines(string path, string[] contents) { }
         public string[] GetFiles(string path, string pattern, bool rec) => _paths.Where(p => p.StartsWith(Path.GetFullPath(path))).ToArray();
+        public string[] GetDirectories(string path) => Array.Empty<string>();
     }
     private sealed class NullHardlinkStateStore : IHardlinkStateStore
     {
