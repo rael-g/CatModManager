@@ -96,12 +96,12 @@ public class ProcessService : IProcessService
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 info.FileName = "explorer.exe";
-                info.Arguments = candidate;
+                info.ArgumentList.Add(candidate);
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 info.FileName = "xdg-open";
-                info.Arguments = candidate;
+                info.ArgumentList.Add(candidate);
             }
             _runner.StartAsync(info);
         }

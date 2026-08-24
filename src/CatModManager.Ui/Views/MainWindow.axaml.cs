@@ -522,12 +522,7 @@ public partial class MainWindow : Window
         else
             absPath = expanded;
 
-        // Walk up to nearest existing ancestor (explorer falls back to Documents on missing paths).
-        var candidate = absPath;
-        while (!string.IsNullOrEmpty(candidate) && !System.IO.Directory.Exists(candidate))
-            candidate = System.IO.Path.GetDirectoryName(candidate) ?? "";
-        if (!string.IsNullOrEmpty(candidate))
-            System.Diagnostics.Process.Start("explorer.exe", candidate);
+        _ = vm.OpenFolder(absPath);
     }
 
     private async Task<(string Name, string Path)?> ShowMountPointEditorDialog(string initialName, string initialPath)
