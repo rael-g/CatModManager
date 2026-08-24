@@ -1,0 +1,24 @@
+GameId      = "starfield"
+DisplayName = "Starfield"
+
+NexusDomain = "starfield"
+SteamAppId  = 1716740
+
+RequiredFiles = ["Starfield.exe", "Data"]
+
+# Loose mods (textures, meshes, plugins) go into the Data folder.
+# Note: Starfield ignores loose files unless StarfieldCustom.ini sets
+# [Archive] bInvalidateOlderFiles=1 / sResourceDataDirsFinal= — the BethesdaTools
+# plugin writes that automatically before launch.
+[[MountPoints]]
+Id   = "data"
+Name = "Data"
+Path = "Data"
+
+# SFSE, ASI loaders, ReShade and other root-relative mods.
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""
+
+SaveFolderPattern = "%USERPROFILE%\\Documents\\My Games\\Starfield\\Saves"
