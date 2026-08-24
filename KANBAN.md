@@ -71,6 +71,24 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   fazemos no Windows via `HardlinkDriver`), que não dependem de namespace de mount e funcionariam
   sandboxado sem gambiarra. Decidir isso antes de investir em empacotar Flatpak/Snap.
 
+- **Mods pesados falham o download.** Relatado pelo usuário durante testes reais no Linux; ainda sem
+  diagnóstico (nenhum log/stack trace coletado ainda). Investigar se é timeout de HTTP, limite de
+  memória/buffer no `NexusDownloadService`, ou algo específico de arquivos grandes na escrita em disco.
+
+- **Validar aba PLUGINS com Starfield real.** O suporte Bethesda foi corrigido e testado com árvore
+  Steam/Proton sintética em disco (resolução do prefixo, casing de `plugins.txt`, escrita do
+  `StarfieldCustom.ini`), mas nunca rodou contra uma instalação real do jogo. Falta confirmar: se o
+  Starfield de fato lê o `Plugins.txt` que escrevemos, se a ordem `.esm` antes de `.esp` está
+  correta pro engine do Creation Engine 2, e se a lista de masters implícitos em
+  `BethesdaDetector._known` bate com a versão atual do jogo (DLCs novos entram nessa lista).
+
+- **Scanner de jogos Bethesda não popula `SteamAppId` no resolver de prefixo.**
+  `GamePathResolver.EnumerateCandidatePrefixes` (`src/plugins/CmmPlugin.BethesdaTools/Services/`)
+  varre *todos* os diretórios de `steamapps/compatdata` porque o plugin não recebe o App ID do jogo.
+  Funciona (escolhe o prefixo que já tem a pasta do jogo), mas é O(n) em prefixos e no primeiro run
+  — quando nenhum prefixo tem os dados ainda — cai no primeiro da lista, que pode ser o errado.
+  `IModManagerState` já expõe `GameId`; expor também o `SteamAppId` da definição TOML resolveria.
+
 - **Race condition em `NewProfile`/`RenameProfile`.** Testes em
   `tests/CatModManager.Tests/Regression/ProfileRegressionTests.cs` falham de forma intermitente
   (4-6 falhas variando entre execuções sem mudança de código). Não parece específico de Linux —
