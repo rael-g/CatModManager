@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Layout;
+using System.Linq;
 using Avalonia.Media;
 using CmmPlugin.BethesdaTools.Models;
 
@@ -25,9 +26,14 @@ public class PluginsTabControl : UserControl
         {
             Margin = new Thickness(8, 4),
             Foreground = Brushes.Gray,
-            FontSize = 11
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap
         };
-        UpdateStatus();
+
+        // Status also changes on its own (profile switch, mod install), not just on button clicks,
+        // so follow the property instead of sampling it once.
+        _statusText.Bind(TextBlock.TextProperty,
+            new Binding(nameof(PluginsTabViewModel.Status)) { Source = _vm });
 
         var listBox = BuildListBox();
         var buttonBar = BuildButtonBar(listBox);
@@ -58,7 +64,6 @@ public class PluginsTabControl : UserControl
                 var cb = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
                 cb.Bind(CheckBox.IsCheckedProperty,
                     new Binding(nameof(EspEntry.IsEnabled)) { Mode = BindingMode.TwoWay });
-                cb.PropertyChanged += (_, _) => UpdateStatus();
 
                 var order = new TextBlock
                 {
@@ -99,7 +104,7 @@ public class PluginsTabControl : UserControl
 
     private Panel BuildButtonBar(ListBox listBox)
     {
-        var btnRefresh = MakeButton("↺ Refresh", () => { _vm.Refresh(); UpdateStatus(); });
+        var btnRefresh = MakeButton("↺ Refresh", () => _vm.Refresh());
         var btnSave = MakeButton("💾 Save", () => _vm.Save());
         var btnSort = MakeButton("ESM first", () => _vm.SortMastersFirst());
         var btnUp = MakeButton("▲", () =>
@@ -117,16 +122,17 @@ public class PluginsTabControl : UserControl
             Spacing = 4,
             Margin = new Thickness(4)
         };
-        var btnOpenLoot   = MakeButton("Open LOOT",          () => _vm.OpenLoot());
-        var btnImportLoot = MakeButton("Import LOOT Order",  () => { _vm.ImportLootOrder(); UpdateStatus(); });
-
         bar.Children.Add(btnRefresh);
         bar.Children.Add(btnSave);
         bar.Children.Add(btnSort);
         bar.Children.Add(btnUp);
         bar.Children.Add(btnDown);
-        bar.Children.Add(btnOpenLoot);
-        bar.Children.Add(btnImportLoot);
+
+        // Save/reorder are meaningless until a supported game with a locatable plugins.txt is active.
+        // Refresh stays enabled — it's how the user re-checks after fixing the setup.
+        foreach (var child in bar.Children.Where(c => c != btnRefresh))
+            child.Bind(IsEnabledProperty, new Binding(nameof(PluginsTabViewModel.CanEdit)) { Source = _vm });
+
         return bar;
     }
 
@@ -135,11 +141,6 @@ public class PluginsTabControl : UserControl
         var btn = new Button { Content = label, Padding = new Thickness(6, 2) };
         btn.Click += (_, _) => onClick();
         return btn;
-    }
-
-    private void UpdateStatus()
-    {
-        _statusText.Text = _vm.Status;
     }
 }
 

@@ -42,6 +42,25 @@ public class BethesdaDetectorTests
     }
 
     [Fact]
+    public void Detect_Starfield_CarriesImplicitMastersAndCustomIni()
+    {
+        var detector = new BethesdaDetector(Substitute.For<IFileService>());
+
+        var game = detector.Detect(Path.Combine("common", "Starfield", "Starfield.exe"));
+
+        Assert.NotNull(game);
+        Assert.True(game!.UsesStarFormat);
+
+        // These are loaded by the engine itself and must never reach plugins.txt.
+        Assert.True(game.IsImplicitMaster("Starfield.esm"));
+        Assert.True(game.IsImplicitMaster("BlueprintShips-Starfield.esm"));
+        Assert.False(game.IsImplicitMaster("SomeMod.esp"));
+
+        // Without this file Starfield ignores every loose file mounted into Data/.
+        Assert.Equal("StarfieldCustom.ini", game.CustomIniFile);
+    }
+
+    [Fact]
     public void IsBethesdaExecutable_ReturnsCorrectResult()
     {
         var fileService = Substitute.For<IFileService>();

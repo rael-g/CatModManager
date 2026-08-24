@@ -15,20 +15,41 @@ public class BethesdaDetector
         _fileService = fileService;
     }
 
+    private static IReadOnlySet<string> Masters(params string[] names) =>
+        new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+
     private static readonly Dictionary<string, BethesdaGame> _known =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["SkyrimSE"]         = new("Skyrim Special Edition", UsesStarFormat: true),
-            ["TESV"]             = new("Skyrim",                 UsesStarFormat: false),
-            ["Enderal"]          = new("Enderal",                UsesStarFormat: false),
-            ["EnderalSE"]        = new("Enderal Special Edition",UsesStarFormat: true),
-            ["Fallout4"]         = new("Fallout4",               UsesStarFormat: true),
-            ["Fallout4VR"]       = new("Fallout4VR",             UsesStarFormat: true),
-            ["FalloutNV"]        = new("FalloutNV",              UsesStarFormat: false),
-            ["Fallout3"]         = new("Fallout3",               UsesStarFormat: false),
-            ["Oblivion"]         = new("Oblivion",               UsesStarFormat: false),
-            ["Morrowind"]        = new("Morrowind",              UsesStarFormat: false),
-            ["Starfield"]        = new("Starfield",              UsesStarFormat: true),
+            ["SkyrimSE"] = new("Skyrim Special Edition", UsesStarFormat: true,
+                Masters("Skyrim.esm", "Update.esm", "Dawnguard.esm", "HearthFires.esm", "Dragonborn.esm")),
+
+            ["TESV"] = new("Skyrim", UsesStarFormat: false,
+                Masters("Skyrim.esm", "Update.esm", "Dawnguard.esm", "HearthFires.esm", "Dragonborn.esm")),
+
+            ["Enderal"]   = new("Enderal", UsesStarFormat: false, Masters("Skyrim.esm", "Update.esm")),
+            ["EnderalSE"] = new("Enderal Special Edition", UsesStarFormat: true, Masters("Skyrim.esm", "Update.esm")),
+
+            ["Fallout4"] = new("Fallout4", UsesStarFormat: true,
+                Masters("Fallout4.esm", "DLCRobot.esm", "DLCworkshop01.esm", "DLCCoast.esm",
+                        "DLCworkshop02.esm", "DLCworkshop03.esm", "DLCNukaWorld.esm",
+                        "DLCUltraHighResolution.esm"),
+                CustomIniFile: "Fallout4Custom.ini"),
+
+            ["Fallout4VR"] = new("Fallout4VR", UsesStarFormat: true,
+                Masters("Fallout4.esm", "Fallout4_VR.esm")),
+
+            ["FalloutNV"] = new("FalloutNV", UsesStarFormat: false, Masters("FalloutNV.esm")),
+            ["Fallout3"]  = new("Fallout3",  UsesStarFormat: false, Masters("Fallout3.esm")),
+            ["Oblivion"]  = new("Oblivion",  UsesStarFormat: false, Masters("Oblivion.esm")),
+            ["Morrowind"] = new("Morrowind", UsesStarFormat: false, Masters("Morrowind.esm")),
+
+            ["Starfield"] = new("Starfield", UsesStarFormat: true,
+                Masters("Starfield.esm", "Constellation.esm", "OldMars.esm",
+                        "BlueprintShips-Starfield.esm", "ShatteredSpace.esm",
+                        "SFBGS003.esm", "SFBGS004.esm", "SFBGS006.esm",
+                        "SFBGS007.esm", "SFBGS008.esm"),
+                CustomIniFile: "StarfieldCustom.ini"),
         };
 
     public BethesdaGame? Detect(string? executablePath)
@@ -45,12 +66,6 @@ public class BethesdaDetector
                 return knownGame;
 
         return null;
-    }
-
-    public static string GetPluginsTextPath(BethesdaGame game)
-    {
-        string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localApp, game.LocalAppDataFolder, "plugins.txt");
     }
 
     public bool IsBethesdaExecutable(string? executablePath) => Detect(executablePath) != null;

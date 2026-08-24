@@ -64,6 +64,77 @@ public class LoadOrderServiceTests
     }
 
     [Fact]
+    public void Refresh_ExcludesImplicitMasters()
+    {
+        // ARRANGE — the engine loads base game and official DLC plugins itself. Listing them in
+        // plugins.txt is not how the format works and corrupts the load order.
+        string dataDir = Path.Combine("Starfield", "Data");
+        var starfield = new BethesdaGame("Starfield", UsesStarFormat: true,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Starfield.esm", "Constellation.esm" });
+
+        _fileService.DirectoryExists(dataDir).Returns(true);
+        _fileService.GetFiles(dataDir, "*").Returns(new[] {
+            Path.Combine(dataDir, "Starfield.esm"),
+            Path.Combine(dataDir, "Constellation.esm"),
+            Path.Combine(dataDir, "CoolMod.esp")
+        });
+
+        // ACT
+        _service.Refresh(dataDir, null, null, starfield);
+
+        // ASSERT
+        Assert.Single(_service.Entries);
+        Assert.Equal("CoolMod.esp", _service.Entries[0].FileName);
+    }
+
+    [Fact]
+    public void Refresh_HoistsNewMastersAboveRegularPlugins()
+    {
+        // ARRANGE — newly discovered files are appended at the end, but the engine rejects a load
+        // order where a master sorts after a regular plugin.
+        string dataDir = Path.Combine("Skyrim", "Data");
+        string pluginsTxt = Path.Combine("AppData", "plugins.txt");
+
+        _fileService.DirectoryExists(dataDir).Returns(true);
+        _fileService.FileExists(pluginsTxt).Returns(true);
+        _fileService.GetFiles(dataDir, "*").Returns(new[] {
+            Path.Combine(dataDir, "ExistingMod.esp"),
+            Path.Combine(dataDir, "BrandNew.esm")
+        });
+        _fileService.ReadAllLines(pluginsTxt).Returns(new[] { "*ExistingMod.esp" });
+
+        // ACT
+        _service.Refresh(dataDir, pluginsTxt, null);
+
+        // ASSERT
+        Assert.Equal("BrandNew.esm", _service.Entries[0].FileName);
+        Assert.Equal("ExistingMod.esp", _service.Entries[1].FileName);
+    }
+
+    [Fact]
+    public void Refresh_FindsPluginsNestedUnderModDataFolder()
+    {
+        // ARRANGE — plenty of archives ship plugins under "Data/" and get installed that way.
+        var mod = Substitute.For<IModInfo>();
+        string modRoot = Path.Combine("Mods", "Nested");
+        string modData = Path.Combine(modRoot, "Data");
+        mod.IsEnabled.Returns(true);
+        mod.ModRootPath.Returns(modRoot);
+
+        _fileService.DirectoryExists(modRoot).Returns(true);
+        _fileService.DirectoryExists(modData).Returns(true);
+        _fileService.GetFiles(modRoot, "*").Returns(Array.Empty<string>());
+        _fileService.GetFiles(modData, "*").Returns(new[] { Path.Combine(modData, "Nested.esp") });
+
+        // ACT
+        _service.Refresh(null, null, new[] { mod });
+
+        // ASSERT
+        Assert.Single(_service.Entries);
+        Assert.Equal("Nested.esp", _service.Entries[0].FileName);
+    }
+
+    [Fact]
     public void Refresh_HandlesActiveMods()
     {
         // ARRANGE
@@ -100,19 +171,21 @@ public class LoadOrderServiceTests
     }
 
     [Fact]
-    public void Save_WritesCorrectFormat_NoStar()
+    public void Save_OmitsDisabledEntries_NoStar()
     {
-        // ARRANGE
+        // ARRANGE — pre-Skyrim SE engines have no way to represent a disabled plugin:
+        // plugins.txt lists the enabled ones and nothing else.
         string pluginsTxt = "C:\\AppData\\plugins.txt";
         _service.Entries.Add(new EspEntry("A.esp", true, 0));
         _service.Entries.Add(new EspEntry("B.esp", false, 1));
+        _service.Entries.Add(new EspEntry("C.esp", true, 2));
 
         // ACT
         _service.Save(pluginsTxt, false);
 
         // ASSERT
-        _fileService.Received().WriteAllLines(pluginsTxt, Arg.Is<string[]>(lines => 
-            lines[0] == "A.esp" && lines[1] == "#B.esp"));
+        _fileService.Received().WriteAllLines(pluginsTxt, Arg.Is<string[]>(lines =>
+            lines.Length == 2 && lines[0] == "A.esp" && lines[1] == "C.esp"));
     }
 
     [Fact]

@@ -32,12 +32,13 @@ public class LoadOrderService
     /// Rebuilds the load order from disk + active mods.
     /// Order of precedence: existing plugins.txt (preserves user's load order), then new files at end.
     /// </summary>
-    public void Refresh(string? dataFolderPath, string? pluginsTextPath, IEnumerable<IModInfo>? activeMods)
+    public void Refresh(string? dataFolderPath, string? pluginsTextPath, IEnumerable<IModInfo>? activeMods,
+                        BethesdaGame? game = null)
     {
         // 1. Collect all plugin files available
         var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (!string.IsNullOrEmpty(dataFolderPath) && _fileService.DirectoryExists(dataFolderPath))
+        if (!string.IsNullOrEmpty(dataFolderPath))
             foreach (var f in ScanForPlugins(dataFolderPath))
                 discovered.Add(f);
 
@@ -45,6 +46,12 @@ public class LoadOrderService
             foreach (var mod in activeMods.Where(m => m.IsEnabled && _fileService.DirectoryExists(m.ModRootPath)))
                 foreach (var f in ScanForPlugins(mod.ModRootPath))
                     discovered.Add(f);
+
+        // The engine always loads base game + official DLC plugins itself. Listing them in
+        // plugins.txt is not how the format works and corrupts the order, so drop them here
+        // instead of surfacing rows the user can break.
+        if (game != null)
+            discovered.RemoveWhere(game.IsImplicitMaster);
 
         // 2. Read existing plugins.txt to get enabled state + order
         var ordered = new List<(string FileName, bool IsEnabled)>();
@@ -77,8 +84,13 @@ public class LoadOrderService
         }
 
         // New files not yet in plugins.txt — enabled by default
-        foreach (var name in discovered.Where(d => !seen.Contains(d)))
+        foreach (var name in discovered.Where(d => !seen.Contains(d)).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
             merged.Add((name, true));
+
+        // The engine rejects a load order where a master sorts after a regular plugin, and newly
+        // discovered files were just appended at the end — so hoist masters back to the front.
+        // OrderBy is stable, which keeps the user's relative order within each group.
+        merged = merged.OrderBy(m => IsMaster(m.FileName) ? 0 : 1).ToList();
 
         // 4. Rebuild observable collection
         Entries.Clear();
@@ -88,15 +100,19 @@ public class LoadOrderService
         _log.Log($"[BethesdaTools] Load order refreshed: {Entries.Count} plugins found.");
     }
 
-    /// <summary>Writes the current load order back to plugins.txt.</summary>
+    /// <summary>
+    /// Writes the current load order back to plugins.txt.
+    /// Skyrim SE / Fallout 4 / Starfield mark enabled entries with a leading '*' and list disabled
+    /// ones unprefixed. Older engines (Oblivion, FO3/NV, Skyrim LE) have no disabled representation
+    /// at all — the file lists enabled plugins only, so disabled entries are simply omitted.
+    /// </summary>
     public void Save(string pluginsTextPath, bool useStarFormat)
     {
         try
         {
-            var lines = Entries.Select(e =>
-                useStarFormat
-                    ? (e.IsEnabled ? $"*{e.FileName}" : e.FileName)
-                    : (e.IsEnabled ? e.FileName : $"#{e.FileName}"));
+            var lines = useStarFormat
+                ? Entries.Select(e => e.IsEnabled ? $"*{e.FileName}" : e.FileName)
+                : Entries.Where(e => e.IsEnabled).Select(e => e.FileName);
 
             string? dir = Path.GetDirectoryName(pluginsTextPath);
             if (!string.IsNullOrEmpty(dir))
@@ -117,8 +133,22 @@ public class LoadOrderService
             Entries[i].LoadOrder = i;
     }
 
+    private static bool IsMaster(string fileName) =>
+        fileName.EndsWith(".esm", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Plugins live at the root of a mod folder (the VFS mounts the mod root as Data/), but plenty
+    /// of archives ship them one level down under "Data/" and get installed that way, so check both.
+    /// </summary>
     private IEnumerable<string> ScanForPlugins(string folder)
     {
+        return ScanFolder(folder).Concat(ScanFolder(Path.Combine(folder, "Data")));
+    }
+
+    private IEnumerable<string> ScanFolder(string folder)
+    {
+        if (!_fileService.DirectoryExists(folder)) return Array.Empty<string>();
+
         try
         {
             return _fileService.GetFiles(folder, "*")

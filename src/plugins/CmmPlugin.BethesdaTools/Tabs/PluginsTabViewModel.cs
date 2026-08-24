@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -16,7 +15,8 @@ public partial class PluginsTabViewModel : ObservableObject
     private readonly LoadOrderService _loadOrder;
     private readonly IModManagerState _state;
     private readonly IPluginLogger    _log;
-    private readonly BethesdaDetector  _detector;
+    private readonly BethesdaDetector _detector;
+    private readonly GamePathResolver _paths;
 
     private string? _pluginsTextPath;
 
@@ -25,12 +25,18 @@ public partial class PluginsTabViewModel : ObservableObject
     [ObservableProperty]
     private string _status = "Select a Bethesda game to manage load order.";
 
-    public PluginsTabViewModel(LoadOrderService loadOrder, IModManagerState state, IPluginLogger log, BethesdaDetector detector)
+    /// <summary>True when a supported Bethesda game is active and its plugins.txt was located.</summary>
+    [ObservableProperty]
+    private bool _canEdit;
+
+    public PluginsTabViewModel(LoadOrderService loadOrder, IModManagerState state, IPluginLogger log,
+                               BethesdaDetector detector, GamePathResolver paths)
     {
         _loadOrder = loadOrder;
         _state     = state;
         _log       = log;
         _detector  = detector;
+        _paths     = paths;
         Refresh();
     }
 
@@ -41,30 +47,55 @@ public partial class PluginsTabViewModel : ObservableObject
         if (game == null)
         {
             _pluginsTextPath = null;
+            CanEdit = false;
             Entries.Clear();
-            Status = "Game not recognized as a supported Bethesda game.";
+            Status = string.IsNullOrEmpty(_state.GameExecutablePath)
+                ? "No game executable configured."
+                : "Game not recognized as a supported Bethesda game.";
             return;
         }
 
-        _pluginsTextPath = BethesdaDetector.GetPluginsTextPath(game);
-        string? dataDir = !string.IsNullOrEmpty(_state.GameExecutablePath) 
-            ? Path.Combine(Path.GetDirectoryName(_state.GameExecutablePath)!, "Data") 
-            : null;
+        _pluginsTextPath = _paths.GetPluginsTextPath(game, _state.GameExecutablePath);
+        if (_pluginsTextPath == null)
+        {
+            CanEdit = false;
+            Entries.Clear();
+            Status = $"{game.GameFolder}: could not locate the game's Wine/Proton prefix. " +
+                      "Launch the game once through Steam, then refresh.";
+            return;
+        }
 
-        _loadOrder.Refresh(dataDir, _pluginsTextPath, _state.ActiveMods);
-        Status = $"Load order for {game.LocalAppDataFolder} refreshed ({Entries.Count} plugins).";
+        _loadOrder.Refresh(ResolveDataFolder(), _pluginsTextPath, _state.ActiveMods, game);
+        CanEdit = true;
+        Status = $"{game.GameFolder}: {Entries.Count} plugins ({Entries.Count(e => e.IsEnabled)} enabled).";
     }
 
     [RelayCommand]
     public void Save()
     {
         if (string.IsNullOrEmpty(_pluginsTextPath)) return;
-        
+
         var game = _detector.Detect(_state.GameExecutablePath);
         if (game == null) return;
 
         _loadOrder.Save(_pluginsTextPath, game.UsesStarFormat);
-        Status = "Load order saved to plugins.txt.";
+        Status = $"Saved {Entries.Count(e => e.IsEnabled)} enabled plugins to {Path.GetFileName(_pluginsTextPath)}.";
+    }
+
+    /// <summary>
+    /// The Data folder to scan for base game plugins. Prefers the path CMM already resolved for the
+    /// active profile and falls back to the folder next to the executable.
+    /// </summary>
+    private string? ResolveDataFolder()
+    {
+        if (!string.IsNullOrEmpty(_state.DataFolderPath))
+            return _state.DataFolderPath;
+
+        string? exeDir = string.IsNullOrEmpty(_state.GameExecutablePath)
+            ? null
+            : Path.GetDirectoryName(_state.GameExecutablePath);
+
+        return string.IsNullOrEmpty(exeDir) ? null : Path.Combine(exeDir, "Data");
     }
 
     [RelayCommand]
@@ -94,24 +125,11 @@ public partial class PluginsTabViewModel : ObservableObject
     {
         var masters = Entries.Where(e => e.FileName.EndsWith(".esm", StringComparison.OrdinalIgnoreCase)).ToList();
         var others  = Entries.Where(e => !e.FileName.EndsWith(".esm", StringComparison.OrdinalIgnoreCase)).ToList();
-        
+
         Entries.Clear();
         foreach (var m in masters) Entries.Add(m);
         foreach (var o in others)  Entries.Add(o);
         _loadOrder.RecalculateOrder();
         Status = "Masters moved to the top.";
-    }
-
-    [RelayCommand]
-    public void OpenLoot()
-    {
-        // Placeholder or simple execution if path found
-        Status = "LOOT execution not implemented yet.";
-    }
-
-    [RelayCommand]
-    public void ImportLootOrder()
-    {
-        Status = "LOOT import not implemented yet.";
     }
 }
