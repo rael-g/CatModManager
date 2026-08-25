@@ -68,14 +68,6 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   — quando nenhum prefixo tem os dados ainda — cai no primeiro da lista, que pode ser o errado.
   `IModManagerState` já expõe `GameId`; expor também o `SteamAppId` da definição TOML resolveria.
 
-- **[REFACTOR] UI construída em código imperativo em vez de XAML.** ~2.400 linhas de construção
-  manual de controles Avalonia (`NexusDownloadsTabControl` 759, `NexusBrowseWindow` 746,
-  `FomodWizardWindow` 270, `GameDetectionDialog` 244, `PluginsTabControl` 145), contra só 1.200
-  linhas de `.axaml` no projeto inteiro. É a causa raiz da paleta duplicada acima e dos métodos
-  gigantes (`GameDetectionDialog` tem um de 178 linhas). Para os controles de plugin há uma razão
-  legítima (evitar carregar XAML de assembly externo), mas `GameDetectionDialog` e os diálogos
-  dentro de `MainWindow.axaml.cs` estão no app principal e não têm essa desculpa.
-
 - **Race condition em `NewProfile`/`RenameProfile`.** Testes em
   `tests/CatModManager.Tests/Regression/ProfileRegressionTests.cs` falham de forma intermitente
   (4-6 falhas variando entre execuções sem mudança de código). Não parece específico de Linux —
@@ -83,6 +75,18 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   competindo com o teste.
 
 ## Feito
+
+- **[REFACTOR] Diálogos do app principal em código imperativo.** `GameDetectionDialog` (244 linhas
+  de construção manual, incluindo um método de 178) virou `GameDetectionDialog.axaml` + 36 linhas
+  de code-behind, com três `IValueConverter` no lugar dos `switch` de cor inline. Os dois diálogos
+  embutidos no `MainWindow.axaml.cs` viraram janelas próprias (`MountPointPickerDialog`,
+  `MountPointEditorDialog`), o que tirou 195 linhas do arquivo (630 → 435) e eliminou o sentinela
+  `"cancelled"` — agora `null` significa cancelado, como no resto do código. O estado "mount point
+  atual" virou uma classe de estilo (`Classes.current`) em vez de três ternários de brush.
+  `DialogLoadTests` carrega cada diálogo em headless, porque com XAML um binding quebrado deixou de
+  ser erro de compilação e só aparece ao abrir a janela.
+  Os controles dos plugins continuam imperativos de propósito: carregar XAML de assembly externo é
+  justamente o que se quis evitar.
 
 - **Botão de Retry do Nexus não funcionava.** `RetryDownload` montava uma entrada nova só com
   `GameDomain`/`ModId`/`FileId` e chamava `QueueDownloadDirect`, descartando o `key`/`expires` do
