@@ -186,21 +186,9 @@ public class ProfileRegressionTests : IDisposable
         public Task<string> InstallModToRootAsync(string a, string n, string t, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(t);
     }
 
-    private class MockFileService : IFileService {
-        public bool FileExists(string p) => true;
-        public bool DirectoryExists(string p) => true;
-        public void CreateDirectory(string p) { }
-        public void CopyFile(string s, string d, bool o) { }
-        public void CopyDirectory(string s, string d) { }
-        public void DeleteFile(string p) { }
-        public void DeleteDirectory(string p, bool r) { }
-        public void MoveDirectory(string fromPath, string targetPath) { }
-        public string ReadAllText(string path) => "";
-        public void WriteAllText(string path, string contents) { }
-        public string[] ReadAllLines(string path) => Array.Empty<string>();
-        public void WriteAllLines(string path, string[] contents) { }
-        public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
-        public string[] GetDirectories(string path) => Array.Empty<string>();
+    private class MockFileService : StubFileService {
+        public override bool FileExists(string p) => true;
+        public override bool DirectoryExists(string p) => true;
     }
 
     private class MockProcessService : IProcessService {

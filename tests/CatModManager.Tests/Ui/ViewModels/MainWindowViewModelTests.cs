@@ -209,22 +209,10 @@ public class MainWindowViewModelTests : IDisposable
         public Task<string> InstallModToRootAsync(string a, string n, string t, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(t);
     }
 
-    private class MockFileService : IFileService {
+    private class MockFileService : StubFileService {
         public bool ForceExists { get; set; }
-        public bool FileExists(string p) => ForceExists;
-        public bool DirectoryExists(string p) => ForceExists;
-        public void CreateDirectory(string p) { }
-        public void CopyFile(string s, string d, bool o) { }
-        public void CopyDirectory(string s, string d) { }
-        public void DeleteFile(string p) { }
-        public void DeleteDirectory(string p, bool r) { }
-        public void MoveDirectory(string fromPath, string targetPath) { }
-        public string ReadAllText(string path) => "";
-        public void WriteAllText(string path, string contents) { }
-        public string[] ReadAllLines(string path) => Array.Empty<string>();
-        public void WriteAllLines(string path, string[] contents) { }
-        public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
-        public string[] GetDirectories(string path) => Array.Empty<string>();
+        public override bool FileExists(string p) => ForceExists;
+        public override bool DirectoryExists(string p) => ForceExists;
     }
 
     private class MockConfigService : IConfigService {

@@ -231,7 +231,7 @@ public class BugReproductionTests : IDisposable
         public Task<string> InstallModFromMappingAsync(string a, string n, string t, Dictionary<string, string> m, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(ResultPath);
         public Task<string> InstallModToRootAsync(string a, string n, string t, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(ResultPath);
     }
-    private class MockFileService : IFileService {
+    private class MockFileService : StubFileService {
         private readonly HashSet<string> _paths = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _fileContents = new(StringComparer.OrdinalIgnoreCase);
 
@@ -241,24 +241,21 @@ public class BugReproductionTests : IDisposable
             _paths.Add(Path.GetFullPath(Path.GetDirectoryName(p)!));
         }
 
-        public bool FileExists(string p) => _paths.Contains(Path.GetFullPath(p));
-        public bool DirectoryExists(string p) => _paths.Contains(Path.GetFullPath(p));
-        public void CreateDirectory(string p) => _paths.Add(Path.GetFullPath(p));
-        public void CopyFile(string s, string d, bool o) => _paths.Add(Path.GetFullPath(d));
-        public void CopyDirectory(string s, string d) => _paths.Add(Path.GetFullPath(d));
-        public void DeleteFile(string p) => _paths.Remove(Path.GetFullPath(p));
-        public void DeleteDirectory(string p, bool r) => _paths.Remove(Path.GetFullPath(p));
-        public void MoveDirectory(string fromPath, string targetPath) {
+        public override bool FileExists(string p) => _paths.Contains(Path.GetFullPath(p));
+        public override bool DirectoryExists(string p) => _paths.Contains(Path.GetFullPath(p));
+        public override void CreateDirectory(string p) => _paths.Add(Path.GetFullPath(p));
+        public override void CopyFile(string s, string d, bool o) => _paths.Add(Path.GetFullPath(d));
+        public override void CopyDirectory(string s, string d) => _paths.Add(Path.GetFullPath(d));
+        public override void DeleteFile(string p) => _paths.Remove(Path.GetFullPath(p));
+        public override void DeleteDirectory(string p, bool r) => _paths.Remove(Path.GetFullPath(p));
+        public override void MoveDirectory(string fromPath, string targetPath) {
             _paths.Remove(Path.GetFullPath(fromPath));
             _paths.Add(Path.GetFullPath(targetPath));
         }
 
-        public string ReadAllText(string path) => _fileContents.TryGetValue(Path.GetFullPath(path), out var c) ? c : "";
-        public void WriteAllText(string path, string contents) => _fileContents[Path.GetFullPath(path)] = contents;
-        public string[] ReadAllLines(string path) => Array.Empty<string>();
-        public void WriteAllLines(string path, string[] contents) { }
-        public string[] GetFiles(string path, string pattern, bool rec) => _paths.Where(p => p.StartsWith(Path.GetFullPath(path))).ToArray();
-        public string[] GetDirectories(string path) => Array.Empty<string>();
+        public override string ReadAllText(string path) => _fileContents.TryGetValue(Path.GetFullPath(path), out var c) ? c : "";
+        public override void WriteAllText(string path, string contents) => _fileContents[Path.GetFullPath(path)] = contents;
+        public override string[] GetFiles(string path, string pattern, bool rec) => _paths.Where(p => p.StartsWith(Path.GetFullPath(path))).ToArray();
     }
     private sealed class NullHardlinkStateStore : IHardlinkStateStore
     {

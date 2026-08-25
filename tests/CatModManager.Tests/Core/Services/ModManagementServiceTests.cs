@@ -120,13 +120,13 @@ public class ModManagementServiceTests : IDisposable
 
     // --- HELPER MOCKS ---
 
-    private class MockFileService : IFileService
+    private class MockFileService : StubFileService
     {
-        public bool FileExists(string p) => File.Exists(p);
-        public bool DirectoryExists(string p) => Directory.Exists(p);
-        public void CreateDirectory(string p) => Directory.CreateDirectory(p);
-        public void CopyFile(string s, string d, bool o) => File.Copy(s, d, o);
-        public void CopyDirectory(string s, string d) 
+        public override bool FileExists(string p) => File.Exists(p);
+        public override bool DirectoryExists(string p) => Directory.Exists(p);
+        public override void CreateDirectory(string p) => Directory.CreateDirectory(p);
+        public override void CopyFile(string s, string d, bool o) => File.Copy(s, d, o);
+        public override void CopyDirectory(string s, string d)
         {
             Directory.CreateDirectory(d);
             foreach (string file in Directory.GetFiles(s, "*", SearchOption.AllDirectories))
@@ -137,15 +137,10 @@ public class ModManagementServiceTests : IDisposable
                 File.Copy(file, dest);
             }
         }
-        public void DeleteFile(string p) => File.Delete(p);
-        public void DeleteDirectory(string p, bool r) => Directory.Delete(p, r);
-        public void MoveDirectory(string f, string t) => Directory.Move(f, t);
-        public string ReadAllText(string path) => "";
-        public void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);
-        public string[] ReadAllLines(string path) => Array.Empty<string>();
-        public void WriteAllLines(string path, string[] contents) { }
-        public string[] GetFiles(string path, string pattern, bool rec) => Array.Empty<string>();
-        public string[] GetDirectories(string path) => Array.Empty<string>();
+        public override void DeleteFile(string p) => File.Delete(p);
+        public override void DeleteDirectory(string p, bool r) => Directory.Delete(p, r);
+        public override void MoveDirectory(string f, string t) => Directory.Move(f, t);
+        public override void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);
     }
 
     public void Dispose()
