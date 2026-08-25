@@ -23,13 +23,6 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   downloads ativos vivos até terminarem (globais, não amarrados a perfil) ou migrá-los pro histórico
   do novo perfil sem interromper a stream HTTP. Adicionar teste de regressão.
 
-- **Corrigir botão de Retry no download do Nexus.** O botão "↺ Retry" na aba de downloads não
-  funciona. `NexusDownloadService.cs:410` `RetryDownload()` re-enfileira só com
-  `GameDomain`/`ModId`/`FileId`, sem `key`/`expires`. Suspeita: `GetDownloadLinksAsync`
-  (`NexusApiService.cs`) pode exigir `key`+`expires` vindos de um clique fresco no site pra contas
-  free, falhando (404/403) sem eles. Investigar com um mod real que já falhou. Se for limitação
-  free vs premium, tratar explicitamente na UI em vez de falhar silenciosamente.
-
 - **Scanner de GOG pro Linux.** `GogScanner` (`src/CatModManager.Core/Services/GameDiscovery/`) lê o
   registro do Windows e o GOG Galaxy não tem cliente Linux, então lá ele sempre retorna vazio. Jogos
   GOG no Linux vêm via Heroic ou instalação manual — precisaria ler os manifests do Heroic
@@ -75,26 +68,6 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   — quando nenhum prefixo tem os dados ainda — cai no primeiro da lista, que pode ser o errado.
   `IModManagerState` já expõe `GameId`; expor também o `SteamAppId` da definição TOML resolveria.
 
-- **[REFACTOR] Duas paletas de cores competindo.** `App.axaml` define uma paleta completa como
-  recursos nomeados (`AppBackground`, `TextPrimary`, `StatusDanger`, `Accent`…), mas o code-behind
-  tem **77 literais** `Color.Parse("#...")` espalhados por 6 arquivos, e **22 das 28 cores usadas
-  lá não existem no tema**. Pior, são variantes divergentes da mesma cor: accent é `#4E7FD5` no tema
-  mas `#5865F2` e `#2563EB` no código; texto apagado é `#80848E` no tema mas `#8E9297`, `#72767D` e
-  `#757575` no código; warning tem `#FAA61A`, `#FAA81A` e `#FFA500`. Na prática o tema só controla
-  metade da UI — mudar a cor de destaque não afeta a aba Nexus nem os diálogos. Concentrado em
-  `NexusDownloadsTabControl` (22), `NexusBrowseWindow` (20), `GameDetectionDialog` (12),
-  `MainWindow.axaml.cs` (11), `NexusModInspectorTab` (10). Fix: expor os brushes do tema e trocar
-  os literais por referência a eles.
-
-- **[REFACTOR] `NexusDownloadService` é uma god-class (773 linhas).** Acumula persistência
-  (`LoadDownloads`/`SaveDownloads`), download HTTP, fila de collections, parsing de link `nxm://`,
-  conversão de preset FOMOD e integração com o shell (`OpenFolder`). Não é só estética: os 3 bugs
-  de download em aberto neste kanban moram todos nele. `QueueDownloadFromNxm` (128 linhas) e
-  `QueueDownloadDirect` (100 linhas) compartilham um corpo de ~90 linhas quase idêntico, diferindo
-  só em de onde vêm os identificadores — e é exatamente por essa divergência que o
-  `RetryDownload` chama o `Direct` sem `key`/`expires`. Unificar esse pipeline provavelmente torna
-  o bug do Retry tratável de verdade em vez de remendo.
-
 - **[REFACTOR] UI construída em código imperativo em vez de XAML.** ~2.400 linhas de construção
   manual de controles Avalonia (`NexusDownloadsTabControl` 759, `NexusBrowseWindow` 746,
   `FomodWizardWindow` 270, `GameDetectionDialog` 244, `PluginsTabControl` 145), contra só 1.200
@@ -110,6 +83,33 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   competindo com o teste.
 
 ## Feito
+
+- **Botão de Retry do Nexus não funcionava.** `RetryDownload` montava uma entrada nova só com
+  `GameDomain`/`ModId`/`FileId` e chamava `QueueDownloadDirect`, descartando o `key`/`expires` do
+  link `nxm://` original — e sem eles a Nexus recusa o download pra conta free como "premium
+  required". Era a divergência entre os dois pipelines quase idênticos que escondia isso. Agora a
+  chave vive na própria `DownloadEntry` (`NxmKey`/`NxmExpires`) e o retry reaproveita o objeto, o
+  que também preserva o preset FOMOD de mods de collection. Falta confirmar com um mod real se a
+  chave ainda é válida no momento do retry (ela expira) — se não for, a UI precisa reabrir a página
+  em vez de falhar.
+
+- **[REFACTOR] `NexusDownloadService` era uma god-class (773 linhas).** Decomposto em
+  `NexusDownloadRepository` (SQLite), `NexusCollectionQueue` (a máquina de estados do fluxo
+  página-a-página, agora testável e com 7 testes) e `NexusCollectionResolver` (GraphQL +
+  `collection.json`). O que sobrou é o pipeline de transferência, com um único caminho `RunAsync`
+  compartilhado por nxm://, direto e retry no lugar dos dois corpos de ~90 linhas duplicados.
+  Os `Dispatcher.UIThread.Post` repetidos viraram `DownloadEntryExtensions` (`Begin`/`Fail`/
+  `Complete`/`MarkCancelled`), que era onde alguns call sites esqueciam de limpar o `IsActive`.
+
+- **[REFACTOR] Duas paletas de cores competindo.** Os 77 literais `Color.Parse("#...")` foram
+  substituídos por `CmmPalette`, num projeto novo `CatModManager.Theme` que o app e os plugins
+  referenciam (o `PluginSdk` continua sem Avalonia, de propósito). O `App.axaml` agora resolve
+  todos os brushes via `{x:Static theme:CmmPalette.X}`, então XAML e code-behind não têm como
+  divergir. As variantes duplicadas convergiram para a cor do tema (accent `#5865F2`/`#2563EB` →
+  `#4E7FD5`; muted `#8E9297`/`#72767D`/`#757575` → `#80848E`; warning `#FAA81A`/`#FFA500` →
+  `#FAA61A`) — a UI mudou de cor em alguns pontos, era esse o objetivo. Cores de marca de loja
+  (Steam/GOG/Epic) ficaram como entradas separadas por não serem cores de tema.
+  `PaletteConsistencyTests` falha se um literal novo aparecer fora da paleta.
 
 - **[GRAVE] Mod instalado sem mount point virava `"Default"` e nunca era montado.** Em
   `ModInstallationCoordinator`, quando não havia mount point pra atribuir, o mod era salvo com a
