@@ -18,6 +18,8 @@
         <SolidColorBrush x:Key="ContentBg"        Color="{x:Static theme:CmmPalette.ContentBg}"/>
         <SolidColorBrush x:Key="SurfaceBg"        Color="{x:Static theme:CmmPalette.SurfaceBg}"/>
         <SolidColorBrush x:Key="SurfaceSelected"  Color="{x:Static theme:CmmPalette.SurfaceSelected}"/>
+        <SolidColorBrush x:Key="SurfaceHover"     Color="{x:Static theme:CmmPalette.SurfaceHover}"/>
+        <SolidColorBrush x:Key="SurfaceSelectedHover" Color="{x:Static theme:CmmPalette.SurfaceSelectedHover}"/>
 
         <SolidColorBrush x:Key="BorderColor"      Color="{x:Static theme:CmmPalette.Border}"/>
         <SolidColorBrush x:Key="BorderSubtle"     Color="{x:Static theme:CmmPalette.BorderSubtle}"/>
@@ -25,6 +27,7 @@
         <SolidColorBrush x:Key="TextPrimary"      Color="{x:Static theme:CmmPalette.TextPrimary}"/>
         <SolidColorBrush x:Key="TextMuted"        Color="{x:Static theme:CmmPalette.TextMuted}"/>
         <SolidColorBrush x:Key="TextSubtle"       Color="{x:Static theme:CmmPalette.TextSubtle}"/>
+        <SolidColorBrush x:Key="TextInactive"     Color="{x:Static theme:CmmPalette.TextInactive}"/>
 
         <SolidColorBrush x:Key="AccentColor"      Color="{x:Static theme:CmmPalette.Accent}"/>
         <SolidColorBrush x:Key="AccentHover"      Color="{x:Static theme:CmmPalette.AccentHover}"/>
@@ -33,6 +36,9 @@
         <SolidColorBrush x:Key="StatusActive"     Color="{x:Static theme:CmmPalette.StatusActive}"/>
         <SolidColorBrush x:Key="StatusDanger"     Color="{x:Static theme:CmmPalette.StatusDanger}"/>
         <SolidColorBrush x:Key="StatusWarning"    Color="{x:Static theme:CmmPalette.StatusWarning}"/>
+        <SolidColorBrush x:Key="StatusDangerStrong" Color="{x:Static theme:CmmPalette.StatusDangerStrong}"/>
+        <SolidColorBrush x:Key="StatusDangerBorder" Color="{x:Static theme:CmmPalette.StatusDangerBorder}"/>
+        <SolidColorBrush x:Key="StatusDangerTint"   Color="{x:Static theme:CmmPalette.StatusDangerTint}"/>
     </Application.Resources>
 
     <Application.Styles>
@@ -61,10 +67,10 @@
             <Setter Property="Padding" Value="8,0"/>
             <Setter Property="Margin" Value="4,1"/>
             <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Foreground" Value="#96989D"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextInactive}"/>
         </Style>
         <Style Selector="Button.sidebar-nav-item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#35373C"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceHover}"/>
             <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimary}"/>
         </Style>
 
@@ -96,12 +102,12 @@
 
         <Style Selector="Button.danger-btn">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="#ED424540"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource StatusDangerBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="{DynamicResource StatusDanger}"/>
         </Style>
         <Style Selector="Button.danger-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#ED424518"/>
+            <Setter Property="Background" Value="{DynamicResource StatusDangerTint}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource StatusDanger}"/>
             <Setter Property="TextBlock.Foreground" Value="{DynamicResource StatusDanger}"/>
         </Style>

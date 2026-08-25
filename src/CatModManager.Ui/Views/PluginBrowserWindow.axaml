@@ -273,7 +273,7 @@
                                                     Padding="14,5"
                                                     FontWeight="SemiBold"
                                                     FontSize="12"
-                                                    Background="#C0392B"
+                                                    Background="{DynamicResource StatusDangerStrong}"
                                                     Foreground="White">
                                                 Uninstall
                                             </Button>

@@ -16,7 +16,7 @@
             <Button Name="CancelBtn" Content="Cancel" Padding="16,6" Background="Transparent"
                     BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"/>
             <Button Name="ConfirmBtn" Content="Delete" Padding="16,6"
-                    Background="#C0392B" Foreground="White" FontWeight="SemiBold"/>
+                    Background="{DynamicResource StatusDangerStrong}" Foreground="White" FontWeight="SemiBold"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -372,16 +372,16 @@
                                     </ControlTemplate>
                                 </Setter>
                                 <Style Selector="^:pointerover /template/ Border#PART_Border">
-                                    <Setter Property="Background" Value="#35373C"/>
+                                    <Setter Property="Background" Value="{DynamicResource SurfaceHover}"/>
                                 </Style>
                                 <Style Selector="^:selected /template/ Border#PART_Border">
-                                    <Setter Property="Background" Value="#3F4147"/>
-                                    <Setter Property="BorderBrush" Value="#4E7FD5"/>
+                                    <Setter Property="Background" Value="{DynamicResource BorderColor}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentColor}"/>
                                     <Setter Property="BorderThickness" Value="3,0,0,0"/>
                                 </Style>
                                 <Style Selector="^:selected:pointerover /template/ Border#PART_Border">
-                                    <Setter Property="Background" Value="#464A52"/>
-                                    <Setter Property="BorderBrush" Value="#4E7FD5"/>
+                                    <Setter Property="Background" Value="{DynamicResource SurfaceSelectedHover}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentColor}"/>
                                     <Setter Property="BorderThickness" Value="3,0,0,0"/>
                                 </Style>
                             </ControlTheme>

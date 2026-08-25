@@ -35,6 +35,12 @@ public static class CmmPalette
     /// <summary>A raised surface that is selected or hovered.</summary>
     public static readonly Color SurfaceSelected = Color.Parse("#404249");
 
+    /// <summary>Hover feedback on an otherwise transparent row or nav item.</summary>
+    public static readonly Color SurfaceHover = Color.Parse("#35373C");
+
+    /// <summary>Hover feedback on a row that is already selected.</summary>
+    public static readonly Color SurfaceSelectedHover = Color.Parse("#464A52");
+
     // ── Borders ───────────────────────────────────────────────────────────────
 
     public static readonly Color Border = Color.Parse("#3F4147");
@@ -51,6 +57,9 @@ public static class CmmPalette
 
     /// <summary>Tertiary text: hints, timestamps, disabled labels.</summary>
     public static readonly Color TextSubtle = Color.Parse("#80848E");
+
+    /// <summary>An inactive nav item, dimmer than subtle text but still legible.</summary>
+    public static readonly Color TextInactive = Color.Parse("#96989D");
 
     // ── Accent ────────────────────────────────────────────────────────────────
 
@@ -71,6 +80,15 @@ public static class CmmPalette
 
     /// <summary>Dark wash behind a warning banner, so the warning border reads as the accent.</summary>
     public static readonly Color StatusWarningTint = Color.Parse("#2A2200");
+
+    /// <summary>Filled background for a destructive action (Delete, Uninstall).</summary>
+    public static readonly Color StatusDangerStrong = Color.Parse("#C0392B");
+
+    /// <summary>Danger at 25% — the resting border of an outlined destructive button.</summary>
+    public static readonly Color StatusDangerBorder = Color.Parse("#40ED4245");
+
+    /// <summary>Danger at 9% — the hover wash of an outlined destructive button.</summary>
+    public static readonly Color StatusDangerTint = Color.Parse("#18ED4245");
 
     // ── Store brand colours ───────────────────────────────────────────────────
     //
@@ -93,6 +111,8 @@ public static class CmmPalette
         public static readonly IBrush ContentBg = New(CmmPalette.ContentBg);
         public static readonly IBrush SurfaceBg = New(CmmPalette.SurfaceBg);
         public static readonly IBrush SurfaceSelected = New(CmmPalette.SurfaceSelected);
+        public static readonly IBrush SurfaceHover = New(CmmPalette.SurfaceHover);
+        public static readonly IBrush SurfaceSelectedHover = New(CmmPalette.SurfaceSelectedHover);
 
         public static readonly IBrush Border = New(CmmPalette.Border);
         public static readonly IBrush BorderSubtle = New(CmmPalette.BorderSubtle);
@@ -100,6 +120,7 @@ public static class CmmPalette
         public static readonly IBrush TextPrimary = New(CmmPalette.TextPrimary);
         public static readonly IBrush TextMuted = New(CmmPalette.TextMuted);
         public static readonly IBrush TextSubtle = New(CmmPalette.TextSubtle);
+        public static readonly IBrush TextInactive = New(CmmPalette.TextInactive);
 
         public static readonly IBrush Accent = New(CmmPalette.Accent);
         public static readonly IBrush AccentHover = New(CmmPalette.AccentHover);
@@ -109,6 +130,9 @@ public static class CmmPalette
         public static readonly IBrush StatusDanger = New(CmmPalette.StatusDanger);
         public static readonly IBrush StatusWarning = New(CmmPalette.StatusWarning);
         public static readonly IBrush StatusWarningTint = New(CmmPalette.StatusWarningTint);
+        public static readonly IBrush StatusDangerStrong = New(CmmPalette.StatusDangerStrong);
+        public static readonly IBrush StatusDangerBorder = New(CmmPalette.StatusDangerBorder);
+        public static readonly IBrush StatusDangerTint = New(CmmPalette.StatusDangerTint);
 
         public static readonly IBrush StoreSteam = New(CmmPalette.StoreSteam);
         public static readonly IBrush StoreGog = New(CmmPalette.StoreGog);
