@@ -208,6 +208,16 @@ public partial class DownloadEntry : ObservableObject
     public string Version { get; set; } = string.Empty;
     public string Category { get; set; } = "Uncategorized";
 
+    /// <summary>
+    /// The short-lived download token from the originating nxm:// link, if any. Kept on the entry
+    /// so Retry can re-send it — retrying without it makes Nexus refuse free-user downloads with
+    /// "premium required", which is why retrying a collection mod used to always fail.
+    /// </summary>
+    public string? NxmKey { get; set; }
+
+    /// <summary>Expiry timestamp paired with <see cref="NxmKey"/>.</summary>
+    public string? NxmExpires { get; set; }
+
     public CancellationTokenSource Cts { get; } = new();
 
     /// <summary>When non-null, the FOMOD installer will auto-apply these choices without showing the wizard.</summary>

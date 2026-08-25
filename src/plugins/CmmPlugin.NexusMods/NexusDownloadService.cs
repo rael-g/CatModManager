@@ -97,7 +97,10 @@ public class NexusDownloadService
             Dispatcher.UIThread.Post(() => Downloads.Add(entry));
         }
 
-        StartModDownload(entry, downloadsFolder, link.Key, link.Expires,
+        entry.NxmKey     = link.Key;
+        entry.NxmExpires = link.Expires;
+
+        StartModDownload(entry, downloadsFolder,
             // The nxm:// handler only knows the name the browser passed; the API name is better.
             adoptApiModName: true,
             // A collection mod that finishes (or fails) must release the browser slot, or the
@@ -124,16 +127,28 @@ public class NexusDownloadService
         // Always marshal to UI thread — this method may be called from background threads.
         Dispatcher.UIThread.Post(() => Downloads.Add(entry));
 
-        StartModDownload(entry, downloadsFolder, key: null, expires: null, adoptApiModName: false);
+        StartModDownload(entry, downloadsFolder, adoptApiModName: false);
     }
 
-    /// <summary>Removes a failed entry and re-queues a fresh attempt using its existing mod/file IDs.</summary>
+    /// <summary>Re-queues a failed entry, keeping the credentials and options of the first attempt.</summary>
     public void RetryDownload(DownloadEntry entry, string downloadsFolder)
     {
         if (entry.IsActive) return;
-        // Remove the stale failed entry first, then queue a fresh one
-        Dispatcher.UIThread.Post(() => Downloads.Remove(entry));
-        QueueDownloadDirect(entry.GameDomain, entry.ModId, entry.FileId, entry.ModName, downloadsFolder, entry.Version, entry.Category);
+
+        // Reuse the entry object rather than building a fresh one: the nxm key/expires and the
+        // collection's FOMOD preset live on it, and a retry that drops the key is rejected by
+        // Nexus as "premium required" — which is why retrying a collection mod always failed.
+        // Remove + re-add keeps the retried download at the end of the list, as before.
+        Dispatcher.UIThread.Post(() =>
+        {
+            Downloads.Remove(entry);
+            entry.Progress  = 0;
+            entry.HasFailed = false;
+            entry.Status    = "Queued";
+            Downloads.Add(entry);
+        });
+
+        StartModDownload(entry, downloadsFolder, adoptApiModName: false);
     }
 
     /// <summary>Queues a collection archive download given a pre-resolved download URL.</summary>
@@ -167,8 +182,7 @@ public class NexusDownloadService
     /// that had already drifted apart in how they filled in version and category.
     /// </summary>
     private void StartModDownload(
-        DownloadEntry entry, string downloadsFolder, string? key, string? expires,
-        bool adoptApiModName, Action? onFinished = null)
+        DownloadEntry entry, string downloadsFolder, bool adoptApiModName, Action? onFinished = null)
     {
         RunAsync(entry, async ct =>
         {
@@ -182,7 +196,7 @@ public class NexusDownloadService
             await EnrichMetadataAsync(entry, adoptApiModName, ct);
 
             var links = await _api.GetDownloadLinksAsync(
-                entry.GameDomain, entry.ModId, entry.FileId, key, expires, ct);
+                entry.GameDomain, entry.ModId, entry.FileId, entry.NxmKey, entry.NxmExpires, ct);
 
             if (links.Count == 0)
             {
