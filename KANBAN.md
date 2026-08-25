@@ -75,6 +75,34 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   — quando nenhum prefixo tem os dados ainda — cai no primeiro da lista, que pode ser o errado.
   `IModManagerState` já expõe `GameId`; expor também o `SteamAppId` da definição TOML resolveria.
 
+- **[REFACTOR] Duas paletas de cores competindo.** `App.axaml` define uma paleta completa como
+  recursos nomeados (`AppBackground`, `TextPrimary`, `StatusDanger`, `Accent`…), mas o code-behind
+  tem **77 literais** `Color.Parse("#...")` espalhados por 6 arquivos, e **22 das 28 cores usadas
+  lá não existem no tema**. Pior, são variantes divergentes da mesma cor: accent é `#4E7FD5` no tema
+  mas `#5865F2` e `#2563EB` no código; texto apagado é `#80848E` no tema mas `#8E9297`, `#72767D` e
+  `#757575` no código; warning tem `#FAA61A`, `#FAA81A` e `#FFA500`. Na prática o tema só controla
+  metade da UI — mudar a cor de destaque não afeta a aba Nexus nem os diálogos. Concentrado em
+  `NexusDownloadsTabControl` (22), `NexusBrowseWindow` (20), `GameDetectionDialog` (12),
+  `MainWindow.axaml.cs` (11), `NexusModInspectorTab` (10). Fix: expor os brushes do tema e trocar
+  os literais por referência a eles.
+
+- **[REFACTOR] `NexusDownloadService` é uma god-class (773 linhas).** Acumula persistência
+  (`LoadDownloads`/`SaveDownloads`), download HTTP, fila de collections, parsing de link `nxm://`,
+  conversão de preset FOMOD e integração com o shell (`OpenFolder`). Não é só estética: os 3 bugs
+  de download em aberto neste kanban moram todos nele. `QueueDownloadFromNxm` (128 linhas) e
+  `QueueDownloadDirect` (100 linhas) compartilham um corpo de ~90 linhas quase idêntico, diferindo
+  só em de onde vêm os identificadores — e é exatamente por essa divergência que o
+  `RetryDownload` chama o `Direct` sem `key`/`expires`. Unificar esse pipeline provavelmente torna
+  o bug do Retry tratável de verdade em vez de remendo.
+
+- **[REFACTOR] UI construída em código imperativo em vez de XAML.** ~2.400 linhas de construção
+  manual de controles Avalonia (`NexusDownloadsTabControl` 759, `NexusBrowseWindow` 746,
+  `FomodWizardWindow` 270, `GameDetectionDialog` 244, `PluginsTabControl` 145), contra só 1.200
+  linhas de `.axaml` no projeto inteiro. É a causa raiz da paleta duplicada acima e dos métodos
+  gigantes (`GameDetectionDialog` tem um de 178 linhas). Para os controles de plugin há uma razão
+  legítima (evitar carregar XAML de assembly externo), mas `GameDetectionDialog` e os diálogos
+  dentro de `MainWindow.axaml.cs` estão no app principal e não têm essa desculpa.
+
 - **Race condition em `NewProfile`/`RenameProfile`.** Testes em
   `tests/CatModManager.Tests/Regression/ProfileRegressionTests.cs` falham de forma intermitente
   (4-6 falhas variando entre execuções sem mudança de código). Não parece específico de Linux —
