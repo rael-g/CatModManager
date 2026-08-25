@@ -14,6 +14,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using CatModManager.Theme;
 
 namespace CatModManager.Ui.Views;
 
@@ -362,12 +363,12 @@ public partial class MainWindow : Window
             ? (mountPoints.Count > 0 ? mountPoints[0].Id : "")
             : currentMountPointId;
 
-        var bg       = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2B2D31"));
-        var cardBg   = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#1E2124"));
-        var border   = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#40444B"));
-        var mutedFg  = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#8E9297"));
-        var accentBg = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#5865F2"));
-        var currentBg = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#3D4F6B"));
+        var bg       = CmmPalette.Brushes.SidebarBg;
+        var cardBg   = CmmPalette.Brushes.AppBackground;
+        var border   = CmmPalette.Brushes.Border;
+        var mutedFg  = CmmPalette.Brushes.TextSubtle;
+        var accentBg = CmmPalette.Brushes.Accent;
+        var currentBg = CmmPalette.Brushes.AccentMuted;
 
         var dialog = new Avalonia.Controls.Window
         {
@@ -391,7 +392,7 @@ public partial class MainWindow : Window
                 titlePanel.Children.Add(new Avalonia.Controls.TextBlock
                 {
                     Text = "● current", FontSize = 10, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                    Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#72A7E8"))
+                    Foreground = CmmPalette.Brushes.AccentHover
                 });
 
             var subBlock = new Avalonia.Controls.TextBlock
@@ -530,9 +531,9 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm) return null;
 
         bool isNew  = string.IsNullOrEmpty(initialName);
-        var bg      = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2B2D31"));
-        var border  = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#40444B"));
-        var mutedFg = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#8E9297"));
+        var bg      = CmmPalette.Brushes.SidebarBg;
+        var border  = CmmPalette.Brushes.SurfaceSelected;
+        var mutedFg = CmmPalette.Brushes.TextSubtle;
 
         var dialog = new Avalonia.Controls.Window
         {
@@ -572,7 +573,7 @@ public partial class MainWindow : Window
         var okBtn = new Avalonia.Controls.Button
         {
             Content = isNew ? "Add" : "Save", Padding = new Avalonia.Thickness(16, 7),
-            Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#5865F2")),
+            Background = CmmPalette.Brushes.Accent,
             BorderThickness = new Avalonia.Thickness(0), Foreground = Avalonia.Media.Brushes.White,
             FontWeight = Avalonia.Media.FontWeight.SemiBold
         };

@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/CatModManager.Core/CatModManager.Core.csproj" />
     <Project Path="src/CatModManager.PluginSdk/CatModManager.PluginSdk.csproj" />
+    <Project Path="src/CatModManager.Theme/CatModManager.Theme.csproj" />
     <Project Path="src/CatModManager.Ui/CatModManager.Ui.csproj" />
     <Project Path="src/CatModManager.VirtualFileSystem/CatModManager.VirtualFileSystem.csproj" />
   </Folder>

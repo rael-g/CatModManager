@@ -10,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using CatModManager.Theme;
 
 namespace CmmPlugin.NexusMods;
 
@@ -32,12 +33,12 @@ public class NexusDownloadsTabControl : UserControl
     private readonly Button     _pauseResumeBtn;
     private Button? _nxmBtn;
 
-    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.Parse("#36393F"));
-    private static readonly IBrush CardBrush       = new SolidColorBrush(Color.Parse("#1E2124"));
-    private static readonly IBrush HeaderBrush     = new SolidColorBrush(Color.Parse("#2F3136"));
-    private static readonly IBrush MutedBrush      = new SolidColorBrush(Color.Parse("#72767D"));
-    private static readonly IBrush GreenBrush      = new SolidColorBrush(Color.Parse("#3BA55D"));
-    private static readonly IBrush RedBrush        = new SolidColorBrush(Color.Parse("#ED4245"));
+    private static readonly IBrush BackgroundBrush = CmmPalette.Brushes.ContentBg;
+    private static readonly IBrush CardBrush       = CmmPalette.Brushes.AppBackground;
+    private static readonly IBrush HeaderBrush     = CmmPalette.Brushes.SidebarBg;
+    private static readonly IBrush MutedBrush      = CmmPalette.Brushes.TextSubtle;
+    private static readonly IBrush GreenBrush      = CmmPalette.Brushes.StatusActive;
+    private static readonly IBrush RedBrush        = CmmPalette.Brushes.StatusDanger;
     private static readonly IBrush WhiteBrush      = Brushes.White;
 
     public NexusDownloadsTabControl(
@@ -215,7 +216,7 @@ public class NexusDownloadsTabControl : UserControl
             Background      = HeaderBrush,
             Padding         = new Thickness(12, 8),
             BorderThickness = new Thickness(0, 1, 0, 0),
-            BorderBrush     = new SolidColorBrush(Color.Parse("#202225")),
+            BorderBrush     = CmmPalette.Brushes.BorderSubtle,
             Child           = completedHeaderGrid
         };
 
@@ -255,7 +256,7 @@ public class NexusDownloadsTabControl : UserControl
         _collectionBannerText = new TextBlock
         {
             FontSize          = 11,
-            Foreground        = new SolidColorBrush(Color.Parse("#FFA500")),
+            Foreground        = CmmPalette.Brushes.StatusWarning,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
@@ -263,8 +264,8 @@ public class NexusDownloadsTabControl : UserControl
         {
             Padding         = new Thickness(8, 3),
             Background      = Brushes.Transparent,
-            BorderBrush     = new SolidColorBrush(Color.Parse("#FFA500")),
-            Foreground      = new SolidColorBrush(Color.Parse("#FFA500")),
+            BorderBrush     = CmmPalette.Brushes.StatusWarning,
+            Foreground      = CmmPalette.Brushes.StatusWarning,
             BorderThickness = new Thickness(1),
             FontSize        = 10,
             VerticalAlignment = VerticalAlignment.Center
@@ -304,8 +305,8 @@ public class NexusDownloadsTabControl : UserControl
 
         _collectionBanner = new Border
         {
-            Background      = new SolidColorBrush(Color.Parse("#2A2200")),
-            BorderBrush     = new SolidColorBrush(Color.Parse("#FFA500")),
+            Background      = CmmPalette.Brushes.StatusWarningTint,
+            BorderBrush     = CmmPalette.Brushes.StatusWarning,
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding         = new Thickness(12, 6),
             IsVisible       = false,
@@ -362,7 +363,7 @@ public class NexusDownloadsTabControl : UserControl
             Watermark       = "Paste your Nexus API key here",
             Width           = 300,
             FontSize        = 11,
-            Background      = new SolidColorBrush(Color.Parse("#1E2124")),
+            Background      = CmmPalette.Brushes.AppBackground,
             Foreground      = WhiteBrush,
             BorderBrush     = MutedBrush,
             BorderThickness = new Thickness(1),
@@ -391,7 +392,7 @@ public class NexusDownloadsTabControl : UserControl
             Content         = "Save",
             HorizontalAlignment = HorizontalAlignment.Right,
             Padding         = new Thickness(16, 5),
-            Background      = new SolidColorBrush(Color.Parse("#3BA55D")),
+            Background      = CmmPalette.Brushes.StatusActive,
             Foreground      = WhiteBrush,
             BorderThickness = new Thickness(0),
             CornerRadius    = new CornerRadius(3),
@@ -406,8 +407,8 @@ public class NexusDownloadsTabControl : UserControl
 
         var popupBorder = new Border
         {
-            Background      = new SolidColorBrush(Color.Parse("#2C2F33")),
-            BorderBrush     = new SolidColorBrush(Color.Parse("#202225")),
+            Background      = CmmPalette.Brushes.SidebarBg,
+            BorderBrush     = CmmPalette.Brushes.BorderSubtle,
             BorderThickness = new Thickness(1),
             CornerRadius    = new CornerRadius(6),
             Padding         = new Thickness(14),
@@ -461,14 +462,14 @@ public class NexusDownloadsTabControl : UserControl
         {
             Content   = "Don't ask again",
             FontSize  = 11,
-            Foreground = new SolidColorBrush(Color.Parse("#DCDDDE"))
+            Foreground = CmmPalette.Brushes.TextPrimary
         };
 
         var yesBtn = new Button
         {
             Content         = "Yes, register",
             Padding         = new Thickness(16, 6),
-            Background      = new SolidColorBrush(Color.Parse("#3BA55D")),
+            Background      = CmmPalette.Brushes.StatusActive,
             Foreground      = Brushes.White,
             BorderThickness = new Thickness(0),
             CornerRadius    = new CornerRadius(3),
@@ -479,7 +480,7 @@ public class NexusDownloadsTabControl : UserControl
         {
             Content         = "Not now",
             Padding         = new Thickness(16, 6),
-            Background      = new SolidColorBrush(Color.Parse("#4F545C")),
+            Background      = CmmPalette.Brushes.SurfaceSelected,
             Foreground      = Brushes.White,
             BorderThickness = new Thickness(0),
             CornerRadius    = new CornerRadius(3),
@@ -493,7 +494,7 @@ public class NexusDownloadsTabControl : UserControl
             SizeToContent           = SizeToContent.Height,
             WindowStartupLocation   = WindowStartupLocation.CenterOwner,
             CanResize               = false,
-            Background              = new SolidColorBrush(Color.Parse("#2C2F33")),
+            Background              = CmmPalette.Brushes.SidebarBg,
             Content = new StackPanel
             {
                 Margin  = new Thickness(24),
@@ -504,7 +505,7 @@ public class NexusDownloadsTabControl : UserControl
                     {
                         Text        = "Register CatModManager as the handler for nxm:// links so that \"Mod Manager Download\" buttons on Nexus Mods open directly in this app.",
                         FontSize    = 12,
-                        Foreground  = new SolidColorBrush(Color.Parse("#DCDDDE")),
+                        Foreground  = CmmPalette.Brushes.TextPrimary,
                         TextWrapping = Avalonia.Media.TextWrapping.Wrap
                     },
                     dontAskCheck,
@@ -632,7 +633,7 @@ public class NexusDownloadsTabControl : UserControl
         {
             Content         = "↺ Retry",
             Padding         = new Thickness(8, 3),
-            Background      = new SolidColorBrush(Color.Parse("#40444B")),
+            Background      = CmmPalette.Brushes.SurfaceSelected,
             Foreground      = WhiteBrush,
             BorderThickness = new Thickness(0),
             FontSize        = 10,

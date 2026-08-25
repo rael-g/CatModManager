@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="CatModManager.Ui.App"
              xmlns:local="using:CatModManager.Ui"
+             xmlns:theme="using:CatModManager.Theme"
              RequestedThemeVariant="Dark">
 
     <Application.DataTemplates>
@@ -9,52 +10,29 @@
     </Application.DataTemplates>
 
     <Application.Resources>
-        <!-- Discord Dark Palette Colors -->
-        <Color x:Key="AppBackgroundColor">#1E1F22</Color>
-        <Color x:Key="SidebarBgColor">#2B2D31</Color>
-        <Color x:Key="SidebarHeaderBgColor">#232428</Color>
-        <Color x:Key="ContentBgColor">#313338</Color>
-        <Color x:Key="SurfaceBgColor">#383A40</Color>
-        <Color x:Key="SurfaceSelectedColor">#404249</Color>
+        <!-- Every brush resolves from CatModManager.Theme.CmmPalette, so the XAML styles and the
+             controls built in code-behind cannot drift apart. Add new colours there, not here. -->
+        <SolidColorBrush x:Key="AppBackground"    Color="{x:Static theme:CmmPalette.AppBackground}"/>
+        <SolidColorBrush x:Key="SidebarBg"        Color="{x:Static theme:CmmPalette.SidebarBg}"/>
+        <SolidColorBrush x:Key="SidebarHeaderBg"  Color="{x:Static theme:CmmPalette.SidebarHeaderBg}"/>
+        <SolidColorBrush x:Key="ContentBg"        Color="{x:Static theme:CmmPalette.ContentBg}"/>
+        <SolidColorBrush x:Key="SurfaceBg"        Color="{x:Static theme:CmmPalette.SurfaceBg}"/>
+        <SolidColorBrush x:Key="SurfaceSelected"  Color="{x:Static theme:CmmPalette.SurfaceSelected}"/>
 
-        <Color x:Key="BorderColorValue">#3F4147</Color>
-        <Color x:Key="BorderSubtleColor">#2E3035</Color>
+        <SolidColorBrush x:Key="BorderColor"      Color="{x:Static theme:CmmPalette.Border}"/>
+        <SolidColorBrush x:Key="BorderSubtle"     Color="{x:Static theme:CmmPalette.BorderSubtle}"/>
 
-        <Color x:Key="TextPrimaryColor">#DBDEE1</Color>
-        <Color x:Key="TextMutedColor">#B5BAC1</Color>
-        <Color x:Key="TextSubtleColor">#80848E</Color>
+        <SolidColorBrush x:Key="TextPrimary"      Color="{x:Static theme:CmmPalette.TextPrimary}"/>
+        <SolidColorBrush x:Key="TextMuted"        Color="{x:Static theme:CmmPalette.TextMuted}"/>
+        <SolidColorBrush x:Key="TextSubtle"       Color="{x:Static theme:CmmPalette.TextSubtle}"/>
 
-        <Color x:Key="AccentColorValue">#4E7FD5</Color>
-        <Color x:Key="AccentHoverColor">#6895E0</Color>
+        <SolidColorBrush x:Key="AccentColor"      Color="{x:Static theme:CmmPalette.Accent}"/>
+        <SolidColorBrush x:Key="AccentHover"      Color="{x:Static theme:CmmPalette.AccentHover}"/>
+        <SolidColorBrush x:Key="AccentTint"       Color="{x:Static theme:CmmPalette.AccentTint}"/>
 
-        <Color x:Key="StatusActiveColor">#3BA55D</Color>
-        <Color x:Key="StatusDangerColor">#ED4245</Color>
-        <Color x:Key="StatusWarningColor">#FAA61A</Color>
-
-        <!-- Brushes -->
-        <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}"/>
-        <SolidColorBrush x:Key="SidebarBg" Color="{StaticResource SidebarBgColor}"/>
-        <SolidColorBrush x:Key="SidebarHeaderBg" Color="{StaticResource SidebarHeaderBgColor}"/>
-        <SolidColorBrush x:Key="ContentBg" Color="{StaticResource ContentBgColor}"/>
-        <SolidColorBrush x:Key="SurfaceBg" Color="{StaticResource SurfaceBgColor}"/>
-        <SolidColorBrush x:Key="SurfaceSelected" Color="{StaticResource SurfaceSelectedColor}"/>
-        
-        <SolidColorBrush x:Key="BorderColor" Color="{StaticResource BorderColorValue}"/>
-        <SolidColorBrush x:Key="BorderSubtle" Color="{StaticResource BorderSubtleColor}"/>
-
-        <SolidColorBrush x:Key="TextPrimary" Color="{StaticResource TextPrimaryColor}"/>
-        <SolidColorBrush x:Key="TextMuted" Color="{StaticResource TextMutedColor}"/>
-        <SolidColorBrush x:Key="TextSubtle" Color="{StaticResource TextSubtleColor}"/>
-
-        <SolidColorBrush x:Key="AccentColor" Color="{StaticResource AccentColorValue}"/>
-        <SolidColorBrush x:Key="AccentHover" Color="{StaticResource AccentHoverColor}"/>
-        
-        <!-- Use direct ARGB for stable alpha in shared resources -->
-        <SolidColorBrush x:Key="AccentTint" Color="#1F4E7FD5"/> 
-
-        <SolidColorBrush x:Key="StatusActive" Color="{StaticResource StatusActiveColor}"/>
-        <SolidColorBrush x:Key="StatusDanger" Color="{StaticResource StatusDangerColor}"/>
-        <SolidColorBrush x:Key="StatusWarning" Color="{StaticResource StatusWarningColor}"/>
+        <SolidColorBrush x:Key="StatusActive"     Color="{x:Static theme:CmmPalette.StatusActive}"/>
+        <SolidColorBrush x:Key="StatusDanger"     Color="{x:Static theme:CmmPalette.StatusDanger}"/>
+        <SolidColorBrush x:Key="StatusWarning"    Color="{x:Static theme:CmmPalette.StatusWarning}"/>
     </Application.Resources>
 
     <Application.Styles>

@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Avalonia.Media;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
+using CatModManager.Theme;
 
 namespace CatModManager.Ui.ViewModels;
 
@@ -28,8 +29,8 @@ public partial class VfsLifecycleCoordinator : ObservableObject
     public string SafeSwapStatusText  => IsVfsMounted ? "Safe Swap: Active" : "Safe Swap: Standby";
     public IBrush SafeSwapStatusColor => IsVfsMounted ? _mountedBrush : _unmountedBrush;
 
-    private static readonly IBrush _mountedBrush = new SolidColorBrush(Color.Parse("#4CAF50"));
-    private static readonly IBrush _unmountedBrush = new SolidColorBrush(Color.Parse("#757575"));
+    private static readonly IBrush _mountedBrush = CmmPalette.Brushes.StatusActive;
+    private static readonly IBrush _unmountedBrush = CmmPalette.Brushes.TextSubtle;
 
     public VfsLifecycleCoordinator(
         IVfsOrchestrationService vfsOrchestrator,

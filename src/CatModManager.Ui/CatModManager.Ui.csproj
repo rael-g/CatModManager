@@ -46,6 +46,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CatModManager.Core\CatModManager.Core.csproj" />
     <ProjectReference Include="..\CatModManager.PluginSdk\CatModManager.PluginSdk.csproj" />
+    <ProjectReference Include="..\CatModManager.Theme\CatModManager.Theme.csproj" />
     <ProjectReference Include="..\CatModManager.VirtualFileSystem\CatModManager.VirtualFileSystem.csproj" />
     <!-- Build-order-only: ensures plugins are built and copied before Ui runs -->
     <ProjectReference Include="..\plugins\CmmPlugin.BethesdaTools\CmmPlugin.BethesdaTools.csproj"

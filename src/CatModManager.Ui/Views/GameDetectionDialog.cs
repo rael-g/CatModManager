@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
 using CatModManager.Ui.ViewModels;
+using CatModManager.Theme;
 
 namespace CatModManager.Ui.Views;
 
@@ -26,8 +27,8 @@ public class GameDetectionDialog : Window
         Height = 500;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         CanResize  = false;
-        Background = new SolidColorBrush(Color.Parse("#2B2D31"));
-        Foreground = new SolidColorBrush(Color.Parse("#DCDDDE"));
+        Background = CmmPalette.Brushes.SidebarBg;
+        Foreground = CmmPalette.Brushes.TextPrimary;
 
         Content = BuildLayout();
     }
@@ -43,7 +44,7 @@ public class GameDetectionDialog : Window
         {
             Margin    = new Thickness(12, 8),
             FontSize  = 11,
-            Foreground = new SolidColorBrush(Color.Parse("#8E9297"))
+            Foreground = CmmPalette.Brushes.TextSubtle
         };
         statusText.Bind(TextBlock.TextProperty,
             new Binding(nameof(GameDetectionDialogViewModel.Status)) { Source = _vm });
@@ -52,7 +53,7 @@ public class GameDetectionDialog : Window
         var list = new ListBox
         {
             Margin     = new Thickness(8, 0),
-            Background = new SolidColorBrush(Color.Parse("#1E1F22")),
+            Background = CmmPalette.Brushes.AppBackground,
             ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<GameInstallation>((item, _) =>
             {
                 if (item is null) return new TextBlock();
@@ -64,9 +65,9 @@ public class GameDetectionDialog : Window
                 // Store badge
                 var badgeBg = item.StoreName switch
                 {
-                    "GOG"   => Color.Parse("#9B59B6"),
-                    "Epic"  => Color.Parse("#2563EB"),
-                    _       => Color.Parse("#1B5E8A"),   // Steam
+                    "GOG"   => CmmPalette.StoreGog,
+                    "Epic"  => CmmPalette.StoreEpic,
+                    _       => CmmPalette.StoreSteam,   // Steam
                 };
                 var badge = new Border
                 {
@@ -95,7 +96,7 @@ public class GameDetectionDialog : Window
                 {
                     Text         = item.GameFolder,
                     FontSize     = 10,
-                    Foreground   = new SolidColorBrush(Color.Parse("#8E9297")),
+                    Foreground   = CmmPalette.Brushes.TextSubtle,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 };
                 var info = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
@@ -127,7 +128,7 @@ public class GameDetectionDialog : Window
             Text              = "GAME MODE",
             FontSize          = 9,
             FontWeight        = FontWeight.Bold,
-            Foreground        = new SolidColorBrush(Color.Parse("#8E9297")),
+            Foreground        = CmmPalette.Brushes.TextSubtle,
             VerticalAlignment = VerticalAlignment.Center,
             Margin            = new Thickness(0, 0, 8, 0)
         };
@@ -162,7 +163,7 @@ public class GameDetectionDialog : Window
         {
             Content    = "Apply",
             Padding    = new Thickness(16, 5),
-            Background = new SolidColorBrush(Color.Parse("#3BA55D"))
+            Background = CmmPalette.Brushes.StatusActive
         };
         btnApply.Click += (_, _) => { _vm.Apply(); Close(); };
 
@@ -193,7 +194,7 @@ public class GameDetectionDialog : Window
         bottomPanel.Children.Add(new Border
         {
             Height     = 1,
-            Background = new SolidColorBrush(Color.Parse("#3F4147")),
+            Background = CmmPalette.Brushes.Border,
             Margin     = new Thickness(0, 4, 0, 0)
         });
         bottomPanel.Children.Add(modeRow);
@@ -216,7 +217,7 @@ public class GameDetectionDialog : Window
     {
         var isKnown = item.DetectedSupport != null;
         var text    = isKnown ? item.DetectedSupport!.DisplayName : "Generic";
-        var bg      = isKnown ? Color.Parse("#3BA55D") : Color.Parse("#4F5460");
+        var bg      = isKnown ? CmmPalette.StatusActive : CmmPalette.SurfaceSelected;
 
         return new Border
         {

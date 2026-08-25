@@ -11,6 +11,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using CatModManager.Theme;
 
 namespace CmmPlugin.NexusMods;
 
@@ -22,16 +23,16 @@ public class NexusBrowseWindow : Window
 {
     // ── Theme ──────────────────────────────────────────────────────────────────
 
-    private static readonly IBrush BgBrush       = new SolidColorBrush(Color.Parse("#36393F"));
-    private static readonly IBrush CardBrush     = new SolidColorBrush(Color.Parse("#2F3136"));
-    private static readonly IBrush CardHover     = new SolidColorBrush(Color.Parse("#40444B"));
-    private static readonly IBrush HeaderBrush   = new SolidColorBrush(Color.Parse("#1E2124"));
-    private static readonly IBrush AccentBrush   = new SolidColorBrush(Color.Parse("#5865F2"));
-    private static readonly IBrush GreenBrush    = new SolidColorBrush(Color.Parse("#3BA55D"));
-    private static readonly IBrush MutedBrush    = new SolidColorBrush(Color.Parse("#72767D"));
+    private static readonly IBrush BgBrush       = CmmPalette.Brushes.ContentBg;
+    private static readonly IBrush CardBrush     = CmmPalette.Brushes.SidebarBg;
+    private static readonly IBrush CardHover     = CmmPalette.Brushes.SurfaceSelected;
+    private static readonly IBrush HeaderBrush   = CmmPalette.Brushes.AppBackground;
+    private static readonly IBrush AccentBrush   = CmmPalette.Brushes.Accent;
+    private static readonly IBrush GreenBrush    = CmmPalette.Brushes.StatusActive;
+    private static readonly IBrush MutedBrush    = CmmPalette.Brushes.TextSubtle;
     private static readonly IBrush WhiteBrush    = Brushes.White;
-    private static readonly IBrush GoldBrush     = new SolidColorBrush(Color.Parse("#FAA61A"));
-    private static readonly IBrush DimBrush      = new SolidColorBrush(Color.Parse("#DCDDDE"));
+    private static readonly IBrush GoldBrush     = CmmPalette.Brushes.StatusWarning;
+    private static readonly IBrush DimBrush      = CmmPalette.Brushes.TextPrimary;
 
     private const int PageSize = 20;
 
@@ -96,7 +97,7 @@ public class NexusBrowseWindow : Window
             Watermark         = "Search mods…",
             FontSize          = 13,
             Padding           = new Thickness(8, 6),
-            Background        = new SolidColorBrush(Color.Parse("#1E2124")),
+            Background        = CmmPalette.Brushes.AppBackground,
             Foreground        = WhiteBrush,
             CaretBrush        = WhiteBrush,
             BorderThickness   = new Thickness(0),
@@ -107,7 +108,7 @@ public class NexusBrowseWindow : Window
         var searchBtn = MakeBtn("Search", AccentBrush);
         searchBtn.Click += (_, _) => FireSearch();
 
-        var clearBtn = MakeBtn("✕", new SolidColorBrush(Color.Parse("#4F545C")));
+        var clearBtn = MakeBtn("✕", CmmPalette.Brushes.SurfaceSelected);
         ToolTip.SetTip(clearBtn, "Clear search");
         clearBtn.Click += (_, _) => { _searchBox.Text = string.Empty; FireSearch(); };
 
@@ -135,14 +136,14 @@ public class NexusBrowseWindow : Window
         {
             Text         = "Collections are a Nexus Premium feature. Click \"Open ↗\" on a collection, then click \"Add Collection\" on the website — CMM will handle the nxm:// link automatically.",
             FontSize     = 11,
-            Foreground   = new SolidColorBrush(Color.Parse("#FFA500")),
+            Foreground   = CmmPalette.Brushes.StatusWarning,
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0),
         };
         _collectionsNotice = new Border
         {
-            Background    = new SolidColorBrush(Color.Parse("#2A2200")),
-            BorderBrush   = new SolidColorBrush(Color.Parse("#FFA500")),
+            Background    = CmmPalette.Brushes.StatusWarningTint,
+            BorderBrush   = CmmPalette.Brushes.StatusWarning,
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding       = new Thickness(12, 6),
             Child         = noticeText,
@@ -160,7 +161,7 @@ public class NexusBrowseWindow : Window
         {
             PlaceholderText   = "All categories",
             MinWidth          = 180,
-            Background        = new SolidColorBrush(Color.Parse("#1E2124")),
+            Background        = CmmPalette.Brushes.AppBackground,
             Foreground        = WhiteBrush,
             BorderThickness   = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center,
@@ -214,7 +215,7 @@ public class NexusBrowseWindow : Window
             Content           = "Load More",
             HorizontalAlignment = HorizontalAlignment.Center,
             Padding           = new Thickness(24, 8),
-            Background        = new SolidColorBrush(Color.Parse("#4F545C")),
+            Background        = CmmPalette.Brushes.SurfaceSelected,
             Foreground        = WhiteBrush,
             BorderThickness   = new Thickness(0),
             CornerRadius      = new CornerRadius(4),
@@ -304,7 +305,7 @@ public class NexusBrowseWindow : Window
         foreach (var child in _modeButtons.Children.OfType<Button>())
         {
             bool active = child.Tag is bool b && b == _browseCollections;
-            child.Background = active ? AccentBrush : new SolidColorBrush(Color.Parse("#4F545C"));
+            child.Background = active ? AccentBrush : CmmPalette.Brushes.SurfaceSelected;
             child.Foreground = WhiteBrush;
         }
     }
@@ -339,7 +340,7 @@ public class NexusBrowseWindow : Window
         foreach (var child in _sortButtons.Children.OfType<Button>())
         {
             bool active = child.Tag is BrowseSort s && s == _sort;
-            child.Background = active ? AccentBrush : new SolidColorBrush(Color.Parse("#4F545C"));
+            child.Background = active ? AccentBrush : CmmPalette.Brushes.SurfaceSelected;
             child.Foreground = WhiteBrush;
         }
     }
@@ -518,7 +519,7 @@ public class NexusBrowseWindow : Window
 
         var statsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
         statsPanel.Children.Add(StatChip("↓", FormatNumber(mod.DownloadCount),    GoldBrush));
-        statsPanel.Children.Add(StatChip("♥", FormatNumber(mod.EndorsementCount), new SolidColorBrush(Color.Parse("#ED4245"))));
+        statsPanel.Children.Add(StatChip("♥", FormatNumber(mod.EndorsementCount), CmmPalette.Brushes.StatusDanger));
 
         var infoStack = new StackPanel { Spacing = 2 };
         infoStack.Children.Add(nameLabel);
@@ -607,7 +608,7 @@ public class NexusBrowseWindow : Window
 
         var statsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
         statsPanel.Children.Add(StatChip("↓", FormatNumber(col.Downloads),    GoldBrush));
-        statsPanel.Children.Add(StatChip("♥", FormatNumber(col.Endorsements), new SolidColorBrush(Color.Parse("#ED4245"))));
+        statsPanel.Children.Add(StatChip("♥", FormatNumber(col.Endorsements), CmmPalette.Brushes.StatusDanger));
 
         var infoStack = new StackPanel { Spacing = 2 };
         infoStack.Children.Add(nameLabel);

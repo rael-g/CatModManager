@@ -8,6 +8,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using CatModManager.PluginSdk;
+using CatModManager.Theme;
 
 namespace CmmPlugin.NexusMods;
 
@@ -41,7 +42,7 @@ public class NexusModInspectorTab : IInspectorTab
         {
             Text = string.Empty,
             FontSize = 11,
-            Foreground = new SolidColorBrush(Color.Parse("#72767D")),
+            Foreground = CmmPalette.Brushes.TextSubtle,
             TextWrapping = TextWrapping.Wrap
         };
 
@@ -70,7 +71,7 @@ public class NexusModInspectorTab : IInspectorTab
         {
             Content = "Open on Nexus",
             Padding = new Thickness(12, 6),
-            Background = new SolidColorBrush(Color.Parse("#5865F2")),
+            Background = CmmPalette.Brushes.Accent,
             Foreground = Brushes.White,
             BorderThickness = new Thickness(0)
         };
@@ -92,7 +93,7 @@ public class NexusModInspectorTab : IInspectorTab
             catch (Exception ex)
             {
                 updateStatus.Text = $"Error opening browser: {ex.Message}";
-                updateStatus.Foreground = new SolidColorBrush(Color.Parse("#ED4245"));
+                updateStatus.Foreground = CmmPalette.Brushes.StatusDanger;
             }
         };
 
@@ -100,7 +101,7 @@ public class NexusModInspectorTab : IInspectorTab
         {
             Content = "Check for Updates",
             Padding = new Thickness(12, 6),
-            Background = new SolidColorBrush(Color.Parse("#40444B")),
+            Background = CmmPalette.Brushes.SurfaceSelected,
             Foreground = Brushes.White,
             BorderThickness = new Thickness(0)
         };
@@ -119,7 +120,7 @@ public class NexusModInspectorTab : IInspectorTab
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     updateStatus.Text = "Checking for updates...";
-                    updateStatus.Foreground = new SolidColorBrush(Color.Parse("#72767D"));
+                    updateStatus.Foreground = CmmPalette.Brushes.TextSubtle;
                 });
 
                 var filesResponse = await _api.GetFilesAsync(entry.GameDomain, entry.ModId);
@@ -137,17 +138,17 @@ public class NexusModInspectorTab : IInspectorTab
                     if (mainFile == null)
                     {
                         updateStatus.Text = "No files found on Nexus.";
-                        updateStatus.Foreground = new SolidColorBrush(Color.Parse("#72767D"));
+                        updateStatus.Foreground = CmmPalette.Brushes.TextSubtle;
                     }
                     else if (string.Equals(mainFile.Version, entry.Version, StringComparison.OrdinalIgnoreCase))
                     {
                         updateStatus.Text = $"Up to date! (v{entry.Version})";
-                        updateStatus.Foreground = new SolidColorBrush(Color.Parse("#3BA55D"));
+                        updateStatus.Foreground = CmmPalette.Brushes.StatusActive;
                     }
                     else
                     {
                         updateStatus.Text = $"Update available: v{entry.Version} → v{mainFile.Version}";
-                        updateStatus.Foreground = new SolidColorBrush(Color.Parse("#FAA81A"));
+                        updateStatus.Foreground = CmmPalette.Brushes.StatusWarning;
                     }
 
                     checkBtn.IsEnabled = true;
@@ -158,7 +159,7 @@ public class NexusModInspectorTab : IInspectorTab
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     updateStatus.Text = $"Error: {ex.Message}";
-                    updateStatus.Foreground = new SolidColorBrush(Color.Parse("#ED4245"));
+                    updateStatus.Foreground = CmmPalette.Brushes.StatusDanger;
                     checkBtn.IsEnabled = true;
                 });
             }
@@ -178,7 +179,7 @@ public class NexusModInspectorTab : IInspectorTab
         var root = new Border
         {
             Padding = new Thickness(12),
-            Background = new SolidColorBrush(Color.Parse("#36393F")),
+            Background = CmmPalette.Brushes.ContentBg,
             Child = innerStack
         };
 
