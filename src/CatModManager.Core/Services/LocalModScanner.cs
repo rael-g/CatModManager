@@ -10,6 +10,13 @@ namespace CatModManager.Core.Services;
 
 public class LocalModScanner : IModScanner
 {
+    /// <summary>
+    /// Archive formats SharpCompress can open, so the scanner picks up everything the extractor can
+    /// actually handle. Matched case-insensitively — an uppercase ".ZIP" used to be skipped too.
+    /// </summary>
+    public static readonly IReadOnlySet<string> SupportedArchiveExtensions =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".zip", ".7z", ".rar", ".tar" };
+
     private readonly IModParser _parser;
     private readonly IFileService _fileService;
 
@@ -50,7 +57,7 @@ public class LocalModScanner : IModScanner
                 }
 
                 foreach (var file in Directory.EnumerateFiles(directoryPath, "*.*")
-                    .Where(f => f.EndsWith(".zip") || f.EndsWith(".7z")))
+                    .Where(f => SupportedArchiveExtensions.Contains(Path.GetExtension(f))))
                 {
                     var mod = _parser.ParseModInfo(file);
                     if (mod != null) mods.Add(mod);

@@ -323,7 +323,7 @@ public partial class MainWindow : Window
         {
             Title = "Select Mod (Archive)", AllowMultiple = true,
             FileTypeFilter = new[] {
-                new FilePickerFileType("Mod Archives") { Patterns = new[] { "*.zip", "*.7z" } },
+                new FilePickerFileType("Mod Archives") { Patterns = new[] { "*.zip", "*.7z", "*.rar", "*.tar" } },
                 new FilePickerFileType("All Files") { Patterns = new[] { "*.*" } }
             }
         };
