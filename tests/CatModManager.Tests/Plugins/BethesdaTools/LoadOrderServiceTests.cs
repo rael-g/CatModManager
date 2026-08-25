@@ -21,41 +21,52 @@ public class LoadOrderServiceTests
         _service = new LoadOrderService(_log, _fileService);
     }
 
+    /// <summary>A managed mod whose root folder ships the given plugin files.</summary>
+    private IModInfo Mod(string name, bool enabled, params string[] plugins)
+    {
+        string root = Path.Combine("Mods", name);
+        var mod = Substitute.For<IModInfo>();
+        mod.ModRootPath.Returns(root);
+        mod.IsEnabled.Returns(enabled);
+        _fileService.DirectoryExists(root).Returns(true);
+        _fileService.GetFiles(root, "*").Returns(plugins.Select(p => Path.Combine(root, p)).ToArray());
+        return mod;
+    }
+
+    /// <summary>The game's own Data folder, holding only files the engine ships.</summary>
+    private string GameData(params string[] plugins)
+    {
+        string dir = Path.Combine("Game", "Data");
+        _fileService.DirectoryExists(dir).Returns(true);
+        _fileService.GetFiles(dir, "*").Returns(plugins.Select(p => Path.Combine(dir, p)).ToArray());
+        return dir;
+    }
+
     [Fact]
     public void Refresh_MergesDiscoveredAndOrderedPlugins()
     {
         // ARRANGE
-        string dataDir = Path.Combine("Skyrim", "Data");
         string pluginsTxt = Path.Combine("AppData", "plugins.txt");
-
-        _fileService.DirectoryExists(dataDir).Returns(true);
         _fileService.FileExists(pluginsTxt).Returns(true);
 
-        // Discovered on disk
-        _fileService.GetFiles(dataDir, "*").Returns(new[] {
-            Path.Combine(dataDir, "Skyrim.esm"),
-            Path.Combine(dataDir, "Update.esm"),
-            Path.Combine(dataDir, "NewMod.esp")
-        });
+        var mod = Mod("Pack", enabled: true, "AlphaMod.esm", "BetaMod.esm", "NewMod.esp");
 
-        // Existing order in plugins.txt (Skyrim.esm enabled, Update.esm disabled)
+        // Existing order in plugins.txt (AlphaMod enabled, BetaMod disabled)
         _fileService.ReadAllLines(pluginsTxt).Returns(new[] {
-            "*Skyrim.esm",
-            "Update.esm"
+            "*AlphaMod.esm",
+            "BetaMod.esm"
         });
 
         // ACT
-        _service.Refresh(dataDir, pluginsTxt, null);
+        _service.Refresh(null, pluginsTxt, new[] { mod });
 
         // ASSERT
         Assert.Equal(3, _service.Entries.Count);
-        
-        // Skyrim.esm should be first and enabled
-        Assert.Equal("Skyrim.esm", _service.Entries[0].FileName);
+
+        Assert.Equal("AlphaMod.esm", _service.Entries[0].FileName);
         Assert.True(_service.Entries[0].IsEnabled);
 
-        // Update.esm should be second and disabled
-        Assert.Equal("Update.esm", _service.Entries[1].FileName);
+        Assert.Equal("BetaMod.esm", _service.Entries[1].FileName);
         Assert.False(_service.Entries[1].IsEnabled);
 
         // NewMod.esp (not in plugins.txt) should be last and enabled by default
@@ -64,23 +75,53 @@ public class LoadOrderServiceTests
     }
 
     [Fact]
-    public void Refresh_ExcludesImplicitMasters()
+    public void Refresh_TreatsEveryPluginShippedWithTheGameAsOwnedByTheEngine()
     {
-        // ARRANGE — the engine loads base game and official DLC plugins itself. Listing them in
-        // plugins.txt is not how the format works and corrupts the load order.
-        string dataDir = Path.Combine("Starfield", "Data");
-        var starfield = new BethesdaGame("Starfield", UsesStarFormat: true,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Starfield.esm", "Constellation.esm" });
+        // ARRANGE — the real Starfield install. The hardcoded master list knew about the first
+        // four, but the game had since shipped four more official .esm files, and those showed up
+        // in the PLUGINS tab as toggleable rows that would have been written into plugins.txt.
+        string dataDir = GameData(
+            "Starfield.esm", "Constellation.esm", "OldMars.esm", "BlueprintShips-Starfield.esm",
+            "BlueprintShips-SFBGS050.esm", "SFBGS00D.esm", "SFBGS047.esm", "SFBGS050.esm");
 
-        _fileService.DirectoryExists(dataDir).Returns(true);
-        _fileService.GetFiles(dataDir, "*").Returns(new[] {
-            Path.Combine(dataDir, "Starfield.esm"),
-            Path.Combine(dataDir, "Constellation.esm"),
-            Path.Combine(dataDir, "CoolMod.esp")
-        });
+        var starfield = new BethesdaGame("Starfield", UsesStarFormat: true,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "Starfield.esm", "Constellation.esm" });   // deliberately stale
 
         // ACT
         _service.Refresh(dataDir, null, null, starfield);
+
+        // ASSERT — nothing to manage: every file in Data belongs to the game.
+        Assert.Empty(_service.Entries);
+    }
+
+    [Fact]
+    public void Refresh_KeepsModPluginsThatTheVfsMountedIntoTheDataFolder()
+    {
+        // ARRANGE — once mods are mounted, their plugins sit in Data next to the game's own.
+        // Only the ones no managed mod provides may be treated as the game's.
+        string dataDir = GameData("Starfield.esm", "SFBGS050.esm", "CoolMod.esp");
+        var mod = Mod("Cool", enabled: true, "CoolMod.esp");
+
+        // ACT
+        _service.Refresh(dataDir, null, new[] { mod });
+
+        // ASSERT
+        Assert.Single(_service.Entries);
+        Assert.Equal("CoolMod.esp", _service.Entries[0].FileName);
+    }
+
+    [Fact]
+    public void Refresh_StillDropsKnownMastersWhenTheDataFolderIsUnreadable()
+    {
+        // ARRANGE — no Data folder to derive from (game not installed yet, or path misconfigured).
+        // The hardcoded list is the floor that keeps base masters out of plugins.txt.
+        var starfield = new BethesdaGame("Starfield", UsesStarFormat: true,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Starfield.esm" });
+        var mod = Mod("Weird", enabled: true, "Starfield.esm", "CoolMod.esp");
+
+        // ACT
+        _service.Refresh(null, null, new[] { mod }, starfield);
 
         // ASSERT
         Assert.Single(_service.Entries);
@@ -92,19 +133,14 @@ public class LoadOrderServiceTests
     {
         // ARRANGE — newly discovered files are appended at the end, but the engine rejects a load
         // order where a master sorts after a regular plugin.
-        string dataDir = Path.Combine("Skyrim", "Data");
         string pluginsTxt = Path.Combine("AppData", "plugins.txt");
-
-        _fileService.DirectoryExists(dataDir).Returns(true);
         _fileService.FileExists(pluginsTxt).Returns(true);
-        _fileService.GetFiles(dataDir, "*").Returns(new[] {
-            Path.Combine(dataDir, "ExistingMod.esp"),
-            Path.Combine(dataDir, "BrandNew.esm")
-        });
         _fileService.ReadAllLines(pluginsTxt).Returns(new[] { "*ExistingMod.esp" });
 
+        var mod = Mod("Pack", enabled: true, "ExistingMod.esp", "BrandNew.esm");
+
         // ACT
-        _service.Refresh(dataDir, pluginsTxt, null);
+        _service.Refresh(null, pluginsTxt, new[] { mod });
 
         // ASSERT
         Assert.Equal("BrandNew.esm", _service.Entries[0].FileName);

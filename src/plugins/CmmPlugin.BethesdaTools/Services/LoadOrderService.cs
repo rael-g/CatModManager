@@ -35,23 +35,37 @@ public class LoadOrderService
     public void Refresh(string? dataFolderPath, string? pluginsTextPath, IEnumerable<IModInfo>? activeMods,
                         BethesdaGame? game = null)
     {
-        // 1. Collect all plugin files available
-        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var mods = (activeMods ?? Enumerable.Empty<IModInfo>())
+            .Where(m => _fileService.DirectoryExists(m.ModRootPath))
+            .ToList();
 
+        // Every plugin a managed mod ships, enabled or not. This is what tells mod content apart
+        // from the game's own files once the VFS has mounted mods into the Data folder.
+        var modProvided = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mod in mods)
+            modProvided.UnionWith(ScanForPlugins(mod.ModRootPath));
+
+        var dataPlugins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrEmpty(dataFolderPath))
-            foreach (var f in ScanForPlugins(dataFolderPath))
-                discovered.Add(f);
+            dataPlugins.UnionWith(ScanForPlugins(dataFolderPath));
 
-        if (activeMods != null)
-            foreach (var mod in activeMods.Where(m => m.IsEnabled && _fileService.DirectoryExists(m.ModRootPath)))
-                foreach (var f in ScanForPlugins(mod.ModRootPath))
-                    discovered.Add(f);
-
-        // The engine always loads base game + official DLC plugins itself. Listing them in
-        // plugins.txt is not how the format works and corrupts the order, so drop them here
-        // instead of surfacing rows the user can break.
+        // The engine loads the game's own plugins itself; listing them in plugins.txt is not how
+        // the format works and corrupts the load order. So work out which they are rather than
+        // hardcoding a list — Bethesda ships new official .esm files with updates (Starfield added
+        // four that the built-in list never knew about), and a stale list surfaces them as rows the
+        // user can toggle and break. Anything in the game's Data folder that no managed mod
+        // provides belongs to the game. game.Masters stays as a floor for when Data is unreadable.
+        var official = new HashSet<string>(
+            dataPlugins.Where(p => !modProvided.Contains(p)), StringComparer.OrdinalIgnoreCase);
         if (game != null)
-            discovered.RemoveWhere(game.IsImplicitMaster);
+            official.UnionWith(game.Masters);
+
+        // 1. Collect all plugin files available
+        var discovered = new HashSet<string>(dataPlugins, StringComparer.OrdinalIgnoreCase);
+        foreach (var mod in mods.Where(m => m.IsEnabled))
+            discovered.UnionWith(ScanForPlugins(mod.ModRootPath));
+
+        discovered.ExceptWith(official);
 
         // 2. Read existing plugins.txt to get enabled state + order
         var ordered = new List<(string FileName, bool IsEnabled)>();
@@ -97,7 +111,8 @@ public class LoadOrderService
         for (int i = 0; i < merged.Count; i++)
             Entries.Add(new EspEntry(merged[i].FileName, merged[i].IsEnabled, i));
 
-        _log.Log($"[BethesdaTools] Load order refreshed: {Entries.Count} plugins found.");
+        _log.Log($"[BethesdaTools] Load order refreshed: {Entries.Count} plugins found " +
+                 $"({official.Count} game-owned plugins ignored).");
     }
 
     /// <summary>
