@@ -30,31 +30,17 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   free, falhando (404/403) sem eles. Investigar com um mod real que já falhou. Se for limitação
   free vs premium, tratar explicitamente na UI em vez de falhar silenciosamente.
 
-- **Scanners de Steam/GOG pro Linux.** `SteamScanner`/`GogScanner`
-  (`src/CatModManager.Core/Services/GameDiscovery/`) só funcionam no Windows (via registro) — no
-  Linux sempre retornam vazio, então auto-detecção de jogos instalados não existe lá ainda.
-
-- **Install Mod manual precisa suportar `.rar`.** No file picker de "Install Mod"
-  (`src/CatModManager.Ui/Views/MainWindow.axaml.cs:325-327`), o filtro `FileTypeFilter` só lista
-  `*.zip, *.7z` — `.rar` só aparece se o usuário mudar pra "All Files". Além disso, mesmo
-  selecionando um `.rar`, o `SevenZipArchiveExtractor` (`src/CatModManager.Core/Services/
-  SevenZipArchiveExtractor.cs`) usa `SharpCompress`, que tem suporte limitado a RAR (principalmente
-  RAR5) por causa de restrições de licença do formato — precisa verificar se extrai de verdade ou só
-  falha silenciosamente, e adicionar `*.rar` ao filtro do picker.
+- **Scanner de GOG pro Linux.** `GogScanner` (`src/CatModManager.Core/Services/GameDiscovery/`) lê o
+  registro do Windows e o GOG Galaxy não tem cliente Linux, então lá ele sempre retorna vazio. Jogos
+  GOG no Linux vêm via Heroic ou instalação manual — precisaria ler os manifests do Heroic
+  (`~/.config/heroic/gog_store/installed.json`) ou aceitar que GOG é só detecção manual no Linux.
+  (O `SteamScanner` já foi corrigido e funciona no Linux.)
 
 - **Muitos downloads simultâneos crasham o app.** `NexusDownloadService.cs:25` já limita a
   `SemaphoreSlim _concurrentDownloads = new(3, 3)` (máx. 3 downloads paralelos), então o crash não é
   falta de limite — é algo mais nas rotinas de download em si (concorrência de I/O na pasta de
   downloads, updates de UI fora da thread certa, exceção não tratada em algum dos `Task.Run`
   paralelos). Precisa reproduzir disparando vários downloads de uma vez e pegar o stack trace real.
-
-- **Voltar pro primeiro mount point salva "Default" em vez do Id real.** Em
-  `src/CatModManager.Ui/ViewModels/ModInstallationCoordinator.cs:102`, `MountPointId = mountPoint?.Id
-  ?? "Default"` — se `mountPoint` vier `null` (ex.: ao tentar voltar pro mount point original depois
-  de trocar), o mod fica com o literal `"Default"` em vez do Id real do primeiro mount point (ex.:
-  `"override"` no KOTOR). Investigar se isso realmente redireciona pro primeiro mount point na hora
-  de resolver o path de instalação, ou se joga o mod pra outro lugar (raiz do jogo, pasta errada,
-  etc.) — ver como `MountPointId` é resolvido de volta pra um path físico.
 
 - **Extração de `.7z` extremamente lenta, mesmo pra arquivo minúsculo.** O mesmo arquivo em `.zip`
   extrai rápido; em `.7z` demora muito. `SevenZipArchiveExtractor.cs` usa `SharpCompress`
@@ -96,6 +82,32 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   competindo com o teste.
 
 ## Feito
+
+- **[GRAVE] Mod instalado sem mount point virava `"Default"` e nunca era montado.** Em
+  `ModInstallationCoordinator`, quando não havia mount point pra atribuir, o mod era salvo com a
+  string literal `"Default"`. Mas `VfsOrchestrationService.MountPointMatches` só trata `null` como
+  "use o default" — uma id desconhecida cai na comparação normal e não casa com **nada**. Como
+  nenhum jogo define uma id `"Default"` (KOTOR usa `override`, Skyrim/Starfield usam `data`/`root`),
+  o mod era instalado, aparecia habilitado na UI e simplesmente nunca chegava na pasta do jogo. Era
+  pior do que o registrado aqui antes (a suspeita era "vai pra pasta errada"; na real não ia a lugar
+  nenhum). Corrigido gravando `null`, mais migração no load de perfil que reseta qualquer
+  `MountPointId` órfão — perfis já salvos continuariam quebrados só com o fix do installer.
+
+- **Auto-detecção de jogos Steam no Linux.** `SteamScanner.Scan()` abria com
+  `if (!OperatingSystem.IsWindows()) return Array.Empty<...>()`, mesmo o parsing de `appmanifest_*.acf`
+  e `libraryfolders.vdf` sendo 100% agnóstico de plataforma — só a descoberta da raiz do Steam era
+  Windows-only (registro + Program Files). Agora procura nas localizações conhecidas do Linux
+  (`~/.steam/steam`, `~/.local/share/Steam`, Flatpak, etc.), resolvendo symlinks pra não listar a
+  mesma biblioteca 3x. Validado na máquina real: achou as duas bibliotecas, incluindo a de
+  `/mnt/games` via `libraryfolders.vdf`. Runtimes/Proton não poluem a lista porque o
+  `GameDiscoveryService` já exige um `.exe` no topo da pasta.
+
+- **`.rar` no Install Mod.** A parte do filtro do picker era real e foi corrigida (`*.rar`/`*.tar`
+  adicionados, e o `LocalModScanner` também só enxergava `.zip`/`.7z`). Mas a suspeita de que o
+  SharpCompress falharia silenciosamente em RAR estava **errada**: testado com um RAR4 real
+  construído à mão e validado com `7z`, o `SevenZipArchiveExtractor` lista e extrai corretamente; e
+  arquivo inválido lança `InvalidOperationException` bem visível, não falha em silêncio. Ressalva:
+  o teste cobriu RAR4 stored — RAR5 e archives "solid" não foram verificados.
 
 - **[VALIDADO PONTA A PONTA] Fluxo completo do Linux funciona: baixar, instalar, montar e desmontar
   mods, jogo carrega os mods de verdade.** Testado com KOTOR real (build self-contained no host, fora
