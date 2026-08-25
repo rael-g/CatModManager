@@ -93,13 +93,35 @@ public partial class ProfileCoordinator : ObservableObject
 
             modList.AllMods.Clear();
             foreach (var m in profile.Mods) modList.AllMods.Add(m);
+
+            MigrateOrphanedMountPointIds(modList.AllMods, config.EffectiveMountPoints);
         }
-        
+
         _refreshModMountPointDisplayNames();
         _syncActiveModsToState();
         
         _sessionState.NotifyProfileChanged(profile.Name);
         _logService.Log($"Profile '{profile.Name}' applied with {profile.Mods.Count} mods.");
+    }
+
+    /// <summary>
+    /// Resets any MountPointId that no longer refers to an existing mount point back to null
+    /// ("use the default"). Older builds stored the literal "Default" when no mount point was
+    /// available, and no game defines that id — such mods match no mount point at all and are
+    /// silently never mounted. This also cleans up ids left behind when a game definition changes.
+    /// </summary>
+    internal static void MigrateOrphanedMountPointIds(
+        IEnumerable<Mod> mods, IReadOnlyList<MountPointDef> mountPoints)
+    {
+        foreach (var mod in mods)
+        {
+            if (string.IsNullOrEmpty(mod.MountPointId)) continue;
+
+            bool exists = mountPoints.Any(mp =>
+                string.Equals(mp.Id, mod.MountPointId, StringComparison.OrdinalIgnoreCase));
+
+            if (!exists) mod.MountPointId = null;
+        }
     }
 
     public void SaveLastProfileName(string? profileName)

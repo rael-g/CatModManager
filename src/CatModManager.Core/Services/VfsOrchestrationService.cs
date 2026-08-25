@@ -138,7 +138,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         }
     }
 
-    private static bool MountPointMatches(Mod mod, MountPointDef mp, MountPointDef defaultMp)
+    internal static bool MountPointMatches(Mod mod, MountPointDef mp, MountPointDef defaultMp)
     {
         if (string.IsNullOrEmpty(mod.MountPointId))
             return mp == defaultMp;

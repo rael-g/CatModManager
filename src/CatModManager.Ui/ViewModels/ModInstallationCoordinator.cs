@@ -99,7 +99,11 @@ public partial class ModInstallationCoordinator : ObservableObject
             {
                 IsInstalling = true,
                 InstallProgress = 0,
-                MountPointId = mountPoint?.Id ?? "Default",
+                // null means "use the default mount point" everywhere else (MountPointMatches,
+                // the picker, the display name lookup). Writing a literal "Default" here instead
+                // made the mod match no mount point at all on any game whose ids differ — KOTOR
+                // ("override"), Skyrim/Starfield ("data"/"root") — so it silently never mounted.
+                MountPointId = mountPoint?.Id,
                 Category = "Uncategorized"
             };
 
