@@ -44,6 +44,22 @@ public class PaletteConsistencyTests
     }
 
     [Fact]
+    public void NoXamlFileHardcodesAColour()
+    {
+        var literal = new Regex(@"=""#[0-9A-Fa-f]{6,8}""", RegexOptions.Compiled);
+
+        var offenders = Directory
+            .EnumerateFiles(Path.Combine(ProjectRoot(), "src"), "*.axaml", SearchOption.AllDirectories)
+            .Where(f => literal.IsMatch(File.ReadAllText(f)))
+            .Select(f => Path.GetRelativePath(ProjectRoot(), f))
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "XAML must use {DynamicResource ...} from the palette, not hex literals. Offending files:\n  " +
+            string.Join("\n  ", offenders));
+    }
+
+    [Fact]
     public void AppAxamlBrushesAllResolveFromThePalette()
     {
         var axaml = File.ReadAllText(Path.Combine(ProjectRoot(), "src/CatModManager.Ui/App.axaml"));
