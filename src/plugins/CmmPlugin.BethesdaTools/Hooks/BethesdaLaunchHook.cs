@@ -47,19 +47,13 @@ public class BethesdaLaunchHook : IGameLaunchHook
 
         _log.Log($"[BethesdaTools] Syncing load order to {pluginsTextPath}");
 
-        _loadOrder.Refresh(ResolveDataFolder(exePath), pluginsTextPath, _state.ActiveMods, game);
+        _loadOrder.Refresh(GamePathResolver.GetDataFolder(_state.DataFolderPath, exePath),
+                           pluginsTextPath, _state.ActiveMods, game);
         _loadOrder.Save(pluginsTextPath, game.UsesStarFormat);
 
         return Task.CompletedTask;
     }
 
-    private string? ResolveDataFolder(string? exePath)
-    {
-        if (!string.IsNullOrEmpty(_state.DataFolderPath)) return _state.DataFolderPath;
-
-        string? exeDir = string.IsNullOrEmpty(exePath) ? null : Path.GetDirectoryName(exePath);
-        return string.IsNullOrEmpty(exeDir) ? null : Path.Combine(exeDir, "Data");
-    }
 
     public Task OnAfterExitAsync(LaunchContext ctx) => Task.CompletedTask;
 }

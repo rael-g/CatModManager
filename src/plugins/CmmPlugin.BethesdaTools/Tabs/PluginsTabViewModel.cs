@@ -65,7 +65,8 @@ public partial class PluginsTabViewModel : ObservableObject
             return;
         }
 
-        _loadOrder.Refresh(ResolveDataFolder(), _pluginsTextPath, _state.ActiveMods, game);
+        _loadOrder.Refresh(GamePathResolver.GetDataFolder(_state.DataFolderPath, _state.GameExecutablePath),
+                           _pluginsTextPath, _state.ActiveMods, game);
         CanEdit = true;
         Status = $"{game.GameFolder}: {Entries.Count} plugins ({Entries.Count(e => e.IsEnabled)} enabled).";
     }
@@ -82,21 +83,6 @@ public partial class PluginsTabViewModel : ObservableObject
         Status = $"Saved {Entries.Count(e => e.IsEnabled)} enabled plugins to {Path.GetFileName(_pluginsTextPath)}.";
     }
 
-    /// <summary>
-    /// The Data folder to scan for base game plugins. Prefers the path CMM already resolved for the
-    /// active profile and falls back to the folder next to the executable.
-    /// </summary>
-    private string? ResolveDataFolder()
-    {
-        if (!string.IsNullOrEmpty(_state.DataFolderPath))
-            return _state.DataFolderPath;
-
-        string? exeDir = string.IsNullOrEmpty(_state.GameExecutablePath)
-            ? null
-            : Path.GetDirectoryName(_state.GameExecutablePath);
-
-        return string.IsNullOrEmpty(exeDir) ? null : Path.Combine(exeDir, "Data");
-    }
 
     [RelayCommand]
     public void MoveUp(EspEntry? entry)

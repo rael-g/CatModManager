@@ -38,6 +38,21 @@ public class GamePathResolver
         return ResolveChildFile(gameDir, "Plugins.txt");
     }
 
+    /// <summary>
+    /// The game's Data folder. Prefers the path CMM already resolved for the active profile and
+    /// falls back to the folder next to the executable.
+    /// </summary>
+    public static string? GetDataFolder(string? configuredDataFolder, string? gameExecutablePath)
+    {
+        if (!string.IsNullOrEmpty(configuredDataFolder)) return configuredDataFolder;
+
+        string? exeDir = string.IsNullOrEmpty(gameExecutablePath)
+            ? null
+            : Path.GetDirectoryName(gameExecutablePath);
+
+        return string.IsNullOrEmpty(exeDir) ? null : Path.Combine(exeDir, "Data");
+    }
+
     /// <summary>Full path to the "My Games/&lt;Game&gt;" folder holding the .ini files, or null.</summary>
     public string? GetMyGamesPath(BethesdaGame game, string? gameExecutablePath)
     {
