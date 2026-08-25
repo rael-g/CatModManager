@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CatModManager.Ui.Views.MountPointEditorDialog"
+        Width="380"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SidebarBg}"
+        Foreground="{DynamicResource TextPrimary}">
+
+    <StackPanel Margin="16" Spacing="4">
+        <TextBlock Name="HeaderText" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+        <TextBlock Text="Name" FontSize="10" Foreground="{DynamicResource TextSubtle}"/>
+        <TextBox Name="NameBox" Watermark="e.g. PAK Mods" Margin="0,0,0,8"/>
+
+        <TextBlock Text="Path" FontSize="10" Foreground="{DynamicResource TextSubtle}"/>
+        <TextBox Name="PathBox" IsReadOnly="True" Margin="0,0,0,4"/>
+
+        <Button Name="BrowseBtn" Content="Browse…" Padding="10,5" Margin="0,0,0,12"
+                Background="Transparent" BorderThickness="1"
+                BorderBrush="{DynamicResource SurfaceSelected}"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Name="CancelBtn" Content="Cancel" Padding="16,7"
+                    Background="Transparent" BorderThickness="0"
+                    Foreground="{DynamicResource TextSubtle}"/>
+            <Button Name="OkBtn" Padding="16,7" FontWeight="SemiBold" BorderThickness="0"
+                    Background="{DynamicResource AccentColor}"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

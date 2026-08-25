@@ -14,7 +14,6 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
-using CatModManager.Theme;
 
 namespace CatModManager.Ui.Views;
 
@@ -345,123 +344,10 @@ public partial class MainWindow : Window
             await vm.AddModCommand.ExecuteAsync(path);
     }
 
-    /// <summary>
-    /// Shows a dialog listing available mount points.
-    /// Returns null/"" for the default (first) mount point, a mount point Id for others,
-    /// or "cancelled" if the user dismissed.
-    /// </summary>
-    private async Task<string?> ShowMountPointPickerDialog(MainWindowViewModel vm, string? currentMountPointId = null)
-    {
-        var mountPoints = vm.GameConfig.EffectiveMountPoints;
-
-        // If only one mount point, skip the dialog entirely — just install to it.
-        if (mountPoints.Count <= 1)
-            return mountPoints.Count == 1 ? mountPoints[0].Id : null;
-
-        // Resolve "null" MountPointId to the first (default) mount point id for comparison.
-        string effectiveCurrent = string.IsNullOrEmpty(currentMountPointId)
-            ? (mountPoints.Count > 0 ? mountPoints[0].Id : "")
-            : currentMountPointId;
-
-        var bg       = CmmPalette.Brushes.SidebarBg;
-        var cardBg   = CmmPalette.Brushes.AppBackground;
-        var border   = CmmPalette.Brushes.Border;
-        var mutedFg  = CmmPalette.Brushes.TextSubtle;
-        var accentBg = CmmPalette.Brushes.Accent;
-        var currentBg = CmmPalette.Brushes.AccentMuted;
-
-        var dialog = new Avalonia.Controls.Window
-        {
-            Title                 = "Change Mount Point",
-            Width                 = 420,
-            SizeToContent         = Avalonia.Controls.SizeToContent.Height,
-            CanResize             = false,
-            WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
-            Background            = bg
-        };
-
-        Avalonia.Controls.Button MakeCard(string title, string subtitle, bool isCurrent)
-        {
-            var titlePanel = new Avalonia.Controls.StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6 };
-            titlePanel.Children.Add(new Avalonia.Controls.TextBlock
-            {
-                Text = title, FontWeight = Avalonia.Media.FontWeight.SemiBold,
-                FontSize = 13, Foreground = Avalonia.Media.Brushes.White
-            });
-            if (isCurrent)
-                titlePanel.Children.Add(new Avalonia.Controls.TextBlock
-                {
-                    Text = "● current", FontSize = 10, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                    Foreground = CmmPalette.Brushes.AccentHover
-                });
-
-            var subBlock = new Avalonia.Controls.TextBlock
-            {
-                Text = subtitle, FontSize = 11, Foreground = mutedFg,
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                Margin = new Avalonia.Thickness(0, 3, 0, 0)
-            };
-            var inner = new Avalonia.Controls.StackPanel { Spacing = 0 };
-            inner.Children.Add(titlePanel);
-            if (!string.IsNullOrEmpty(subtitle)) inner.Children.Add(subBlock);
-            return new Avalonia.Controls.Button
-            {
-                Content = inner,
-                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-                Padding = new Avalonia.Thickness(14, 10),
-                Background = isCurrent ? currentBg : cardBg,
-                BorderBrush = isCurrent ? accentBg : border,
-                BorderThickness = new Avalonia.Thickness(isCurrent ? 2 : 1),
-                CornerRadius = new Avalonia.CornerRadius(4),
-                Foreground = Avalonia.Media.Brushes.White
-            };
-        }
-
-        var cards = new Avalonia.Controls.StackPanel { Spacing = 8 };
-        foreach (var mp in mountPoints)
-        {
-            bool isCurrent = string.Equals(mp.Id, effectiveCurrent, StringComparison.OrdinalIgnoreCase);
-            var btn = MakeCard(mp.Name, mp.Path, isCurrent);
-            var capturedId = mp.Id;
-            btn.Click += (_, _) => dialog.Close(capturedId);
-            cards.Children.Add(btn);
-        }
-
-        var cancelBtn = new Avalonia.Controls.Button
-        {
-            Content = "Cancel", Padding = new Avalonia.Thickness(16, 7),
-            Background = Avalonia.Media.Brushes.Transparent, BorderThickness = new Avalonia.Thickness(0),
-            Foreground = mutedFg, FontSize = 12,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        };
-        cancelBtn.Click += (_, _) => dialog.Close("cancelled");
-
-        var footer = new Avalonia.Controls.StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-            Margin = new Avalonia.Thickness(0, 4, 0, 0)
-        };
-        footer.Children.Add(cancelBtn);
-
-        var root = new Avalonia.Controls.StackPanel { Margin = new Avalonia.Thickness(16), Spacing = 8 };
-        root.Children.Add(new Avalonia.Controls.TextBlock
-        {
-            Text = "Where would you like to install this mod?",
-            FontSize = 14, FontWeight = Avalonia.Media.FontWeight.SemiBold,
-            Foreground = Avalonia.Media.Brushes.White, Margin = new Avalonia.Thickness(0, 0, 0, 4)
-        });
-        root.Children.Add(cards);
-        root.Children.Add(footer);
-        dialog.Content = root;
-
-        return await dialog.ShowDialog<string?>(this);
-    }
-
     private async void AddMountPoint_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel vm) return;
-        var result = await ShowMountPointEditorDialog("", "");
+        var result = await MountPointEditorDialog.ShowAsync(this, "", "", vm.GameConfig.BaseFolderPath);
         if (result.HasValue)
             vm.GameConfig.AddUserMountPoint(result.Value.Name, result.Value.Path);
     }
@@ -471,7 +357,7 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm) return;
         if (sender is not Button btn || btn.Tag is not CatModManager.Core.Models.MountPointDef mp) return;
 
-        var result = await ShowMountPointEditorDialog(mp.Name, mp.Path);
+        var result = await MountPointEditorDialog.ShowAsync(this, mp.Name, mp.Path, vm.GameConfig.BaseFolderPath);
         if (!result.HasValue) return;
 
         if (mp.IsGameDefined)
@@ -497,13 +383,13 @@ public partial class MainWindow : Window
         var mountPoints = vm.GameConfig.EffectiveMountPoints;
         if (mountPoints.Count <= 1) return; // nothing to change to
 
-        string? chosen = await ShowMountPointPickerDialog(vm, selectedMod.MountPointId);
-        if (chosen == "cancelled") return;
+        string? chosen = await MountPointPickerDialog.ShowAsync(this, mountPoints, selectedMod.MountPointId);
+        if (chosen == null) return;   // dismissed
 
         // The first entry is the default; null MountPointId means "use default".
         var defaultId = vm.GameConfig.EffectiveMountPoints.Count > 0
             ? vm.GameConfig.EffectiveMountPoints[0].Id : null;
-        selectedMod.MountPointId = (chosen == null || chosen == defaultId) ? null : chosen;
+        selectedMod.MountPointId = chosen == defaultId ? null : chosen;
         vm.RefreshModMountPointDisplayNames();
         vm.NotifySelectedModMountPointChanged();
         vm.GameConfig.AutoSave?.Invoke();
@@ -524,89 +410,6 @@ public partial class MainWindow : Window
             absPath = expanded;
 
         _ = vm.OpenFolder(absPath);
-    }
-
-    private async Task<(string Name, string Path)?> ShowMountPointEditorDialog(string initialName, string initialPath)
-    {
-        if (DataContext is not MainWindowViewModel vm) return null;
-
-        bool isNew  = string.IsNullOrEmpty(initialName);
-        var bg      = CmmPalette.Brushes.SidebarBg;
-        var border  = CmmPalette.Brushes.SurfaceSelected;
-        var mutedFg = CmmPalette.Brushes.TextSubtle;
-
-        var dialog = new Avalonia.Controls.Window
-        {
-            Title                 = isNew ? "Add Mount Point" : "Edit Mount Point",
-            Width                 = 380,
-            SizeToContent         = Avalonia.Controls.SizeToContent.Height,
-            CanResize             = false,
-            WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
-            Background            = bg
-        };
-
-        var nameBox = new Avalonia.Controls.TextBox { Text = initialName, Watermark = "e.g. PAK Mods", Margin = new Avalonia.Thickness(0, 0, 0, 8) };
-        var pathBox = new Avalonia.Controls.TextBox { Text = initialPath, IsReadOnly = true, Foreground = Avalonia.Media.Brushes.White, Margin = new Avalonia.Thickness(0, 0, 0, 4) };
-        var browseBtn = new Avalonia.Controls.Button
-        {
-            Content = "Browse…", Padding = new Avalonia.Thickness(10, 5),
-            Background = Avalonia.Media.Brushes.Transparent, BorderBrush = border,
-            BorderThickness = new Avalonia.Thickness(1), Foreground = Avalonia.Media.Brushes.White,
-            Margin = new Avalonia.Thickness(0, 0, 0, 12)
-        };
-        browseBtn.Click += async (_, _) =>
-        {
-            var topLevel = GetTopLevel(dialog);
-            IStorageFolder? startFolder = null;
-            var currentPath = pathBox.Text;
-            if (!string.IsNullOrEmpty(currentPath) && System.IO.Directory.Exists(currentPath))
-                startFolder = await topLevel!.StorageProvider.TryGetFolderFromPathAsync(currentPath);
-            else if (!string.IsNullOrEmpty(vm.GameConfig.BaseFolderPath) && System.IO.Directory.Exists(vm.GameConfig.BaseFolderPath))
-                startFolder = await topLevel!.StorageProvider.TryGetFolderFromPathAsync(vm.GameConfig.BaseFolderPath);
-            var folders = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-            {
-                Title = "Select Mount Point Folder", AllowMultiple = false, SuggestedStartLocation = startFolder
-            });
-            if (folders.Count >= 1) pathBox.Text = folders[0].Path.LocalPath;
-        };
-
-        var okBtn = new Avalonia.Controls.Button
-        {
-            Content = isNew ? "Add" : "Save", Padding = new Avalonia.Thickness(16, 7),
-            Background = CmmPalette.Brushes.Accent,
-            BorderThickness = new Avalonia.Thickness(0), Foreground = Avalonia.Media.Brushes.White,
-            FontWeight = Avalonia.Media.FontWeight.SemiBold
-        };
-        okBtn.Click += (_, _) =>
-        {
-            if (!string.IsNullOrWhiteSpace(nameBox.Text) && !string.IsNullOrWhiteSpace(pathBox.Text))
-                dialog.Close((nameBox.Text.Trim(), pathBox.Text.Trim()));
-            else
-                dialog.Close(null);
-        };
-
-        var cancelBtn = new Avalonia.Controls.Button
-        {
-            Content = "Cancel", Padding = new Avalonia.Thickness(16, 7),
-            Background = Avalonia.Media.Brushes.Transparent, BorderThickness = new Avalonia.Thickness(0), Foreground = mutedFg
-        };
-        cancelBtn.Click += (_, _) => dialog.Close(null);
-
-        var btnRow = new Avalonia.Controls.StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Spacing = 8 };
-        btnRow.Children.Add(cancelBtn);
-        btnRow.Children.Add(okBtn);
-
-        var root = new Avalonia.Controls.StackPanel { Margin = new Avalonia.Thickness(16), Spacing = 4 };
-        root.Children.Add(new Avalonia.Controls.TextBlock { Text = isNew ? "New Mount Point" : "Edit Mount Point", FontSize = 14, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, Margin = new Avalonia.Thickness(0, 0, 0, 12) });
-        root.Children.Add(new Avalonia.Controls.TextBlock { Text = "Name", FontSize = 10, Foreground = mutedFg });
-        root.Children.Add(nameBox);
-        root.Children.Add(new Avalonia.Controls.TextBlock { Text = "Path", FontSize = 10, Foreground = mutedFg });
-        root.Children.Add(pathBox);
-        root.Children.Add(browseBtn);
-        root.Children.Add(btnRow);
-        dialog.Content = root;
-
-        return await dialog.ShowDialog<(string Name, string Path)?>(this);
     }
 
     private async void AddTool_Click(object sender, RoutedEventArgs e)

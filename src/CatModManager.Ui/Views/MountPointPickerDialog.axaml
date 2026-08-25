@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:CatModManager.Ui.Views"
+        x:Class="CatModManager.Ui.Views.MountPointPickerDialog"
+        Title="Change Mount Point"
+        Width="420"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SidebarBg}"
+        Foreground="{DynamicResource TextPrimary}">
+
+    <Window.Styles>
+        <!-- The mount point currently in use is outlined in the accent colour. -->
+        <Style Selector="Button.card">
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource AppBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
+        </Style>
+        <Style Selector="Button.card.current">
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Background" Value="{DynamicResource AccentMuted}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentColor}"/>
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="16" Spacing="8">
+        <TextBlock Text="Where would you like to install this mod?"
+                   FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4"/>
+
+        <ItemsControl Name="Cards">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="8"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="views:MountPointChoice">
+                    <Button Classes="card" Classes.current="{Binding IsCurrent}"
+                            Click="Card_Click">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                <TextBlock Text="● current" FontSize="10" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentHover}"
+                                           IsVisible="{Binding IsCurrent}"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Path}" FontSize="11" TextWrapping="Wrap"
+                                       Margin="0,3,0,0"
+                                       Foreground="{DynamicResource TextSubtle}"
+                                       IsVisible="{Binding HasPath}"/>
+                        </StackPanel>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+            <Button Name="CancelBtn" Content="Cancel" Padding="16,7" FontSize="12"
+                    Background="Transparent" BorderThickness="0"
+                    Foreground="{DynamicResource TextSubtle}"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

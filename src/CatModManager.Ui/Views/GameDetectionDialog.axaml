@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="using:CatModManager.Ui.Converters"
+        xmlns:vm="using:CatModManager.Ui.ViewModels"
+        xmlns:disc="using:CatModManager.Core.Services.GameDiscovery"
+        xmlns:core="using:CatModManager.Core.Services"
+        x:Class="CatModManager.Ui.Views.GameDetectionDialog"
+        x:DataType="vm:GameDetectionDialogViewModel"
+        Title="Detect Installed Games"
+        Width="640" Height="500"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SidebarBg}"
+        Foreground="{DynamicResource TextPrimary}">
+
+    <DockPanel>
+        <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="3"
+                     IsVisible="{Binding IsScanning}"/>
+
+        <TextBlock DockPanel.Dock="Top" Margin="12,8" FontSize="11"
+                   Foreground="{DynamicResource TextSubtle}"
+                   Text="{Binding Status}"/>
+
+        <StackPanel DockPanel.Dock="Bottom">
+            <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,4,0,0"/>
+
+            <StackPanel Orientation="Horizontal" Margin="12,6">
+                <TextBlock Text="GAME MODE" FontSize="9" FontWeight="Bold"
+                           Foreground="{DynamicResource TextSubtle}"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox MinWidth="240" Padding="6,4" VerticalAlignment="Center"
+                          ItemsSource="{Binding AvailableSupports}"
+                          SelectedItem="{Binding SelectedGameMode, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="core:IGameSupport">
+                            <TextBlock Text="{Binding DisplayName}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        Spacing="6" Margin="12,8">
+                <Button Name="RescanBtn" Content="↺ Rescan" Padding="12,5"/>
+                <Button Name="CancelBtn" Content="Cancel"   Padding="12,5"/>
+                <Button Name="ApplyBtn"  Content="Apply"    Padding="16,5"
+                        Background="{DynamicResource StatusActive}"/>
+            </StackPanel>
+        </StackPanel>
+
+        <ListBox Margin="8,0"
+                 Background="{DynamicResource AppBackground}"
+                 ItemsSource="{Binding Installations}"
+                 SelectedItem="{Binding SelectedInstallation, Mode=TwoWay}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="disc:GameInstallation">
+                    <Grid Margin="6,5" ColumnDefinitions="52, *, Auto">
+                        <!-- Storefront badge -->
+                        <Border Grid.Column="0" CornerRadius="3" Padding="4,1"
+                                VerticalAlignment="Center" HorizontalAlignment="Left"
+                                Background="{Binding StoreName,
+                                    Converter={x:Static conv:StoreBadgeBrushConverter.Instance}}">
+                            <TextBlock Text="{Binding StoreName}" FontSize="9" FontWeight="Bold"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DisplayName}"
+                                       FontWeight="SemiBold" FontSize="13"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding GameFolder}" FontSize="10"
+                                       Foreground="{DynamicResource TextSubtle}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+
+                        <!-- Game mode: green when auto-detected, neutral when the user must pick -->
+                        <Border Grid.Column="2" CornerRadius="3" Padding="5,2" Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Background="{Binding DetectedSupport,
+                                    Converter={x:Static conv:GameModeBrushConverter.Instance}}">
+                            <TextBlock FontSize="9" FontWeight="SemiBold" MaxWidth="120"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding DetectedSupport,
+                                           Converter={x:Static conv:GameModeNameConverter.Instance}}"/>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>
