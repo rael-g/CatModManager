@@ -75,6 +75,28 @@ public class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveMod_RefusesToDeleteOutsideTheModsFolder()
+    {
+        var vm = CreateViewModel();
+        await vm.InitialLoadTask;
+
+        string mods = Path.Combine(Path.GetTempPath(), "CMM_RemoveGuard", "mods");
+        vm.GameConfig.ModsFolderPath = mods;
+
+        // An install interrupted partway leaves ModRootPath pointing at the source archive, which
+        // lives in the downloads folder. Deleting it destroys the archive the user needs to retry.
+        Assert.False(vm.IsInsideModsFolder(
+            Path.Combine(Path.GetTempPath(), "CMM_RemoveGuard", "downloads", "SomeMod.7z")));
+
+        // A sibling sharing a name prefix is not inside it either — plain string prefix matching
+        // would say otherwise.
+        Assert.False(vm.IsInsideModsFolder(
+            Path.Combine(Path.GetTempPath(), "CMM_RemoveGuard", "mods_backup", "SomeMod")));
+
+        Assert.True(vm.IsInsideModsFolder(Path.Combine(mods, "SomeMod")));
+    }
+
+    [Fact]
     public async Task Profile_Error_Handling_Coverage()
     {
         var vm = CreateViewModel();

@@ -189,6 +189,17 @@ public partial class MainWindowViewModel : ObservableObject
                 foreach (var mod in toRemove)
                 {
                     ModList.AllMods.Remove(mod);
+
+                    // Only ever delete inside the mods folder. A mod whose install never finished
+                    // still carries the source archive as its ModRootPath, and deleting that wipes
+                    // the user's download — the archive they would need to install it again.
+                    if (!IsInsideModsFolder(mod.ModRootPath))
+                    {
+                        _logService.Log($"Removed '{mod.Name}' from the list only: '{mod.ModRootPath}' " +
+                                        "is outside the mods folder, so nothing was deleted.");
+                        continue;
+                    }
+
                     if (_fileService.DirectoryExists(mod.ModRootPath)) await Task.Run(() => _fileService.DeleteDirectory(mod.ModRootPath, true));
                     else if (_fileService.FileExists(mod.ModRootPath)) await Task.Run(() => _fileService.DeleteFile(mod.ModRootPath));
                 }
@@ -198,6 +209,25 @@ public partial class MainWindowViewModel : ObservableObject
             ProfileManager.AutoSave();
         }
         catch (Exception ex) { _logService.LogError("Remove error", ex); StatusMessage = $"ERROR: {ex.Message}"; }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="path"/> lives inside the configured mods folder. Compared on full,
+    /// separator-terminated paths so that a sibling folder sharing a name prefix — "…/mods_backup"
+    /// next to "…/mods" — is not mistaken for being inside it.
+    /// </summary>
+    internal bool IsInsideModsFolder(string? path)
+    {
+        string? modsFolder = GameConfig.ModsFolderPath;
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(modsFolder)) return false;
+
+        try
+        {
+            string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsFolder))
+                          + Path.DirectorySeparatorChar;
+            return Path.GetFullPath(path).StartsWith(root, StringComparison.Ordinal);
+        }
+        catch { return false; }
     }
 
     [RelayCommand] private Task Refresh() { ModList.RebuildDisplayedMods(); return Task.CompletedTask; }
