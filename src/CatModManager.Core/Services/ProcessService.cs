@@ -1,3 +1,4 @@
+using CatModManager.PluginSdk;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -102,6 +103,14 @@ public class ProcessService : IProcessService
             {
                 info.FileName = "xdg-open";
                 info.ArgumentList.Add(candidate);
+
+                // A distrobox container has no desktop session, so xdg-open there resolves to
+                // nothing and the folder silently never opens. Hand the call to the host instead.
+                if (ContainerEnvironment.IsInsideContainer)
+                {
+                    info.ArgumentList.Insert(0, info.FileName);
+                    info.FileName = ContainerEnvironment.HostExecCommand;
+                }
             }
             _runner.StartAsync(info);
         }
