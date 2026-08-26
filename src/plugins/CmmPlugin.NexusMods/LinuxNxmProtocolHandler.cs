@@ -58,7 +58,12 @@ internal class LinuxNxmProtocolHandler : INxmProtocolHandler
                 "[Desktop Entry]\n" +
                 "Type=Application\n" +
                 "Name=Cat Mod Manager (NXM Handler)\n" +
-                $"Exec=\"{exePath}\" \"%u\"\n" +
+                // %u must NOT be quoted. The Desktop Entry spec forbids field codes inside a
+                // quoted argument, and launchers honour that literally: with "%u" the app is
+                // handed <'nxm://…'> — quotes included — so it never recognises its own argument
+                // and opens a second window instead of forwarding the download. The executable
+                // path does get quoted, since it may contain spaces.
+                $"Exec=\"{exePath}\" %u\n" +
                 "NoDisplay=true\n" +
                 "StartupNotify=false\n" +
                 $"MimeType={MimeType};\n";
