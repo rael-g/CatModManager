@@ -48,6 +48,33 @@ public class ArchiveExtractorTests : IDisposable
     }
 
     [Fact]
+    public void GetFileList_OmitsDirectoryEntries()
+    {
+        // Many archives carry explicit entries for the folders themselves. ExtractAsync has always
+        // skipped them, but GetFileList used to hand them back alongside real files — and callers
+        // treat every entry as a file to route. In BethesdaModInstaller that produced a mapping of
+        // "Data" → "Data", which the mapping installer resolved with CopyDirectory, copying the
+        // whole subtree verbatim *in addition* to the per-file routing. A mod shipping
+        // Data/SFSE/Plugins/x.dll ended up installed twice: once at SFSE/Plugins and once at
+        // Data/SFSE/Plugins.
+        string zipWithDirs = Path.Combine(_tempDir, "withdirs.zip");
+        using (var fs = new FileStream(zipWithDirs, FileMode.Create))
+        using (var zip = new ZipArchive(fs, ZipArchiveMode.Create))
+        {
+            zip.CreateEntry("Data/");
+            zip.CreateEntry("Data/SFSE/");
+            zip.CreateEntry("Data/SFSE/Plugins/");
+            var dll = zip.CreateEntry("Data/SFSE/Plugins/sfee.dll");
+            using var writer = new StreamWriter(dll.Open());
+            writer.Write("binary");
+        }
+
+        var files = new SevenZipArchiveExtractor().GetFileList(zipWithDirs).ToList();
+
+        Assert.Equal(new[] { "Data\\SFSE\\Plugins\\sfee.dll" }, files);
+    }
+
+    [Fact]
     public async Task ExtractAsync_Should_Extract_All_Files()
     {
         var extractor = new SevenZipArchiveExtractor();
