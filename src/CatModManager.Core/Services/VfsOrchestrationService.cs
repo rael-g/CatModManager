@@ -23,6 +23,15 @@ public class VfsOrchestrationService : IVfsOrchestrationService
     private readonly ILogService                     _logService;
     private readonly IReadOnlyList<IVfsLifecycleHook> _vfsHooks;
 
+    /// <summary>
+    /// Builds the deployment driver for a resolved mount target.
+    ///
+    /// Injectable because the real factory decides between a FUSE mount and hard links by probing
+    /// the machine — which makes the orchestration logic here (hook ordering, the already-mounted
+    /// guard, unmount cleanup) impossible to test without touching a real filesystem.
+    /// </summary>
+    private readonly Func<string?, IFileSystemDriver> _driverFactory;
+
     // Active VFS instances — one per mount point.
     private readonly List<CatVirtualFileSystem> _mounted = new();
     private string?  _lastGameFolderPath;
@@ -34,13 +43,16 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         IHardlinkStateStore              stateStore,
         IVfsStateService                 stateService,
         ILogService                      logService,
-        IReadOnlyList<IVfsLifecycleHook>? vfsHooks = null)
+        IReadOnlyList<IVfsLifecycleHook>? vfsHooks = null,
+        Func<string?, IFileSystemDriver>? driverFactory = null)
     {
         _resolver        = resolver;
         _stateStore      = stateStore;
         _stateService    = stateService;
         _logService      = logService;
         _vfsHooks        = vfsHooks ?? [];
+        _driverFactory   = driverFactory
+            ?? (target => FileSystemFactory.CreateDriver(stateStore, target, logService.Log));
     }
 
     public void RecoverStaleMounts()
@@ -101,9 +113,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
                 // The driver depends on where we are deploying: a game on NTFS cannot take the
                 // FUSE overlay, so the factory needs the resolved target, not just the platform.
-                var vfs = new CatVirtualFileSystem(
-                    _resolver,
-                    FileSystemFactory.CreateDriver(_stateStore, targetPath, _logService.Log));
+                var vfs = new CatVirtualFileSystem(_resolver, _driverFactory(targetPath));
                 await Task.Run(() => vfs.Mount(targetPath, modsForMp));
                 _mounted.Add(vfs);
 

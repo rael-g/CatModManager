@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,6 +17,8 @@ public class VfsOrchestrationServiceTests
     private readonly MockVfsStateService _stateService = new();
     private readonly MockConflictResolver _resolver = new();
 
+    private readonly FakeDriver _driver = new();
+
     private VfsOrchestrationService CreateService(IEnumerable<IVfsLifecycleHook>? hooks = null)
     {
         return new VfsOrchestrationService(
@@ -23,8 +26,16 @@ public class VfsOrchestrationServiceTests
             new MockHardlinkStateStore(),
             _stateService,
             _logService,
-            hooks?.ToList());
+            hooks?.ToList(),
+            _ => _driver);
     }
+
+    /// <summary>
+    /// A game folder that is valid on whatever OS the suite runs on. These tests used to hardcode
+    /// "C:\Game", which on Linux is a relative path to a directory that does not exist — so the
+    /// real driver failed to mount and every assertion about IsMounted failed with it.
+    /// </summary>
+    private static string GameFolder => Path.Combine(Path.GetTempPath(), "CMM_VfsOrchestration");
 
     [Fact]
     public async Task MountAsync_ReturnsFailure_WhenNoGamePathProvided()
@@ -41,7 +52,7 @@ public class VfsOrchestrationServiceTests
         var service = CreateService(new[] { hook });
         
         await service.MountAsync(new MountOptions { 
-            GameFolderPath = "C:\\Game", 
+            GameFolderPath = GameFolder, 
             ActiveMods = new List<Mod>(),
             MountPoints = new List<MountPointDef> { new MountPointDef("default", "Default", "") }
         });
@@ -57,7 +68,7 @@ public class VfsOrchestrationServiceTests
         
         // Setup a valid mount point to ensure IsMounted becomes true
         await service.MountAsync(new MountOptions { 
-            GameFolderPath = "C:\\Game", 
+            GameFolderPath = GameFolder, 
             ActiveMods = new List<Mod> { new Mod("T", "P", 1) },
             MountPoints = new List<MountPointDef> { new MountPointDef("default", "Default", "") }
         });
@@ -72,7 +83,7 @@ public class VfsOrchestrationServiceTests
     {
         var service = CreateService();
         var options = new MountOptions { 
-            GameFolderPath = "C:\\Game",
+            GameFolderPath = GameFolder,
             ActiveMods = new List<Mod> { new Mod("Test", "Path", 1) },
             MountPoints = new List<MountPointDef> { new MountPointDef("default", "Default", "") }
         };
@@ -85,6 +96,25 @@ public class VfsOrchestrationServiceTests
     }
 
     // --- MOCKS ---
+
+    /// <summary>
+    /// Stands in for the real deployment driver so these tests exercise orchestration only —
+    /// no FUSE mount, no hard links, no disk.
+    /// </summary>
+    private class FakeDriver : CatModManager.VirtualFileSystem.IFileSystemDriver
+    {
+        public bool IsMounted { get; private set; }
+        public int MountCount { get; private set; }
+
+        public void Mount(string mountPoint, CatModManager.VirtualFileSystem.IFileSystem fs)
+        {
+            MountCount++;
+            IsMounted = true;
+        }
+
+        public void Unmount() => IsMounted = false;
+        public void Dispose() => Unmount();
+    }
 
     private class MockVfsHook : IVfsLifecycleHook
     {
