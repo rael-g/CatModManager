@@ -93,6 +93,11 @@ public partial class ProfileCoordinator : ObservableObject
             MigrateOrphanedMountPointIds(modList.AllMods, config.EffectiveMountPoints);
         }
 
+        // A previous run killed mid-install leaves its extraction workspace behind — potentially
+        // hundreds of megabytes, and invisible in a file manager because the name starts with a dot.
+        // Only folders predating this process are removed, so an install in flight is never hit.
+        TempWorkspace.CleanupStale(config.ModsFolderPath, _logService.Log);
+
         _refreshModMountPointDisplayNames();
         _syncActiveModsToState();
         

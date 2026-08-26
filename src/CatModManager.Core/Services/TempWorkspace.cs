@@ -26,8 +26,43 @@ public class TempWorkspace : IDisposable
         }
         catch
         {
-            // Silently fail on cleanup errors (e.g. file lock) 
-            // Stale folders will be handled by RecoverStaleMounts or manually
+            // Cleanup can genuinely fail (a file still locked, a read-only mount). Leaving the
+            // folder is the safe outcome; CleanupStale collects it on a later start.
+        }
+    }
+
+    /// <summary>
+    /// Deletes workspaces left behind by a previous run.
+    ///
+    /// Dispose handles the normal path, including cancellation, but nothing runs when the process
+    /// is killed — a crash, an OOM kill, closing mid-extraction — and a half-extracted mod can be
+    /// hundreds of megabytes sitting in the mods folder forever, invisible because the name starts
+    /// with a dot.
+    ///
+    /// Only folders older than this process are touched, so a workspace belonging to an install
+    /// running right now is never swept out from under it.
+    /// </summary>
+    public static void CleanupStale(string baseDir, Action<string>? log = null, string prefix = ".cmm_tmp_")
+    {
+        if (string.IsNullOrWhiteSpace(baseDir) || !Directory.Exists(baseDir)) return;
+
+        DateTime processStart;
+        try { processStart = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime(); }
+        catch { return; }
+
+        foreach (var dir in Directory.EnumerateDirectories(baseDir, prefix + "*"))
+        {
+            try
+            {
+                if (Directory.GetCreationTimeUtc(dir) >= processStart) continue;
+
+                Directory.Delete(dir, recursive: true);
+                log?.Invoke($"Removed leftover install workspace from a previous run: {dir}");
+            }
+            catch
+            {
+                // Not ours to force. Try again next start.
+            }
         }
     }
 }
