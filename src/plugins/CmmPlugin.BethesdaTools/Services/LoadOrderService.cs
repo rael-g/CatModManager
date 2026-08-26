@@ -49,12 +49,16 @@ public class LoadOrderService
         if (!string.IsNullOrEmpty(dataFolderPath))
             dataPlugins.UnionWith(ScanForPlugins(dataFolderPath));
 
-        // The engine loads the game's own plugins itself; listing them in plugins.txt is not how
-        // the format works and corrupts the load order. So work out which they are rather than
-        // hardcoding a list — Bethesda ships new official .esm files with updates (Starfield added
-        // four that the built-in list never knew about), and a stale list surfaces them as rows the
-        // user can toggle and break. Anything in the game's Data folder that no managed mod
-        // provides belongs to the game. game.Masters stays as a floor for when Data is unreadable.
+        // The engine carries its own hardcoded list of official plugins and loads them whatever
+        // plugins.txt says — Starfield.exe literally embeds "SFBGS047.esm", "SFBGS050.esm" and the
+        // rest. So listing them here is not corruption, it is a lie: the checkbox next to
+        // SFBGS050.esm cannot actually disable it, and the row invites the user to reorder an
+        // engine-owned master below a regular plugin, which the engine does reject.
+        //
+        // Work the set out rather than hardcoding it: Bethesda ships new official .esm files with
+        // updates (Starfield added four the built-in list never knew about). Anything in the game's
+        // Data folder that no managed mod provides belongs to the game. game.Masters stays as a
+        // floor for when the Data folder is unreadable.
         var official = new HashSet<string>(
             dataPlugins.Where(p => !modProvided.Contains(p)), StringComparer.OrdinalIgnoreCase);
         if (game != null)
