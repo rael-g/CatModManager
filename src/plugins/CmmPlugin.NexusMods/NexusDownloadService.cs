@@ -307,6 +307,54 @@ public class NexusDownloadService
         });
     }
 
+    /// <summary>
+    /// The name to save a download under, following Nexus's own convention:
+    /// <c>Mod Name-modId-version-fileId.ext</c>.
+    ///
+    /// The name used to be taken straight from the CDN URL, but for some files Nexus serves an
+    /// opaque path — a bare UUID. That name reaches far further than the downloads folder: the
+    /// installed mod's folder is named after the archive, so the mods folder ended up holding
+    /// entries like "150cdeff-9d30-4a7f-95c3-22918ef8d281" that identify nothing to anyone.
+    ///
+    /// modId and fileId are part of the name rather than decoration: two files of one mod can share
+    /// a version (variants), so the name alone is not unique, and re-downloading the *same* file
+    /// should land on the same path and overwrite rather than accumulate copies.
+    /// </summary>
+    internal static string BuildFileName(DownloadEntry entry, string downloadUri)
+    {
+        string urlName = Path.GetFileName(new Uri(downloadUri).LocalPath);
+        string ext     = Path.GetExtension(urlName);
+        if (string.IsNullOrEmpty(ext)) ext = ".zip";
+
+        string name = Sanitize(entry.ModName);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            // Nothing usable from the API — the URL's own name still beats an invented one.
+            string fallback = Sanitize(Path.GetFileNameWithoutExtension(urlName));
+            name = string.IsNullOrWhiteSpace(fallback) ? $"nexus_mod_{entry.ModId}" : fallback;
+        }
+
+        var parts = new List<string> { name };
+        if (entry.ModId > 0) parts.Add(entry.ModId.ToString());
+        string version = Sanitize(entry.Version);
+        if (!string.IsNullOrWhiteSpace(version)) parts.Add(version);
+        if (entry.FileId > 0) parts.Add(entry.FileId.ToString());
+
+        return string.Join('-', parts) + ext;
+    }
+
+    /// <summary>Strips characters the filesystem rejects, and trims what would look odd at an edge.</summary>
+    private static string Sanitize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var cleaned = new string(value
+            .Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)
+            .ToArray());
+
+        return cleaned.Trim().Trim('.', '-', '_');
+    }
+
     private async Task DownloadAndSave(DownloadEntry entry, string? downloadUri, string downloadsFolder)
     {
         if (string.IsNullOrWhiteSpace(downloadUri))
@@ -315,9 +363,7 @@ public class NexusDownloadService
             return;
         }
 
-        var fileName = Path.GetFileName(new Uri(downloadUri).LocalPath);
-        if (string.IsNullOrWhiteSpace(fileName))
-            fileName = $"nexus_mod_{entry.ModId}_file_{entry.FileId}.zip";
+        var fileName = BuildFileName(entry, downloadUri);
 
         Dispatcher.UIThread.Post(() =>
         {
