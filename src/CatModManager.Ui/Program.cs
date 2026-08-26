@@ -32,8 +32,12 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        string? nxmArg = args.FirstOrDefault(a =>
-            a.StartsWith("nxm://", StringComparison.OrdinalIgnoreCase));
+        // Older registrations wrote Exec=… "%u", which hands us the URL wrapped in literal
+        // quotes. Strip them so an app installed before that was fixed still works without
+        // the user having to re-register the nxm:// handler.
+        string? nxmArg = args
+            .Select(a => a.Trim('"', '\''))
+            .FirstOrDefault(a => a.StartsWith("nxm://", StringComparison.OrdinalIgnoreCase));
 
         // If another CMM instance is already running, forward the link and exit.
         // Retried with backoff because an existing instance launched moments ago
@@ -57,9 +61,15 @@ sealed class Program
         // gate a second instance can steal the first one's pipe out from under it,
         // leaving the original instance unreachable for the rest of its lifetime.
         if (TryAcquireInstanceLock())
+        {
+            IpcLog($"acquired instance lock; serving IPC (nxm={nxmArg ?? "none"})");
             StartPipeServer();
+        }
         else
+        {
+            IpcLog($"lock held by another instance; watching for takeover (nxm={nxmArg ?? "none"})");
             WatchForInstanceLock();
+        }
 
         // Bootstrap services for emergency VFS cleanup before DI is ready
         var logger = new LogService();
@@ -128,6 +138,25 @@ sealed class Program
         thread.Start();
     }
 
+    /// <summary>
+    /// Startup diagnostics for the nxm:// hand-off, written before DI (and therefore ILogService)
+    /// exists. Goes to a file because a process launched by xdg-open has nowhere to print: its
+    /// stdout is the desktop session's, which nobody reads. Every failure here used to be
+    /// swallowed, which is why "clicking download opens a second CMM" stayed unexplained.
+    /// </summary>
+    private static readonly string IpcLogPath =
+        Path.Combine(Path.GetTempPath(), "cmm-ipc.log");
+
+    private static void IpcLog(string message)
+    {
+        try
+        {
+            File.AppendAllText(IpcLogPath,
+                $"{DateTime.Now:HH:mm:ss} [{Environment.ProcessId}] {message}\n");
+        }
+        catch { /* diagnostics must never break startup */ }
+    }
+
     private static bool TrySendToExistingInstance(string message)
     {
         if (string.IsNullOrEmpty(message)) return false;
@@ -137,9 +166,15 @@ sealed class Program
             client.Connect(400); // 400 ms timeout — fast fail if no server
             using var writer = new StreamWriter(client) { AutoFlush = true };
             writer.WriteLine(message);
+            IpcLog($"forwarded to existing instance: {message}");
             return true;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            IpcLog($"forward failed ({ex.GetType().Name}: {ex.Message}); " +
+                   $"tmp={Path.GetTempPath()} socket={File.Exists(Path.Combine(Path.GetTempPath(), "CoreFxPipe_" + PipeName))}");
+            return false;
+        }
     }
 
     private static void StartPipeServer()
