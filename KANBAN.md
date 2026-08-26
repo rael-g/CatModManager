@@ -76,6 +76,28 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## Feito
 
+- **nxm reabria uma instância nova do CMM a cada download.** Três defeitos somados, achados com o
+  CMM rodando pela distrobox. (1) A posse do servidor IPC era decidida uma vez no startup: quem não
+  pegava o lock (`/tmp/CatModManager_IPC_v1.lock`, compartilhado entre host e container) nunca mais
+  tentava, então quando o dono saía ninguém ficava escutando e cada clique de nxm abria outra
+  janela. Agora quem perde o lock fica reprocurando e assume quando ele vaga — validado matando o
+  dono e vendo o link chegar na instância sobrevivente. (2) `LinuxNxmProtocolHandler.Register`
+  gravava no `.desktop` o caminho que o container enxerga (`/run/host/home/...`), que não existe no
+  host — e quem executa o `.desktop` é sempre o host, então re-registrar pela distrobox era um
+  no-op. (3) `xdg-open` dentro do container não alcança sessão de desktop nenhuma, por isso as
+  pastas não abriam; agora vai por `distrobox-host-exec`. A detecção ficou em
+  `ContainerEnvironment` (PluginSdk), compartilhada pelos dois pontos.
+
+- **Plugins do próprio Starfield apareciam na aba PLUGINS.** A lista fixa de masters implícitos em
+  `BethesdaDetector` tinha 10 nomes, mas o jogo instalado traz 14 `.esm` oficiais — os 4 que
+  faltavam (`BlueprintShips-SFBGS050`, `SFBGS00D`, `SFBGS047`, `SFBGS050`) viravam linhas com
+  checkbox. O `Starfield.exe` embute a própria lista (`strings` mostra `SFBGS047.esm`,
+  `SFBGS050.esm` etc.) e carrega esses arquivos independentemente do `Plugins.txt`, então o dano
+  não é corromper a ordem: é oferecer um controle que não controla nada, e permitir arrastar um
+  master do jogo para depois de um plugin comum (isso o motor rejeita). Trocado por derivação: o
+  que está na pasta Data do jogo e nenhum mod gerenciado fornece pertence ao jogo. A lista fixa
+  ficou só como piso para quando a Data não é legível. Nenhum `Plugins.txt` chegou a ser escrito.
+
 - **[REFACTOR] Diálogos do app principal em código imperativo.** `GameDetectionDialog` (244 linhas
   de construção manual, incluindo um método de 178) virou `GameDetectionDialog.axaml` + 36 linhas
   de code-behind, com três `IValueConverter` no lugar dos `switch` de cor inline. Os dois diálogos
