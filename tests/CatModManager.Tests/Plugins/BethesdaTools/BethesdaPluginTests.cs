@@ -57,6 +57,50 @@ public class BethesdaPluginTests
         Assert.Equal("readme.txt", result.FileMapping["CoolMod_v1/readme.txt"]);
     }
 
+    [Fact]
+    public async Task BethesdaModInstaller_Install_IgnoresDirectoryEntries()
+    {
+        var mockState = new MockModManagerState { GameExecutablePath = "Starfield.exe" };
+        var mockExtractor = new MockArchiveExtractor();
+
+        // A real CharGenFix.zip: explicit folder entries, then the single payload file. Routing a
+        // folder entry maps "Data" onto itself, and the mapping installer copies that whole subtree
+        // with CopyDirectory — so the dll landed at both SFSE/Plugins and Data/SFSE/Plugins.
+        mockExtractor.FileList.Add("Data/");
+        mockExtractor.FileList.Add("Data/SFSE/");
+        mockExtractor.FileList.Add("Data/SFSE/Plugins/");
+        mockExtractor.FileList.Add("Data/SFSE/Plugins/sfee.dll");
+
+        var installer = new BethesdaModInstaller(mockState, mockExtractor, _detector);
+
+        var result = await installer.InstallAsync("mod.zip", new MockInstallContext());
+
+        Assert.True(result.IsSuccess);
+        var only = Assert.Single(result.FileMapping);
+        Assert.Equal("Data/SFSE/Plugins/sfee.dll", only.Key);
+        Assert.Equal("SFSE/Plugins/sfee.dll", only.Value);
+    }
+
+    [Fact]
+    public async Task BethesdaModInstaller_Install_KeepsGameContentFolderAtTheTop()
+    {
+        var mockState = new MockModManagerState { GameExecutablePath = "Starfield.exe" };
+        var mockExtractor = new MockArchiveExtractor();
+
+        // Everything sits under SFSE/, so the "single top folder" rule would call it a wrapper and
+        // strip it — leaving Plugins/x.dll, which SFSE never loads. A folder the game itself owns
+        // is content, not packaging, however lonely it looks.
+        mockExtractor.FileList.Add("SFSE/Plugins/versionlib.bin");
+        mockExtractor.FileList.Add("SFSE/Plugins/other.bin");
+
+        var installer = new BethesdaModInstaller(mockState, mockExtractor, _detector);
+
+        var result = await installer.InstallAsync("mod.zip", new MockInstallContext());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("SFSE/Plugins/versionlib.bin", result.FileMapping["SFSE/Plugins/versionlib.bin"]);
+    }
+
     private class MockModManagerState : IModManagerState {
         public string? GameId => "skyrimse";
         public string? ModsFolderPath => "";
