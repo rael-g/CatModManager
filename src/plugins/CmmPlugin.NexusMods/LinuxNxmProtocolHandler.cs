@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using CatModManager.PluginSdk;
 
 namespace CmmPlugin.NexusMods;
 
@@ -21,11 +22,22 @@ internal class LinuxNxmProtocolHandler : INxmProtocolHandler
 
     private static string DesktopFilePath => Path.Combine(ApplicationsDir, DesktopId);
 
+    /// <summary>
+    /// The path the host would use to launch this build of CMM.
+    ///
+    /// A CMM running inside distrobox sees itself at "/run/host/home/you/…", but the .desktop file
+    /// is always *executed* by the host — the browser and xdg-open live there — and that path does
+    /// not exist outside the container. Registering it produces a handler the host silently cannot
+    /// launch, which is why re-registering from inside the container appeared to do nothing.
+    /// </summary>
+    private static string CurrentExePath() =>
+        ContainerEnvironment.ToHostPath(Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty);
+
     public bool IsRegistered()
     {
         if (!File.Exists(DesktopFilePath)) return false;
 
-        var currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+        var currentExe = CurrentExePath();
         if (string.IsNullOrEmpty(currentExe)) return false;
 
         var content = File.ReadAllText(DesktopFilePath);
@@ -40,6 +52,7 @@ internal class LinuxNxmProtocolHandler : INxmProtocolHandler
         try
         {
             Directory.CreateDirectory(ApplicationsDir);
+            exePath = ContainerEnvironment.ToHostPath(exePath);
 
             var content =
                 "[Desktop Entry]\n" +
