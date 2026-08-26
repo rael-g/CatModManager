@@ -15,28 +15,42 @@ public static class FileSystemFactory
     /// Windows game library on NTFS and play it under Proton, and for them the overlay simply is
     /// not available. NTFS does support hard links, so fall back to that rather than failing.
     /// </summary>
-    /// <param name="targetPath">
-    /// Where mods will be deployed. When null the FUSE driver is assumed on Linux, which is right
-    /// for crash recovery: it inspects state rather than mounting anything.
-    /// </param>
-    public static IFileSystemDriver CreateDriver(IHardlinkStateStore stateStore, string? targetPath = null)
+    /// <param name="targetPath">Where mods will be deployed.</param>
+    /// <param name="log">Receives a note when the overlay is unavailable and hard links are used.</param>
+    public static IFileSystemDriver CreateDriver(
+        IHardlinkStateStore stateStore, string? targetPath = null, Action<string>? log = null)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return new HardlinkDriver(stateStore);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return SupportsFuseOverlay(targetPath)
-                ? new Linux.FuseDriver()
-                : new HardlinkDriver(stateStore);
+            return new FuseWithHardlinkFallbackDriver(stateStore, log);
 
         throw new PlatformNotSupportedException("No file system driver available for this platform.");
     }
+
+    /// <summary>
+    /// Driver used to clean up after a crash, on every platform.
+    ///
+    /// This must be the hard link driver: it is the only one holding persistent state (the deployed
+    /// links and their backups, in IHardlinkStateStore), and a fresh instance with no in-memory
+    /// state loads and reverts all of it. Returning a FuseDriver here — which is what choosing by
+    /// platform used to do on Linux — made crash recovery a silent no-op, because its Unmount()
+    /// returns immediately when it never mounted anything. Orphaned FUSE mounts are a separate
+    /// concern, handled by IVfsStateService against /proc/mounts.
+    /// </summary>
+    public static IFileSystemDriver CreateCrashRecoveryDriver(IHardlinkStateStore stateStore) =>
+        new HardlinkDriver(stateStore);
 
     /// <summary>
     /// Filesystems <c>fusermount</c> refuses to mount over. Kept deliberately short: every entry
     /// here is one we have actually seen rejected, not a guess about what might be rejected.
     /// </summary>
     private static readonly string[] FuseRefusedFilesystems = { "ntfs", "ntfs3" };
+
+    /// <summary>Human-readable filesystem name for a path, for log and error messages.</summary>
+    internal static string DescribeFilesystem(string? path) =>
+        (path == null ? null : GetFilesystemType(path)) ?? "an unknown filesystem";
 
     internal static bool SupportsFuseOverlay(string? targetPath)
     {

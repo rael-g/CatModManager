@@ -45,8 +45,10 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
     public void RecoverStaleMounts()
     {
-        // Clean up any stale links from a previous crash.
-        var crashRecovery = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore));
+        // Clean up any stale links from a previous crash. Must be the crash-recovery driver:
+        // it is the one that persists what was deployed and can revert it.
+        var crashRecovery = new CatVirtualFileSystem(
+            _resolver, FileSystemFactory.CreateCrashRecoveryDriver(_stateStore));
         try { crashRecovery.Unmount(); } catch { }
 
         _stateService.RecoverStaleMounts();
@@ -100,7 +102,8 @@ public class VfsOrchestrationService : IVfsOrchestrationService
                 // The driver depends on where we are deploying: a game on NTFS cannot take the
                 // FUSE overlay, so the factory needs the resolved target, not just the platform.
                 var vfs = new CatVirtualFileSystem(
-                    _resolver, FileSystemFactory.CreateDriver(_stateStore, targetPath));
+                    _resolver,
+                    FileSystemFactory.CreateDriver(_stateStore, targetPath, _logService.Log));
                 await Task.Run(() => vfs.Mount(targetPath, modsForMp));
                 _mounted.Add(vfs);
 

@@ -21,16 +21,15 @@ public class FileSystemFactoryTests
     }
 
     [Fact]
-    public void CreateDriver_UsesFuseOverlay_OnAnOrdinaryLinuxFilesystem()
+    public void CreateCrashRecoveryDriver_AlwaysCleansHardlinks()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        // Crash recovery reverts deployed hard links from their persisted state. Picking a driver
+        // by platform used to hand back a FuseDriver on Linux, whose Unmount() returns immediately
+        // when nothing was mounted — so a crash left mod files and backups in the game folder
+        // forever. Orphaned FUSE mounts are recovered separately, from /proc/mounts.
+        var driver = FileSystemFactory.CreateCrashRecoveryDriver(new NullHardlinkStateStore());
 
-        // The temp dir is on a normal Linux filesystem, so the overlay is available and
-        // preferred — it leaves the game folder untouched.
-        var driver = FileSystemFactory.CreateDriver(
-            new NullHardlinkStateStore(), System.IO.Path.GetTempPath());
-
-        Assert.IsType<CatModManager.VirtualFileSystem.Linux.FuseDriver>(driver);
+        Assert.IsType<HardlinkDriver>(driver);
     }
 
     [Theory]
