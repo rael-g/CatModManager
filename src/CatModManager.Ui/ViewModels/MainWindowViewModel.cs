@@ -137,8 +137,18 @@ public partial class MainWindowViewModel : ObservableObject
         _logService.OnLog += AddLog;
         _vfsOrchestrator.RecoverStaleMounts();
 
-        _ = Task.Run(async () => await ProfileManager.LoadInitialProfile(_configService.Current.LastProfileName));
+        InitialLoadTask = Task.Run(
+            async () => await ProfileManager.LoadInitialProfile(_configService.Current.LastProfileName));
     }
+
+    /// <summary>
+    /// The startup profile load, kicked off by the constructor. Exposed rather than fire-and-forget
+    /// because it ends in RefreshListAsync, which clears AvailableProfiles and refills it from a
+    /// snapshot of the profiles folder taken when the load began. Anything that adds a profile
+    /// while it is still in flight gets erased by that clear — the snapshot predates it. Awaiting
+    /// this is how a caller says "the list is settled" instead of hoping it is.
+    /// </summary>
+    public Task InitialLoadTask { get; }
 
     // ── Commands ──────────────────────────────────────────────────────────────
 

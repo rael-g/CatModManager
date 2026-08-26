@@ -72,7 +72,12 @@ public class ProfileRegressionTests : IDisposable
     public async Task NewProfile_Should_Be_Saved_Immediately()
     {
         var vm = CreateVm();
-        
+
+        // The constructor starts loading the profile list in the background. Creating a profile
+        // before that finishes lets its RefreshListAsync clear the list and refill it from a
+        // snapshot taken before our profile existed — leaving AvailableProfiles empty.
+        await vm.InitialLoadTask;
+
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
 
         Assert.True(_mockProfileService.SaveCount >= 1, "Profile should be saved immediately after creation.");
@@ -105,6 +110,7 @@ public class ProfileRegressionTests : IDisposable
     public async Task RenameProfile_Should_Rename_And_Update_CurrentProfileName()
     {
         var vm = CreateVm();
+        await vm.InitialLoadTask;
 
         // Create a profile with a known name
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
@@ -131,6 +137,8 @@ public class ProfileRegressionTests : IDisposable
     public async Task NewProfile_Should_Avoid_Duplicate_Names()
     {
         var vm = CreateVm();
+        await vm.InitialLoadTask;
+
         vm.ProfileManager.AvailableProfiles.Add("NewProfile");
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
         Assert.NotEqual("NewProfile", vm.ProfileManager.CurrentProfileName);
