@@ -76,6 +76,24 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## Feito
 
+- **Três testes que nunca passaram no Linux, e o motivo de cada um.** A suíte rodava com 3 falhas
+  desde o começo; nenhuma era flakiness.
+  Os dois `VfsOrchestrationServiceTests` usavam `GameFolderPath = "C:\\Game"` — no Linux isso é um
+  caminho *relativo* para uma pasta inexistente, então o driver real falhava ao montar e toda
+  asserção sobre `IsMounted` caía junto. Eles passaram a "funcionar" sozinhos quando o fallback pra
+  hardlink entrou, mas por motivo errado: montavam um mapa de arquivos vazio sem tocar em disco.
+  A causa de fundo é que o `VfsOrchestrationService` construía o driver por uma fábrica estática,
+  o que tornava impossível testar a orquestração (ordem dos hooks, guarda de já-montado) sem
+  encostar no filesystem real. Agora o driver é injetável e os testes usam um falso.
+  O terceiro, `MountButton_Click_TogglesMount`, comparava `mountButton.Command` com
+  `vm.ToggleMountCommand`, mas o XAML liga em `Vfs.ToggleMountCommand` — comandos diferentes, então
+  a asserção era impossível de satisfazer. Ainda executava o comando, disparando uma tentativa de
+  mount real sem asserir nada com isso. Virou uma checagem de identidade do binding, que é o que
+  realmente pega alguém renomeando a propriedade (XAML só reclama em runtime).
+  Os três foram verificados por mutação: removi a guarda de já-montado, a chamada do hook de
+  after-unmount e quebrei o binding do botão — cada mutação derrubou o teste correspondente.
+  Suíte: 192 passando, 0 falhas, 2 pulados.
+
 - **[GRAVE] Crash recovery de hardlink nunca rodava no Linux.** `RecoverStaleMounts` pedia o driver
   pela plataforma, e no Linux isso devolvia o `FuseDriver` — cujo `Unmount()` retorna na hora
   quando nada foi montado. Ou seja: o `HardlinkDriver`, único que persiste o que foi implantado
