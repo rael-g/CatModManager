@@ -59,12 +59,12 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   novo no site. (a) só ajuda se o link ainda for válido; (b) é o que remove o reabrir da página.
   Confirmar se a API de não-premium permite re-emitir o link antes de prometer (b).
 
-- **Extração de `.7z` extremamente lenta, mesmo pra arquivo minúsculo.** O mesmo arquivo em `.zip`
-  extrai rápido; em `.7z` demora muito. `SevenZipArchiveExtractor.cs` usa `SharpCompress`
-  (`ArchiveFactory.Open` + `entry.WriteToDirectory`) — suspeita: decodificação LZMA de arquivos 7z
-  "solid" no SharpCompress é conhecida por ser lenta/ineficiente (recompacta/redecodifica o bloco
-  solid inteiro por entrada, ou falta buffering adequado no stream). Vale medir com profiling e
-  considerar trocar a lib só pro caminho `.7z` se confirmado.
+- **`.7z` ainda ~13x mais lento que o `7z` nativo, mesmo depois de corrigido o comportamento
+  quadrático.** Com a passada única (ver "Feito"), o mod de 708 MB extrai em ~55s contra ~4s do CLI.
+  A diferença restante é esperada: o LZMA2 do SharpCompress é gerenciado e single-thread, enquanto o
+  CLI decodifica em várias threads. Se ~55s incomodar, a saída é usar o binário `7z` quando estiver
+  no PATH e cair no SharpCompress só como fallback — mas isso adiciona dependência externa, então é
+  decisão a tomar, não óbvia.
 
 - **Decidir se Flatpak/Snap são viáveis, dado o design atual de FUSE.** Flatpak/Snap isolam mount
   namespace igual container — um mount FUSE criado pelo CMM sandboxado ficaria invisível pro jogo
@@ -93,6 +93,17 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   `IModManagerState` já expõe `GameId`; expor também o `SteamAppId` da definição TOML resolveria.
 
 ## Feito
+
+- **Extração de `.7z` era quadrática no número de arquivos.** `SevenZipArchiveExtractor.ExtractAsync`
+  chamava `entry.WriteToDirectory` por entrada, que é acesso aleatório. Num `.7z` *sólido* (o padrão)
+  todos os arquivos dividem um único stream LZMA2, então buscar qualquer arquivo re-decodifica o
+  stream desde o começo — custo O(arquivos × tamanho). Medido no mod FA STARQUEEN (708 MB, 126
+  arquivos): passava de **10 minutos e desacelerando**, com 78% de CPU numa thread só e 0 byte
+  escrito em 10s de amostragem, contra 4s do `7z` nativo no mesmo arquivo.
+
+  Trocado por `archive.ExtractAllEntries()`, que faz uma passada única e decodifica o stream uma vez
+  — a mesma estratégia do CLI. Resultado: **54,7s**, e a saída conferida com `diff -r` contra a
+  extração do `7z` nativo: idêntica.
 
 - **A race dos testes de perfil, diagnosticada.** Era mesmo a inicialização assíncrona competindo
   com o teste, e a causa é do app, não só do teste: o construtor do `MainWindowViewModel` disparava
