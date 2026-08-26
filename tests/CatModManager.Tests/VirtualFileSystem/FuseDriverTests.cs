@@ -173,7 +173,10 @@ public class FuseDriverTests
     {
         var (driver, factory) = Make(throwOnMount: true);
 
-        Assert.Throws<InvalidOperationException>(() => driver.Mount("/game", new StubFs()));
+        // The driver wraps mount failures to explain them (Mono.Fuse blames a missing kernel
+        // module for everything), but the original cause must survive for diagnostics.
+        var ex = Assert.Throws<IOException>(() => driver.Mount("/game", new StubFs()));
+        Assert.IsType<InvalidOperationException>(ex.InnerException);
 
         Assert.False(driver.IsMounted);
         Assert.True(factory.LastCreated?.Disposed ?? false);
@@ -185,7 +188,7 @@ public class FuseDriverTests
         var factory = new FakeHostFactory { ThrowOnMount = true };
         var driver  = new FuseDriver(factory);
 
-        Assert.Throws<InvalidOperationException>(() => driver.Mount("/game", new StubFs()));
+        Assert.Throws<IOException>(() => driver.Mount("/game", new StubFs()));
 
         // Fix the factory and retry
         factory.ThrowOnMount = false;

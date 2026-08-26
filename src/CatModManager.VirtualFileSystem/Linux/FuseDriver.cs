@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 
 namespace CatModManager.VirtualFileSystem.Linux;
 
@@ -37,11 +38,32 @@ public class FuseDriver : IFileSystemDriver
             _host = host;
             _isMounted = true;
         }
-        catch
+        catch (Exception ex)
         {
             host.Dispose();
-            throw;
+            throw new IOException(Explain(mountPoint, ex), ex);
         }
+    }
+
+    /// <summary>
+    /// Turns a mount failure into something actionable.
+    ///
+    /// Mono.Fuse reports every failure as "try running /sbin/modprobe fuse as the root user",
+    /// which is almost never the reason. The real cause is printed by the fusermount child process
+    /// on its own stderr, where nobody sees it — the common one being that fusermount refuses to
+    /// mount over certain filesystems at all ("mounting over filesystem type 0x7366746e is
+    /// forbidden", 0x7366746e being "ntfs"). Naming the filesystem gets the user much closer.
+    /// </summary>
+    private static string Explain(string mountPoint, Exception ex)
+    {
+        string fsType = FileSystemFactory.DescribeFilesystem(mountPoint);
+        string reason = FileSystemFactory.SupportsFuseOverlay(mountPoint)
+            ? $"FUSE is unavailable here — check that the 'fuse' module is loaded and that " +
+              $"nothing else is already mounted at that path. ({ex.Message})"
+            : $"fusermount refuses to mount over {fsType}, so the overlay cannot be used for " +
+              $"this game. Mods have to be deployed with hard links instead.";
+
+        return $"Failed to mount FUSE filesystem at '{mountPoint}' (on {fsType}). {reason}";
     }
 
     public void Unmount()
