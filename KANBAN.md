@@ -42,14 +42,14 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   (`NexusApiService.cs:163`) já usa `HttpCompletionOption.ResponseHeadersRead` e copia em buffer de
   80 KB direto pro `FileStream`; nada do arquivo é materializado em memória.
 
-  *Suspeito real:* a **extração** roda sem limite nenhum de concorrência. Cada download concluído
-  dispara `RequestInstallMod` → `MainWindowViewModel.cs:135` faz `Dispatcher.UIThread.Post(() =>
-  Installer.InstallModAtMountPointAsync(...))` — fire-and-forget, sem `await` e sem semáforo. O
-  `_concurrentDownloads` limita os downloads, mas nada limita as extrações que eles disparam, e
-  `SevenZipArchiveExtractor`/SharpCompress decodifica bloco solid de `.7z` com apetite de memória
-  proporcional ao bloco (mesma raiz provável do item "extração de `.7z` lenta"). Vários mods grandes
-  extraindo ao mesmo tempo explica o OOM da máquina inteira. Próximo passo: medir RSS durante a
-  repro e, se confirmado, serializar as instalações com um semáforo (provavelmente 1).
+  *Também descartado:* cheguei a atribuir o OOM a extrações concorrentes disparadas pelos downloads.
+  **Está errado** — baixar não instala. `_installCallback` só é chamado por clique do usuário na aba
+  de downloads (`NexusDownloadsTabControl.cs:676`); nada de auto-install ao concluir.
+
+  Ou seja: ainda **não há hipótese sustentada**. Não inventar outra sem medição. Próximo passo é
+  repro instrumentada — vários downloads pesados simultâneos com RSS do processo amostrado ao longo
+  do tempo (e `dotnet-counters` pra separar heap gerenciado de memória nativa), pra descobrir se o
+  crescimento é do CMM ou de pressão de I/O/cache do sistema.
 
 - **Retry de download recomeça do zero e reabre a página do Nexus.** Para usuário não-premium, o link
   de CDN vem de um token nxm de uso único; ao falhar, o `RetryDownload` não tem como repetir a
@@ -92,13 +92,20 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   — quando nenhum prefixo tem os dados ainda — cai no primeiro da lista, que pode ser o errado.
   `IModManagerState` já expõe `GameId`; expor também o `SteamAppId` da definição TOML resolveria.
 
-- **Race condition em `NewProfile`/`RenameProfile`.** Testes em
-  `tests/CatModManager.Tests/Regression/ProfileRegressionTests.cs` falham de forma intermitente
-  (4-6 falhas variando entre execuções sem mudança de código). Não parece específico de Linux —
-  provavelmente inicialização assíncrona do `MainWindowViewModel`/`ProfileManagerViewModel`
-  competindo com o teste.
-
 ## Feito
+
+- **A race dos testes de perfil, diagnosticada.** Era mesmo a inicialização assíncrona competindo
+  com o teste, e a causa é do app, não só do teste: o construtor do `MainWindowViewModel` disparava
+  `LoadInitialProfile` em fire-and-forget (`_ = Task.Run(...)`), que termina em `RefreshListAsync` —
+  `AvailableProfiles.Clear()` seguido de repopular a partir de um snapshot da pasta de perfis tirado
+  *quando a carga começou*. Quem cria um perfil enquanto ela está em voo tem o perfil apagado da
+  lista pelo `Clear`, porque o snapshot é anterior a ele. Vale pro usuário também: criar perfil logo
+  ao abrir o app pode perder a entrada da lista.
+
+  A task agora é exposta como `MainWindowViewModel.InitialLoadTask` e os três testes a aguardam.
+  Verificado com 8 execuções seguidas da suíte cheia, todas verdes (antes falhava ~1 em 3).
+  Descoberta de brinde: a remoção do `BethesdaModInstaller` mudou o escalonamento do xUnit e tornou
+  a falha determinística, o que é o que permitiu diagnosticá-la.
 
 - **Três testes que nunca passaram no Linux, e o motivo de cada um.** A suíte rodava com 3 falhas
   desde o começo; nenhuma era flakiness.
