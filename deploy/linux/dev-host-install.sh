@@ -44,6 +44,9 @@ dotnet publish "$REPO_ROOT/src/CatModManager.Ui/CatModManager.Ui.csproj" \
 BUILD_PLUGINS_DIR="$REPO_ROOT/src/CatModManager.Ui/bin/Release/net10.0/plugins"
 if [ -d "$BUILD_PLUGINS_DIR" ]; then
     echo "== Copiando plugins para o build publicado =="
+    # Apaga antes: "cp -r origem destino" com o destino já existente copia para
+    # DENTRO dele, então re-rodar o script criava app/plugins/plugins/plugins/...
+    rm -rf "$PUBLISH_DIR/app/plugins"
     cp -r "$BUILD_PLUGINS_DIR" "$PUBLISH_DIR/app/plugins"
 fi
 

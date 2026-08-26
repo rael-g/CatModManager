@@ -57,6 +57,8 @@
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\plugins\CmmPlugin.REEngine\CmmPlugin.REEngine.csproj"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\plugins\CmmPlugin.SaveManager\CmmPlugin.SaveManager.csproj"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Bundle game definitions shipped with the app -->
