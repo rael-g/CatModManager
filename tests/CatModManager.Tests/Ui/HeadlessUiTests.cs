@@ -135,7 +135,7 @@ public class HeadlessUiTests
     }
 
     [AvaloniaFact]
-    public void MountButton_Click_TogglesMount()
+    public void MountButton_IsBoundToTheVfsToggleCommand()
     {
         var window = new MainWindow();
         var app = (App)Application.Current!;
@@ -148,14 +148,12 @@ public class HeadlessUiTests
             .FirstOrDefault(b => b.Classes.Contains("mount-btn"));
         
         Assert.NotNull(mountButton);
-        Assert.NotNull(mountButton.Command);
-        
-        bool originalState = vm.Vfs.IsVfsMounted;
-        mountButton.Command.Execute(null);
-        
-        // ToggleMountInternal is async, but the property might change after await. 
-        // Since we are in headless, we might need to wait or check if it's called.
-        // For now, validating that the command is bound is the main goal.
-        Assert.Equal(vm.ToggleMountCommand, mountButton.Command);
+
+        // The binding is "Vfs.ToggleMountCommand" — the coordinator's command, not the view
+        // model's own ToggleMountCommand. This test asserted the latter and so could never pass;
+        // it also fired the command, kicking off a real mount attempt for no assertion at all.
+        // Reference identity is the whole point here: it catches the binding path silently
+        // breaking when a property gets renamed, which XAML reports only at runtime.
+        Assert.Same(vm.Vfs.ToggleMountCommand, mountButton.Command);
     }
 }
