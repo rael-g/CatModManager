@@ -76,6 +76,31 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## Feito
 
+- **[GRAVE] Crash recovery de hardlink nunca rodava no Linux.** `RecoverStaleMounts` pedia o driver
+  pela plataforma, e no Linux isso devolvia o `FuseDriver` — cujo `Unmount()` retorna na hora
+  quando nada foi montado. Ou seja: o `HardlinkDriver`, único que persiste o que foi implantado
+  (links + backups no `IHardlinkStateStore`), nunca era consultado. Depois de um crash com deploy
+  por hardlink, os arquivos de mod e os backups com prefixo de ponto ficariam na pasta do jogo pra
+  sempre. Não dava pra notar antes porque hardlink só rodava no Windows. Agora existe
+  `CreateCrashRecoveryDriver`, que devolve o driver com estado em qualquer plataforma. Mounts FUSE
+  órfãos continuam sendo tratados à parte, pelo `IVfsStateService` contra `/proc/mounts`.
+
+- **Fallback de FUSE para hardlink em vez de lista fixa de filesystems.** A lista de filesystems
+  recusados pelo `fusermount` não é legível de fora — só descoberta. Em vez de manter um palpite,
+  o `FuseWithHardlinkFallbackDriver` trata a falha de mount como resposta: tenta o overlay e, se
+  for recusado, implanta por hardlink. Um mount FUSE que falha não deixa estado pela metade, então
+  não há nada pra desfazer. A lista conhecida continua sendo consultada antes, só pra pular uma
+  tentativa que sabemos que vai falhar. A troca de estratégia sempre vai pro log, porque hardlink
+  escreve na pasta do jogo e isso não pode ser silencioso.
+  Efeito colateral: os dois `VfsOrchestrationServiceTests` que falhavam desde sempre passaram a
+  passar — eles tentavam FUSE de verdade num diretório temporário e morriam; agora caem pro
+  hardlink. Confirmado em 3 execuções seguidas.
+
+- **Mensagem de erro de mount do FUSE culpava o `modprobe`.** O Mono.Fuse reporta qualquer falha
+  como "try running /sbin/modprobe fuse as the root user", e a causa real vai pro stderr do
+  processo `fusermount`, que ninguém lê. Agora a exceção nomeia o filesystem do alvo e, quando é um
+  dos recusados, diz exatamente isso. A causa original fica preservada em `InnerException`.
+
 - **Modo hardlink funcionando no Linux (destrava jogo em NTFS).** Montar o VFS num jogo instalado
   em partição NTFS falhava, e a causa não é do CMM: o `fusermount` da libfuse tem uma lista de
   filesystems sobre os quais se recusa a montar, e o ntfs3 está nela —
