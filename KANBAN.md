@@ -35,6 +35,30 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   downloads, updates de UI fora da thread certa, exceção não tratada em algum dos `Task.Run`
   paralelos). Precisa reproduzir disparando vários downloads de uma vez e pegar o stack trace real.
 
+  **Agravado (26/08/2026):** não é só o app que trava — com vários downloads pesados o sistema
+  inteiro congelou por pressão de memória, e o `systemd-oomd`/GNOME matou o CMM pra salvar a sessão.
+
+  *Descartado:* o download em si **não** é o vazamento. `NexusApiService.DownloadToFileAsync`
+  (`NexusApiService.cs:163`) já usa `HttpCompletionOption.ResponseHeadersRead` e copia em buffer de
+  80 KB direto pro `FileStream`; nada do arquivo é materializado em memória.
+
+  *Suspeito real:* a **extração** roda sem limite nenhum de concorrência. Cada download concluído
+  dispara `RequestInstallMod` → `MainWindowViewModel.cs:135` faz `Dispatcher.UIThread.Post(() =>
+  Installer.InstallModAtMountPointAsync(...))` — fire-and-forget, sem `await` e sem semáforo. O
+  `_concurrentDownloads` limita os downloads, mas nada limita as extrações que eles disparam, e
+  `SevenZipArchiveExtractor`/SharpCompress decodifica bloco solid de `.7z` com apetite de memória
+  proporcional ao bloco (mesma raiz provável do item "extração de `.7z` lenta"). Vários mods grandes
+  extraindo ao mesmo tempo explica o OOM da máquina inteira. Próximo passo: medir RSS durante a
+  repro e, se confirmado, serializar as instalações com um semáforo (provavelmente 1).
+
+- **Retry de download recomeça do zero e reabre a página do Nexus.** Para usuário não-premium, o link
+  de CDN vem de um token nxm de uso único; ao falhar, o `RetryDownload` não tem como repetir a
+  requisição e o fluxo volta a abrir a página. Duas melhorias independentes: (a) **resumo por HTTP
+  Range** — guardar o parcial e mandar `Range: bytes=N-` em vez de recomeçar, o que navegador e MO2
+  fazem; (b) **re-resolver o link** via API quando o token expirou, sem mandar o usuário clicar de
+  novo no site. (a) só ajuda se o link ainda for válido; (b) é o que remove o reabrir da página.
+  Confirmar se a API de não-premium permite re-emitir o link antes de prometer (b).
+
 - **Extração de `.7z` extremamente lenta, mesmo pra arquivo minúsculo.** O mesmo arquivo em `.zip`
   extrai rápido; em `.7z` demora muito. `SevenZipArchiveExtractor.cs` usa `SharpCompress`
   (`ArchiveFactory.Open` + `entry.WriteToDirectory`) — suspeita: decodificação LZMA de arquivos 7z
