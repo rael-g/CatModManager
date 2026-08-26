@@ -37,9 +37,9 @@ public class SevenZipArchiveExtractor : IArchiveExtractor
     /// <summary>
     /// The archive's <em>files</em>. Folder entries are deliberately excluded: every caller routes
     /// what it gets here as a file, and the folder tree is already implied by the file paths.
-    /// Handing them back made BethesdaModInstaller map "Data" onto itself, which
-    /// InstallModFromMappingAsync resolves with CopyDirectory — installing the whole subtree a
-    /// second time, next to the correctly routed files.
+    /// Handing them back let an installer map "Data" onto itself, which InstallModFromMappingAsync
+    /// resolves with CopyDirectory — installing the whole subtree a second time, next to the
+    /// correctly routed files.
     /// </summary>
     public IEnumerable<string> GetFileList(string archivePath)
     {

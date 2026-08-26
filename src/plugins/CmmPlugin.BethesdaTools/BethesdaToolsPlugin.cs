@@ -1,6 +1,5 @@
 using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Hooks;
-using CmmPlugin.BethesdaTools.Installers;
 using CmmPlugin.BethesdaTools.Services;
 using CmmPlugin.BethesdaTools.Tabs;
 
@@ -25,14 +24,20 @@ public class BethesdaToolsPlugin : ICmmPlugin
         var tab = new PluginsInspectorTab(vm);
         var hook = new BethesdaLaunchHook(loadOrder, context.State, context.Log, detector, paths, looseFiles);
 
-        var installer = new BethesdaModInstaller(context.State, context.ArchiveExtractor, detector);
+        // No mod installer is registered here on purpose. There used to be one whose whole job was
+        // guessing where a mod's files belonged — stripping a lone top-level folder as "packaging"
+        // and stripping a "Data/" prefix because the VFS mounts the mod root as Data. Guessing is
+        // the wrong tool: mount points already say exactly where a mod goes, and when an archive is
+        // laid out oddly the fix is to correct its folders in the mod's install folder, which is
+        // visible and reversible. The guess was neither — it silently relocated files, and a mod
+        // shipping only SFSE/ had that folder eaten as "packaging", leaving Plugins/x.dll that
+        // nothing loads. Without routing, archives extract verbatim through InstallModAsync.
 
         // Both events change which plugins exist on disk, so the tab has to re-scan or it keeps
         // showing a stale load order.
         context.State.ProfileChanged += _ => vm.Refresh();
         context.State.ModInstalled += (_, _) => vm.Refresh();
 
-        context.Ui.RegisterModInstaller(installer);
         context.Ui.RegisterInspectorTab(tab);
         context.Ui.RegisterGameLaunchHook(hook);
 
