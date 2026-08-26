@@ -50,8 +50,38 @@ if [ -d "$BUILD_PLUGINS_DIR" ]; then
     cp -r "$BUILD_PLUGINS_DIR" "$PUBLISH_DIR/app/plugins"
 fi
 
+# ── Entrada no menu de aplicativos ──────────────────────────────────────────
+# Sem isso o app só abre por caminho completo no terminal. Entrada e ícone vão
+# para os diretórios per-user do XDG, então nada precisa de root.
+DESKTOP_DIR="$HOME/.local/share/applications"
+ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+DESKTOP_FILE="$DESKTOP_DIR/cat-mod-manager.desktop"
+
+echo "== Registrando no menu de aplicativos =="
+mkdir -p "$DESKTOP_DIR" "$ICON_DIR"
+cp "$REPO_ROOT/src/CatModManager.Ui/Assets/icon.png" "$ICON_DIR/cat-mod-manager.png"
+
+# %U (ou %u) fica SEM aspas de propósito: a spec proíbe field code dentro de
+# argumento citado e os launchers obedecem literalmente, entregando a URL com
+# as aspas dentro do argumento. Foi o que quebrou o handler nxm:// antes.
+cat > "$DESKTOP_FILE" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Cat Mod Manager
+Comment=Gerenciador de mods
+Exec="$PUBLISH_DIR/app/CatModManager" %U
+Icon=cat-mod-manager
+Terminal=false
+Categories=Game;
+StartupWMClass=CatModManager
+DESKTOP
+
+update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+gtk-update-icon-cache -q -t -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+
 echo ""
 echo "Pronto. Binário em: $PUBLISH_DIR/app/CatModManager"
+echo "Também disponível no menu de aplicativos como \"Cat Mod Manager\"."
 echo "Rode direto (sem distrobox) para testar FUSE/nxm de verdade:"
 echo "  $PUBLISH_DIR/app/CatModManager"
 echo ""
