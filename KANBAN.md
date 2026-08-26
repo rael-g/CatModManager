@@ -76,6 +76,25 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## Feito
 
+- **Modo hardlink funcionando no Linux (destrava jogo em NTFS).** Montar o VFS num jogo instalado
+  em partição NTFS falhava, e a causa não é do CMM: o `fusermount` da libfuse tem uma lista de
+  filesystems sobre os quais se recusa a montar, e o ntfs3 está nela —
+  `mounting over filesystem type 0x7366746e is forbidden` (`0x7366746e` = "ntfs" em ASCII).
+  Provado com A/B: o mesmo FUSE monta em btrfs e é recusado em NTFS. Não há opção de mount que
+  contorne, a decisão é do fusermount antes de o CMM ter voz.
+  O `HardlinkDriver` já existia mas era Windows-only (`CreateHardLinkW`); agora usa `link(2)` no
+  Linux, com `EXDEV` caindo pra cópia igual ao `ERROR_NOT_SAME_DEVICE` do Windows. Saiu do
+  namespace `.Windows`. O `FileSystemFactory` deixou de escolher por sistema operacional e passou a
+  escolher pelo filesystem do alvo (lendo `/proc/mounts`), preferindo FUSE quando disponível porque
+  ele não toca na pasta do jogo. Validado na partição real: mount substitui o arquivo, cria backup
+  com prefixo de ponto, o hardlink é real (edição na origem propaga), e o unmount restaura o
+  original deixando a pasta limpa.
+  Os 9 testes de hardlink, que eram pulados fora do Windows, agora rodam no Linux — os pulados
+  caíram de 11 pra 2. Um deles só passava no Windows por usar `Data\mesh.bin` com barra invertida
+  literal; e reforcei o teste principal pra provar que é hardlink e não cópia (editar a origem tem
+  que aparecer no destino), porque um fallback silencioso pra `File.Copy` passaria em todas as
+  outras asserções.
+
 - **nxm reabria uma instância nova do CMM a cada download.** Três defeitos somados, achados com o
   CMM rodando pela distrobox. (1) A posse do servidor IPC era decidida uma vez no startup: quem não
   pegava o lock (`/tmp/CatModManager_IPC_v1.lock`, compartilhado entre host e container) nunca mais
