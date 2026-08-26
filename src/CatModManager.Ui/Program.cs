@@ -48,16 +48,18 @@ sealed class Program
             }
         }
 
+        // We got here because no running instance answered, so this process owns the link.
+        _pendingNxmArg = nxmArg;
+
         // Only the instance holding the exclusive lock runs the IPC pipe server.
         // NamedPipeServerStream on Linux silently unlinks and rebinds an existing
         // socket file at the same path instead of failing to bind, so without this
         // gate a second instance can steal the first one's pipe out from under it,
         // leaving the original instance unreachable for the rest of its lifetime.
         if (TryAcquireInstanceLock())
-        {
             StartPipeServer();
-            if (nxmArg != null) _pendingNxmArg = nxmArg;
-        }
+        else
+            WatchForInstanceLock();
 
         // Bootstrap services for emergency VFS cleanup before DI is ready
         var logger = new LogService();
@@ -97,6 +99,33 @@ sealed class Program
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Keeps trying to become the IPC server for as long as someone else holds the lock.
+    ///
+    /// Without this, ownership was decided once at startup and never revisited: when the holder
+    /// exited, every other running instance stayed silent forever, so each nxm:// click found
+    /// nobody listening and opened yet another window. That is easy to hit with two CMMs around
+    /// (a host one and one inside distrobox, which share /tmp and therefore share this lock).
+    /// </summary>
+    private static void WatchForInstanceLock()
+    {
+        var thread = new Thread(() =>
+        {
+            while (true)
+            {
+                Thread.Sleep(2000);
+                if (!TryAcquireInstanceLock()) continue;
+                StartPipeServer();
+                return;
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "CMM IPC Takeover"
+        };
+        thread.Start();
     }
 
     private static bool TrySendToExistingInstance(string message)
