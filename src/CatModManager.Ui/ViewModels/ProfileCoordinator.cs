@@ -48,7 +48,11 @@ public partial class ProfileCoordinator : ObservableObject
         return new Profile
         {
             Name = profileName,
-            Mods = modList.AllMods.ToList(),
+            // A mod still installing has no installed folder yet: its ModRootPath is still the
+            // source archive, and only becomes the real folder once the install finishes. Persisting
+            // it means that after closing or crashing mid-install it comes back looking installed
+            // while pointing at the downloaded archive — and removing it then deletes that archive.
+            Mods = modList.AllMods.Where(m => !m.IsInstalling).ToList(),
             GameSupportId = config.ActiveGameSupport?.GameId ?? "generic",
             ModsFolderPath = config.ModsFolderPath ?? "",
             BaseDataPath = config.BaseFolderPath ?? "",
