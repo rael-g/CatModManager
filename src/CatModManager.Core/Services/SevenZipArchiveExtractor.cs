@@ -7,11 +7,22 @@ using System.Threading.Tasks;
 using CatModManager.PluginSdk;
 using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 
 namespace CatModManager.Core.Services;
 
 public class SevenZipArchiveExtractor : IArchiveExtractor
 {
+    /// <summary>
+    /// Extracts every file in the archive, in one forward pass.
+    ///
+    /// The single pass is the whole point. Calling <c>entry.WriteToDirectory</c> per entry is random
+    /// access, and in a *solid* archive — the default for <c>.7z</c> — every file shares one LZMA2
+    /// stream, so seeking to any file means decoding that stream from the start again. Extraction
+    /// then costs O(files × archive size): a 708 MB mod with 126 entries took over ten minutes and
+    /// was still slowing down, against 4 seconds for the `7z` CLI on the same file. Iterating with
+    /// <see cref="IArchive.ExtractAllEntries"/> decodes the stream once, which is what the CLI does.
+    /// </summary>
     public async Task ExtractAsync(string archivePath, string destinationDir, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         await Task.Run(() =>
@@ -22,14 +33,15 @@ public class SevenZipArchiveExtractor : IArchiveExtractor
 
             var options = new ExtractionOptions { ExtractFullPath = true, Overwrite = true };
 
-            foreach (var entry in archive.Entries)
+            using var reader = archive.ExtractAllEntries();
+            while (reader.MoveToNextEntry())
             {
                 ct.ThrowIfCancellationRequested();
-                if (entry.IsDirectory) continue;
+                if (reader.Entry.IsDirectory) continue;
 
-                entry.WriteToDirectory(destinationDir, options);
+                reader.WriteEntryToDirectory(destinationDir, options);
                 count++;
-                progress?.Report((double)count / total * 100);
+                if (total > 0) progress?.Report((double)count / total * 100);
             }
         }, ct);
     }
