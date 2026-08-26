@@ -81,9 +81,31 @@ public class NexusDownloadService
         }
         else
         {
-            // Guard against duplicate NXM arrivals for the same mod+file (e.g. after Premium redirect).
-            if (Downloads.Any(d => d.ModId == link.ModId && d.FileId == link.FileId && !d.HasFailed))
+            // Guard against duplicate NXM arrivals for the same mod+file (e.g. after Premium
+            // redirect). Only a transfer still in flight may block a new one. This used to test
+            // !HasFailed, which a *completed* entry also satisfies — and permanently, since nothing
+            // ever clears it. So asking for a mod already in the list did nothing whatsoever, with
+            // no log and no message, and stayed that way until the row was cleared by hand. That is
+            // the state you land in after deleting a mod: its archive is gone, the row remains, and
+            // the download refuses to start.
+            var existing = Downloads.FirstOrDefault(d => d.ModId == link.ModId && d.FileId == link.FileId);
+            if (existing != null)
+            {
+                if (existing.IsInFlight)
+                {
+                    _log.Log($"[NexusMods] Ignoring duplicate nxm:// for mod {link.ModId} " +
+                             $"file {link.FileId} — that download is already running.");
+                    return;
+                }
+
+                // Settled — done, failed or cancelled. Restart it in place, carrying the fresh
+                // token, rather than stacking a second row for the same file.
+                existing.NxmKey     = link.Key;
+                existing.NxmExpires = link.Expires;
+                _log.Log($"[NexusMods] Re-downloading mod {link.ModId} file {link.FileId}.");
+                RetryDownload(existing, downloadsFolder);
                 return;
+            }
 
             entry = new DownloadEntry
             {

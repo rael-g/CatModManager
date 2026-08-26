@@ -201,6 +201,16 @@ public partial class DownloadEntry : ObservableObject
     [ObservableProperty]
     private bool _hasFailed;
 
+    /// <summary>
+    /// Queued or actively transferring — i.e. not yet settled. There is a real gap between the two:
+    /// an entry sits at "Queued" while it waits on the concurrency semaphore, with IsActive still
+    /// false, and during that window it must still count as in flight.
+    /// </summary>
+    public bool IsInFlight => IsActive || Status == QueuedStatus;
+
+    /// <summary>Status text for an entry waiting its turn. Also set by Retry when it re-queues.</summary>
+    public const string QueuedStatus = "Queued";
+
     public string? LocalPath { get; set; }
     public int ModId { get; set; }
     public int FileId { get; set; }
