@@ -4,17 +4,22 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-namespace CatModManager.VirtualFileSystem.Windows;
+namespace CatModManager.VirtualFileSystem;
 
 /// <summary>
-/// Deploys mod files into the game root via NTFS hard links at mount time,
-/// and removes them at unmount time. No VFS kernel driver is involved.
+/// Deploys mod files into the game root via hard links at mount time, and removes
+/// them at unmount time. No VFS kernel driver is involved.
 ///
 /// Hard link semantics:
-///   • CreateHardLinkW adds a new directory entry pointing to the same MFT record
-///     as the source file — O(1), no bytes copied, no extra disk space.
-///   • The game sees the file as a normal NTFS file: DRM, anti-cheat and file
-///     verifiers (Steam/GOG) are fully transparent.
+///   • A hard link is a second directory entry pointing at the same inode / MFT
+///     record — O(1), no bytes copied, no extra disk space.
+///   • The game sees a perfectly normal file: DRM, anti-cheat and file verifiers
+///     (Steam/GOG) are fully transparent.
+///
+/// Works on Windows (CreateHardLinkW) and Linux (link(2)). On Linux this is the
+/// only option when the game lives on NTFS: fusermount refuses to mount over an
+/// ntfs3 filesystem, so the FUSE overlay is unavailable there — but NTFS itself
+/// supports hard links, so this driver works fine.
 ///
 /// Cross-volume fallback:
 ///   If the mod folder is on a different drive than the game folder,
@@ -96,7 +101,7 @@ public class HardlinkDriver : IFileSystemDriver
             entries = _store.Load(_mountPoint);
         }
 
-        var dirsToCheck = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var dirsToCheck = new SortedSet<string>(PathComparer);
 
         foreach (var e in entries)
         {
@@ -171,7 +176,7 @@ public class HardlinkDriver : IFileSystemDriver
             var physPathNorm = physPath.StartsWith(@"\\?\", StringComparison.Ordinal) ? physPath[4..] : physPath;
 
             // File is already at the destination (unoverridden base game file) — no action needed.
-            if (string.Equals(physPathNorm, destPath, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(physPathNorm, destPath, PathComparison))
                 continue;
 
             Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
@@ -201,18 +206,39 @@ public class HardlinkDriver : IFileSystemDriver
     /// </summary>
     internal virtual void DeployFile(string sourcePath, string destPath, string relPath)
     {
-        if (!CreateHardLinkW(destPath, sourcePath, IntPtr.Zero))
+        if (OperatingSystem.IsWindows())
         {
+            if (CreateHardLinkW(destPath, sourcePath, IntPtr.Zero)) return;
+
             int err = Marshal.GetLastWin32Error();
-            const int ErrorNotSameDevice = 17; // cross-volume
+            const int ErrorNotSameDevice = 17;
             if (err == ErrorNotSameDevice)
                 File.Copy(sourcePath, destPath, overwrite: true);
             else
                 throw new IOException($"CreateHardLink failed for '{relPath}': Win32 error {err}");
+            return;
         }
+
+        if (link(sourcePath, destPath) == 0) return;
+
+        int errno = Marshal.GetLastWin32Error();
+        const int EXDEV = 18;  // cross-device link — mods on a different filesystem
+        if (errno == EXDEV)
+            File.Copy(sourcePath, destPath, overwrite: true);
+        else
+            throw new IOException($"link() failed for '{relPath}': errno {errno}");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>Windows paths are case-insensitive; Linux paths are not.</summary>
+    private static StringComparison PathComparison => OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+    private static StringComparer PathComparer => OperatingSystem.IsWindows()
+        ? StringComparer.OrdinalIgnoreCase
+        : StringComparer.Ordinal;
 
     private static void TryHide(string path)
     {
@@ -233,4 +259,9 @@ public class HardlinkDriver : IFileSystemDriver
         string lpFileName,
         string lpExistingFileName,
         IntPtr lpSecurityAttributes);
+
+    /// <summary>POSIX hard link. Note the argument order is (existing, new) — the
+    /// opposite of CreateHardLinkW.</summary>
+    [DllImport("libc", EntryPoint = "link", SetLastError = true, CharSet = CharSet.Ansi)]
+    private static extern int link(string oldpath, string newpath);
 }

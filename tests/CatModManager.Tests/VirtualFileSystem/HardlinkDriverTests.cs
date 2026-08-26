@@ -3,23 +3,19 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Xunit;
-using CatModManager.VirtualFileSystem.Windows;
+using CatModManager.VirtualFileSystem;
 using CatModManager.VirtualFileSystem;
 using CatModManager.Core.Services;
 
 namespace CatModManager.Tests.VirtualFileSystem;
 
 /// <summary>
-/// xUnit fact that skips automatically on non-Windows platforms.
-/// HardlinkDriver uses CreateHardLinkW (kernel32) which is Windows-only.
+/// These used to be Windows-only, because the driver hard-linked through CreateHardLinkW. It now
+/// uses link(2) on Linux as well — which is what makes modding an NTFS game library possible
+/// there — so the suite runs on both and this attribute is a plain Fact.
 /// </summary>
 public sealed class WindowsFactAttribute : FactAttribute
 {
-    public WindowsFactAttribute()
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            Skip = "Windows-only (CreateHardLinkW)";
-    }
 }
 
 public class HardlinkDriverTests : IDisposable
@@ -63,6 +59,13 @@ public class HardlinkDriverTests : IDisposable
         var destFile = Path.Combine(_gameDir, "pak.pak");
         Assert.True(File.Exists(destFile), "Hard link should exist in game dir");
         Assert.Equal("mod content", File.ReadAllText(destFile));
+
+        // Prove it is a link and not a copy: writing through one name must be visible
+        // through the other, because both point at the same inode / MFT record. A silent
+        // fallback to File.Copy would pass every other assertion in this suite.
+        File.WriteAllText(sourceFile, "changed via source");
+        Assert.Equal("changed via source", File.ReadAllText(destFile));
+
         driver.Unmount();
     }
 
@@ -169,7 +172,7 @@ public class HardlinkDriverTests : IDisposable
         File.WriteAllText(sourceFile, "mesh data");
 
         var driver = NewDriver();
-        driver.Mount(_gameDir, SingleFileFs(@"Data\mesh.bin", sourceFile));
+        driver.Mount(_gameDir, SingleFileFs(Path.Combine("Data", "mesh.bin"), sourceFile));
 
         var destFile = Path.Combine(_gameDir, "Data", "mesh.bin");
         Assert.True(File.Exists(destFile));

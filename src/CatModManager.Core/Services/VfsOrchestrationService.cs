@@ -97,7 +97,10 @@ public class VfsOrchestrationService : IVfsOrchestrationService
 
                 string targetPath = ResolveMountPointPath(options.GameFolderPath, mp.Path);
 
-                var vfs = new CatVirtualFileSystem(_resolver, FileSystemFactory.CreateDriver(_stateStore));
+                // The driver depends on where we are deploying: a game on NTFS cannot take the
+                // FUSE overlay, so the factory needs the resolved target, not just the platform.
+                var vfs = new CatVirtualFileSystem(
+                    _resolver, FileSystemFactory.CreateDriver(_stateStore, targetPath));
                 await Task.Run(() => vfs.Mount(targetPath, modsForMp));
                 _mounted.Add(vfs);
 
