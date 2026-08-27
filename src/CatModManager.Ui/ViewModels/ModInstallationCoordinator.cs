@@ -30,6 +30,13 @@ public partial class ModInstallationCoordinator : ObservableObject
 
     private readonly List<Task> _activeInstallTasks = new();
 
+    /// <summary>
+    /// How many mods may be extracting at once. Two, not one: extraction alternates between CPU and
+    /// disk, so a second one fills the gaps, while a third mostly buys more peak memory. The
+    /// downloader caps itself at three the same way.
+    /// </summary>
+    private static readonly SemaphoreSlim _concurrentInstalls = new(2, 2);
+
     public double TotalInstallProgress
     {
         get
@@ -143,6 +150,11 @@ public partial class ModInstallationCoordinator : ObservableObject
         StatusMessage = $"Installing {targetMod.Name}...";
         IsInstalling = true;
 
+        // Released in the outer finally rather than next to the extraction: there are early returns
+        // between acquiring it and finishing, and each one would otherwise leak a slot until the
+        // limit was exhausted and installs stopped starting at all.
+        bool holdsInstallSlot = false;
+
         try
         {
             var progress = new Progress<double>(p => {
@@ -151,8 +163,16 @@ public partial class ModInstallationCoordinator : ObservableObject
             });
             string installedPath = string.Empty;
 
+            // Extraction is the expensive part — CPU, disk, and a decompression dictionary that can
+            // run to hundreds of megabytes per archive. Nothing bounded this before: finishing three
+            // downloads at once started three extractions at once, on top of whatever was already
+            // running. The row is already in the list by now, so waiting here reads as queued rather
+            // than as the app having ignored the request.
+            await _concurrentInstalls.WaitAsync(cts.Token);
+            holdsInstallSlot = true;
+
             var chosen = _uiExtensionHost?.ModInstallers.FirstOrDefault(i => i.CanInstall(sourcePath));
-            
+
             Task<string> installTask;
             if (chosen != null)
             {
@@ -242,9 +262,10 @@ public partial class ModInstallationCoordinator : ObservableObject
             }
             targetMod.IsInstalling = false;
         }
-        finally 
-        { 
-            IsInstalling = modList.AllMods.Any(m => m.IsInstalling); 
+        finally
+        {
+            if (holdsInstallSlot) _concurrentInstalls.Release();
+            IsInstalling = modList.AllMods.Any(m => m.IsInstalling);
             cts.Dispose();
         }
     }
