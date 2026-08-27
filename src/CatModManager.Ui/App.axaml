@@ -110,10 +110,12 @@
             </Setter>
         </Style>
 
-        <!-- Held state: dimmed and nudged, so the row reads as picked up rather than merely hovered. -->
+        <!-- Held state: lifted, not faded. The row now travels with the pointer and leaves its slot
+             empty behind it, so it has to read as the thing being carried — dimming it would make
+             the empty slot look like the real row and the moving one like a ghost. -->
         <Style Selector="ListBox#ModsListBox Grid.dragging">
-            <Setter Property="Opacity" Value="0.45"/>
-            <Setter Property="RenderTransform" Value="translateX(6px) scale(0.99)"/>
+            <Setter Property="Opacity" Value="0.95"/>
+            <Setter Property="RenderTransform" Value="scale(1.01)"/>
         </Style>
 
         <!-- Looks like the plain header it replaces; only the cursor and hover reveal it clicks. -->
