@@ -124,6 +124,7 @@ public partial class ModListViewModel : ObservableObject
     public System.Collections.Generic.List<Mod> SelectedMods { get; set; } = new();
 
     private bool _isRebuilding;
+    private bool _isDragging;
     private int  _updateSuppressCount;
 
     public ModListViewModel()
@@ -163,6 +164,11 @@ public partial class ModListViewModel : ObservableObject
     public void RebuildDisplayedMods()
     {
         if (_updateSuppressCount > 0) return;
+
+        // A drag maintains DisplayedMods itself, one Move at a time. Rebuilding underneath it
+        // would recreate every row container mid-gesture and make the next hit-test read a stale
+        // row. EndDragReorder rebuilds once the gesture is over.
+        if (_isDragging) return;
 
         var savedMod = SelectedMod;
         _isRebuilding = true;
@@ -233,35 +239,54 @@ public partial class ModListViewModel : ObservableObject
     public void BeginDragReorder(Mod mod)
     {
         DraggingMod = mod;
+        _isDragging = true;
         mod.IsDragging = true;
     }
 
-    /// <summary>Moves a row mid-drag. Same reordering as MoveMod, minus the save.</summary>
+    /// <summary>
+    /// Moves a row mid-drag: same reordering as MoveMod, minus the save, and minus the rebuild.
+    ///
+    /// DisplayedMods is edited in place rather than rebuilt. A rebuild clears the collection and
+    /// refills it, which makes the ListBox tear down and recreate every row container — and since
+    /// UpdatePriorities touches every mod's Priority, and each of those raises a rebuild of its
+    /// own, one drag step could rebuild the list dozens of times. Hit-testing the next DragOver
+    /// then resolved against containers still carrying the previous step's mod, so the move went
+    /// the opposite way: drag down one row and it climbed one, drag two and it climbed two.
+    /// Moving the item keeps every container alive and keeps the two collections in agreement.
+    /// </summary>
     public void DragOver(Mod target)
     {
         if (DraggingMod is not { } dragged || ReferenceEquals(dragged, target)) return;
 
-        int from = AllMods.IndexOf(dragged);
-        int to   = AllMods.IndexOf(target);
-        if (from < 0 || to < 0) return;
+        int allFrom = AllMods.IndexOf(dragged);
+        int allTo   = AllMods.IndexOf(target);
+        if (allFrom < 0 || allTo < 0) return;
 
-        // The Move has to be inside the suppression too, not just UpdatePriorities: any change to
-        // AllMods triggers an AutoSave of its own. A drag across ten rows would otherwise rewrite
-        // the profile ten times, and again for every priority it touched on the way.
+        int shownFrom = DisplayedMods.IndexOf(dragged);
+        int shownTo   = DisplayedMods.IndexOf(target);
+
+        // Any change to AllMods triggers an AutoSave of its own, so the Move belongs inside the
+        // suppression alongside UpdatePriorities. A drag across ten rows would otherwise rewrite
+        // the profile ten times over, plus once per priority touched on the way.
         using (SuppressAutoSave?.Invoke() ?? NullDisposable.Instance)
         {
-            AllMods.Move(from, to);
+            AllMods.Move(allFrom, allTo);
             UpdatePriorities();
         }
 
-        RebuildDisplayedMods();
+        if (shownFrom >= 0 && shownTo >= 0 && shownFrom != shownTo)
+            DisplayedMods.Move(shownFrom, shownTo);
     }
 
-    /// <summary>Ends the drag and persists the load order it produced.</summary>
+    /// <summary>Ends the drag, resyncs the view and persists the load order it produced.</summary>
     public void EndDragReorder()
     {
         if (DraggingMod is { } dragged) dragged.IsDragging = false;
         DraggingMod = null;
+        _isDragging = false;
+
+        // Filters and sorting were held off during the drag; settle the view against them now.
+        RebuildDisplayedMods();
         AutoSave?.Invoke();
     }
 

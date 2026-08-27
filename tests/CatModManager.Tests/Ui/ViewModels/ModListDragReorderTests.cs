@@ -135,6 +135,41 @@ public class ModListDragReorderTests
     }
 
     [Fact]
+    public void TheDisplayedListTracksTheDragStepByStep()
+    {
+        var (vm, _) = Build();
+        var a = Row(vm, "A");
+
+        vm.BeginDragReorder(a);
+
+        // Each step must land the dragged row exactly where the row it passed was standing. If the
+        // displayed list and AllMods drift apart, the next step reads a stale position and the row
+        // walks off in its own direction instead of following the pointer.
+        foreach (var name in new[] { "B", "C", "D" })
+        {
+            int expected = vm.DisplayedMods.IndexOf(Row(vm, name));
+            vm.DragOver(Row(vm, name));
+            Assert.Equal(expected, vm.DisplayedMods.IndexOf(a));
+        }
+    }
+
+    [Fact]
+    public void TheDisplayedListMatchesTheOrderAfterTheDragEnds()
+    {
+        var (vm, _) = Build();
+        var a = Row(vm, "A");
+
+        vm.BeginDragReorder(a);
+        vm.DragOver(Row(vm, "C"));
+        vm.EndDragReorder();
+
+        // Maintained by hand during the drag, so it has to agree with a full rebuild afterwards.
+        var duringDrag = vm.DisplayedMods.Select(m => m.Name).ToArray();
+        vm.RebuildDisplayedMods();
+        Assert.Equal(duringDrag, vm.DisplayedMods.Select(m => m.Name));
+    }
+
+    [Fact]
     public void PrioritiesFollowTheNewOrder_AfterADrag()
     {
         var (vm, _) = Build();

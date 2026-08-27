@@ -259,6 +259,7 @@ public partial class MainWindow : Window
         data.Set("ModItem", mod);
 
         if (DataContext is MainWindowViewModel vm) vm.ModList.BeginDragReorder(mod);
+        DragLog($"BEGIN {mod.Name}");
 
         // DoDragDrop blocks until the drop completes, so the end of the drag — however it ends,
         // including a cancel or a drop outside the list — is right here.
@@ -294,15 +295,63 @@ public partial class MainWindow : Window
         // Reorder as the pointer passes each row rather than waiting for the drop. Holding the
         // change back until release means no feedback during the drag at all: the list sits still
         // and only jumps once the button comes up.
-        if (sender is ListBox listBox && DataContext is MainWindowViewModel vm &&
-            ModUnder(listBox, e.GetPosition(listBox)) is { } target)
-            vm.ModList.DragOver(target);
+        if (sender is ListBox listBox && DataContext is MainWindowViewModel vm)
+        {
+            var point  = e.GetPosition(listBox);
+            var target = ModUnder(listBox, point);
+
+            // Compare the row the hit-test chose against the row that y actually falls on, worked
+            // out from the container's own bounds. A constant gap between the two means the two
+            // are in different coordinate spaces (a scroll offset), not that the ordering is wrong.
+            int hitIndex = target == null ? -1 : vm.ModList.DisplayedMods.IndexOf(target);
+            DragLog($"over y={point.Y:F0} hit={hitIndex}:{target?.Name ?? "<none>"} " +
+                    $"geom={RowIndexByGeometry(listBox, point.Y)} " +
+                    $"dragAt={vm.ModList.DisplayedMods.IndexOf(vm.ModList.DraggingMod!)} " +
+                    $"scroll={(listBox.Scroll?.Offset.Y ?? -1):F0}");
+
+            if (target != null) vm.ModList.DragOver(target);
+        }
+    }
+
+    /// <summary>Row index at <paramref name="y"/> derived from container bounds, for comparison.</summary>
+    private static int RowIndexByGeometry(ListBox listBox, double y)
+    {
+        var items = listBox.GetVisualDescendants().OfType<ListBoxItem>().ToList();
+        for (int i = 0; i < items.Count; i++)
+        {
+            var b = items[i].Bounds;
+            var topLeft = items[i].TranslatePoint(new Point(0, 0), listBox);
+            if (topLeft is { } p && y >= p.Y && y < p.Y + b.Height)
+                return listBox.IndexFromContainer(items[i]);
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Temporary drag diagnostics. Live reorder was not tracking the pointer and the cause is not
+    /// visible from the code alone — this records what each DragOver actually resolved to.
+    /// </summary>
+    private static void DragLog(string message)
+    {
+        if (Environment.GetEnvironmentVariable("CMM_DRAG_DEBUG") != "1") return;
+        try { System.IO.File.AppendAllText("/tmp/cmm-drag.log", $"{DateTime.Now:HH:mm:ss.fff} {message}\n"); }
+        catch { }
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        // The rows are already where they belong — DragOver moved them on the way. All that is
-        // left is to stop dragging and let the new load order be saved.
+        // The drop is authoritative, even though DragOver has been moving rows along the way.
+        // Relying on DragOver alone means that whenever it misses — the pointer between rows, an
+        // event coalesced away — the mod stops wherever the last successful one left it, which is
+        // neither where it started nor where it was dropped.
+        if (ReorderArmed && sender is ListBox listBox && DataContext is MainWindowViewModel vm)
+        {
+            var point  = e.GetPosition(listBox);
+            var target = ModUnder(listBox, point);
+            DragLog($"DROP y={point.Y:F0} target={target?.Name ?? "<none>"}");
+            if (target != null) vm.ModList.DragOver(target);
+        }
+
         EndDrag();
     }
 
