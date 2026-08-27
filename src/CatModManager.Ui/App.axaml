@@ -192,6 +192,12 @@
             <Setter Property="Background" Value="Transparent"/>
         </Style>
 
+        <!-- An incomplete install. Paired with the INCOMPLETE badge, which carries the meaning for
+             anyone who cannot rely on the colour alone. -->
+        <Style Selector="TextBlock.broken">
+            <Setter Property="Foreground" Value="{DynamicResource StatusDanger}"/>
+        </Style>
+
         <Style Selector="TextBlock.col-header">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="Foreground" Value="{DynamicResource TextSubtle}"/>

@@ -159,7 +159,9 @@
                                         <Grid ColumnDefinitions="*, Auto, Auto">
                                             <TextBox Grid.Column="0" Text="{Binding AppDataPath}" IsReadOnly="True" Classes="path-field"/>
                                             <Button Grid.Column="1" Command="{Binding OpenAppDataFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                            <Button Grid.Column="2" Classes="small-icon" Opacity="0" IsHitTestVisible="False" Content="..."/>
+                                            <!-- App data has no folder to choose, but the column still has to line
+                                                 up with the rows above. A spacer, not an invisible button. -->
+                                            <Border Grid.Column="2" Width="24"/>
                                         </Grid>
                                     </StackPanel>
                                 </StackPanel>
@@ -191,8 +193,11 @@
                                                             <TextBlock Text="{Binding Path}" FontSize="10" FontFamily="Cascadia Code, Consolas, monospace" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
                                                         </StackPanel>
                                                         <Button Grid.Column="1" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                                        <Button Grid.Column="2" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                                        <Button Grid.Column="3" Content="⊘" Classes="small-icon" IsHitTestVisible="False" Opacity="0.4" ToolTip.Tip="Predefined (read-only)"/>
+                                                        <!-- Editable despite being predefined: the handler stores a path override
+                                                             and keeps the name from the game's TOML. This used to open the folder,
+                                                             duplicating the button to its left. -->
+                                                        <Button Grid.Column="2" Tag="{Binding}" Click="EditMountPoint_Click" Content="..." Classes="small-icon" ToolTip.Tip="Override this path"/>
+                                                        <Button Grid.Column="3" Content="⊘" Classes="small-icon" IsHitTestVisible="False" Opacity="0.4" ToolTip.Tip="Predefined by the game — cannot be removed"/>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
@@ -522,8 +527,12 @@
                                         <!-- Column 2: Name and Path/MountPoint -->
                                         <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" 
-                                                           Foreground="{Binding IsBroken, Converter={x:Static conv:ObjectConverters.IsNotNull}, ConverterParameter='Red'}"/>
+                                                <!-- Red via a class, not a converter. This was bound through
+                                                     ObjectConverters.IsNotNull, which on a non-nullable bool is always
+                                                     true and ignores the parameter — so it produced `true` where a
+                                                     brush was expected and no mod ever turned red. -->
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
+                                                           Classes.broken="{Binding IsBroken}"/>
                                                 <Border Background="{DynamicResource StatusDanger}" CornerRadius="2" Padding="4,0" VerticalAlignment="Center" IsVisible="{Binding IsBroken}">
                                                     <TextBlock Text="INCOMPLETE" FontSize="8" FontWeight="Black" Foreground="White"/>
                                                 </Border>

@@ -312,7 +312,6 @@ public partial class MainWindowViewModel : ObservableObject
         if (File.Exists(path)) path = Path.GetDirectoryName(path)!;
         await _processService.OpenFolderAsync(path);
     }
-    [RelayCommand] private void OpenDataSubFolder() => _ = OpenGameDataFolder();
     [RelayCommand] private async Task OpenGameDataFolder()
     {
         var points = GameConfig.EffectiveMountPoints;

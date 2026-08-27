@@ -409,11 +409,6 @@ public partial class MainWindow : Window
             vm.GameConfig.DownloadsFolderPath = folders[0].Path.LocalPath;
     }
 
-    private void SelectDataSubFolder_Click(object sender, RoutedEventArgs e)
-    {
-        // DataSubFolder removal: this button logic is now handled via Mount Points in the UI.
-    }
-
     /// <summary>
     /// Archive and folder are separate menu entries rather than one picker falling back to the
     /// other. The fallback made cancelling the file dialog open a folder dialog, so backing out of
