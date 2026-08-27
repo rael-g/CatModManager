@@ -85,16 +85,24 @@ public class ModListDragReorderTests
     }
 
     [Fact]
-    public void DraggingOntoItself_ChangesNothing()
+    public void DraggingOntoItself_DoesNoWorkAtAll()
     {
         var (vm, _) = Build();
         var b = Row(vm, "B");
         var before = vm.AllMods.Select(m => m.Name).ToArray();
 
+        int rebuilds = 0;
+        vm.DisplayedMods.CollectionChanged += (_, _) => rebuilds++;
+
         vm.BeginDragReorder(b);
-        vm.DragOver(b);
+
+        // DragOver fires continuously while the pointer rests on one row. Moving a mod onto its own
+        // slot leaves the order alone, so asserting only on order would not notice the list being
+        // torn down and rebuilt on every mouse event of a stationary pointer.
+        for (int i = 0; i < 20; i++) vm.DragOver(b);
 
         Assert.Equal(before, vm.AllMods.Select(m => m.Name));
+        Assert.Equal(0, rebuilds);
     }
 
     [Fact]
