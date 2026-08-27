@@ -24,6 +24,37 @@ public partial class ModListViewModel : ObservableObject
     [ObservableProperty] private string _selectedCategory = "All";
     [ObservableProperty] private Mod? _selectedMod;
 
+    /// <summary>
+    /// Whether dragging rows re-orders the load order. Off by default: position <em>is</em> priority
+    /// here, so dragging is an edit to the load order, not a view preference, and it should take a
+    /// deliberate act to arm it.
+    /// </summary>
+    [ObservableProperty] private bool _isReorderEnabled;
+
+    /// <summary>
+    /// Lowest priority first, so the winner of a file conflict sits at the bottom — the layering
+    /// order MO2 uses, and the same direction plugins load in. Reorder mode forces this on, because
+    /// dragging is only unambiguous while what you see is the priority order itself.
+    /// </summary>
+    [ObservableProperty] private bool _sortByPriorityAscending;
+
+    private bool _sortBeforeReorder;
+
+    partial void OnIsReorderEnabledChanged(bool value)
+    {
+        if (value)
+        {
+            _sortBeforeReorder = SortByPriorityAscending;
+            SortByPriorityAscending = true;
+        }
+        else
+        {
+            SortByPriorityAscending = _sortBeforeReorder;
+        }
+    }
+
+    partial void OnSortByPriorityAscendingChanged(bool value) => RebuildDisplayedMods();
+
     public ObservableCollection<string> Categories    { get; } = new() { "All", "Uncategorized" };
     public ObservableCollection<Mod>    DisplayedMods { get; } = new();
     public System.Collections.Generic.List<Mod> SelectedMods { get; set; } = new();
@@ -79,7 +110,11 @@ public partial class ModListViewModel : ObservableObject
                 query = query.Where(m => m.Name.Contains(SearchText, System.StringComparison.OrdinalIgnoreCase));
             if (SelectedCategory != "All")
                 query = query.Where(m => m.Category == SelectedCategory);
-            foreach (var mod in query.OrderByDescending(m => m.Priority))
+            var ordered = SortByPriorityAscending
+                ? query.OrderBy(m => m.Priority)
+                : query.OrderByDescending(m => m.Priority);
+
+            foreach (var mod in ordered)
                 DisplayedMods.Add(mod);
         }
         finally { _isRebuilding = false; }
@@ -116,29 +151,27 @@ public partial class ModListViewModel : ObservableObject
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
-    [RelayCommand]
-    private void MoveUp()
+    /// <summary>
+    /// Moves the selection <paramref name="displayOffset"/> rows as drawn on screen.
+    ///
+    /// Deliberately expressed in displayed positions rather than AllMods indices. AllMods is stored
+    /// highest-priority-first, so under an ascending sort it is the reverse of what the user sees,
+    /// and "up" in AllMods terms would visibly move the row *down*. Translating through the row the
+    /// user is actually moving past keeps the two directions from ever disagreeing.
+    /// </summary>
+    private void MoveSelectionOnScreen(int displayOffset)
     {
         if (SelectedMod == null) return;
-        int index = AllMods.IndexOf(SelectedMod);
-        if (index <= 0) return;
-        AllMods.Move(index, index - 1);
-        using (SuppressAutoSave?.Invoke() ?? NullDisposable.Instance) UpdatePriorities();
-        RebuildDisplayedMods();
-        AutoSave?.Invoke();
+
+        int from = DisplayedMods.IndexOf(SelectedMod);
+        int to   = from + displayOffset;
+        if (from < 0 || to < 0 || to >= DisplayedMods.Count) return;
+
+        MoveMod(AllMods.IndexOf(SelectedMod), AllMods.IndexOf(DisplayedMods[to]));
     }
 
-    [RelayCommand]
-    private void MoveDown()
-    {
-        if (SelectedMod == null) return;
-        int index = AllMods.IndexOf(SelectedMod);
-        if (index >= AllMods.Count - 1) return;
-        AllMods.Move(index, index + 1);
-        using (SuppressAutoSave?.Invoke() ?? NullDisposable.Instance) UpdatePriorities();
-        RebuildDisplayedMods();
-        AutoSave?.Invoke();
-    }
+    [RelayCommand] private void MoveUp()   => MoveSelectionOnScreen(-1);
+    [RelayCommand] private void MoveDown() => MoveSelectionOnScreen(+1);
 
     // ── Internal ──────────────────────────────────────────────────────────────
 

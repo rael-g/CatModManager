@@ -305,6 +305,19 @@
                                 <!-- Category Filter -->
                                 <ComboBox ItemsSource="{Binding ModList.Categories}" SelectedItem="{Binding ModList.SelectedCategory}"
                                           Width="120" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" FontSize="11"/>
+
+                                <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
+
+                                <!-- Arms drag-to-reorder. Dragging edits the load order, so it stays
+                                     behind a deliberate toggle rather than being always live. -->
+                                <ToggleButton Name="ReorderToggle" IsChecked="{Binding ModList.IsReorderEnabled}"
+                                              Classes="reorder-toggle" VerticalAlignment="Center"
+                                              ToolTip.Tip="Drag rows to change load order. Sorts by priority (winner last) while on.">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="⇅" FontSize="12" VerticalAlignment="Center"/>
+                                        <TextBlock Text="REORDER" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </ToggleButton>
                             </StackPanel>
                         </Border>
 
@@ -348,7 +361,8 @@
                         </Grid>
                     </Border>
 
-                    <ListBox Grid.Row="1" Name="ModsListBox" ItemsSource="{Binding ModList.DisplayedMods}" SelectedItem="{Binding ModList.SelectedMod}" SelectionMode="Single" DragDrop.AllowDrop="True">
+                    <ListBox Grid.Row="1" Name="ModsListBox" ItemsSource="{Binding ModList.DisplayedMods}" SelectedItem="{Binding ModList.SelectedMod}" SelectionMode="Single" DragDrop.AllowDrop="True"
+                             PointerPressed="OnPointerPressed" DragDrop.DragOver="OnDragOver" DragDrop.Drop="OnDrop">
                         <ListBox.ItemContainerTheme>
                             <!-- Full custom template — no BasedOn so FluentTheme never interferes -->
                             <ControlTheme TargetType="ListBoxItem">

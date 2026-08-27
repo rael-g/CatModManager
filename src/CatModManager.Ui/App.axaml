@@ -100,6 +100,21 @@
             <Setter Property="Padding" Value="12,8"/>
         </Style>
 
+        <Style Selector="ToggleButton.reorder-toggle">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSubtle}"/>
+        </Style>
+
+        <!-- The armed state has to read at a glance: while it is on, dragging rewrites load order. -->
+        <Style Selector="ToggleButton.reorder-toggle:checked">
+            <Setter Property="Background" Value="{DynamicResource AccentColor}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentColor}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppBackground}"/>
+        </Style>
+
         <Style Selector="Button.danger-btn">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="{DynamicResource StatusDangerBorder}"/>

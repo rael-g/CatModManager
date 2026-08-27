@@ -183,8 +183,15 @@ public partial class MainWindow : Window
             pluginTabItems[i].Content = pluginTabs[i].CreateView(modInfo);
     }
 
+    /// <summary>Whether the mod list is currently armed for drag-to-reorder.</summary>
+    private bool ReorderArmed =>
+        DataContext is MainWindowViewModel vm && vm.ModList.IsReorderEnabled;
+
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // Outside reorder mode a press is a selection, not the start of a load-order edit.
+        if (!ReorderArmed) return;
+
         if (sender is ListBox listBox && e.GetCurrentPoint(listBox).Properties.IsLeftButtonPressed)
         {
             var visualSource = e.Source as Visual;
@@ -210,12 +217,14 @@ public partial class MainWindow : Window
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains("ModItem")) e.DragEffects = DragDropEffects.Move;
+        if (ReorderArmed && e.Data.Contains("ModItem")) e.DragEffects = DragDropEffects.Move;
         else e.DragEffects = DragDropEffects.None;
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
+        if (!ReorderArmed) return;
+
         if (sender is ListBox listBox && e.Data.Get("ModItem") is Mod draggedMod)
         {
             var point = e.GetPosition(listBox);
