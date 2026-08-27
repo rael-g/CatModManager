@@ -363,13 +363,36 @@ public partial class MainWindow : Window
             AllowMultiple = false,
             SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.ModsFolderPath, vm.GameConfig.BaseFolderPath)
         });
-        if (folders.Count >= 1)
+        if (folders.Count < 1) return;
+
+        string? previous = vm.GameConfig.ModsFolderPath;
+        string chosen = folders[0].Path.LocalPath;
+        if (string.Equals(previous, chosen, StringComparison.Ordinal)) return;
+
+        vm.GameConfig.ModsFolderPath = chosen;
+
+        // Pointing somewhere else invalidates every path in the list at once, so the scan is shown
+        // before it is applied. No file is touched either way — only the list changes.
+        var result = await vm.ScanModsFolderAsync(chosen);
+        if (result is not { } scan) { vm.GameConfig.ModsFolderPath = previous ?? ""; return; }
+
+        if (scan.Added.Count == 0 && scan.Removed.Count == 0)
         {
-            // Only the path changes here. Adopting the new folder's contents is Refresh's job, and
-            // it stays a separate deliberate step: it drops every mod whose folder no longer
-            // resolves, which after pointing somewhere else is potentially the whole list.
-            vm.GameConfig.ModsFolderPath = folders[0].Path.LocalPath;
+            vm.ApplyModFolderScan(scan);
+            return;
         }
+
+        bool confirmed = await new ConfirmDialog(
+            "Adopt this mods folder?",
+            $"{scan.Removed.Count} mod(s) will be dropped from the list because they are not in this "
+            + $"folder, and {scan.Added.Count} found there will be added, disabled.\n\n"
+            + "No files are moved or deleted — only the list changes.")
+            .ShowDialog<bool>(this);
+
+        if (confirmed)
+            vm.ApplyModFolderScan(scan);
+        else
+            vm.GameConfig.ModsFolderPath = previous ?? "";   // cancelling leaves nothing changed
     }
 
     private async void SelectDownloadsFolder_Click(object sender, RoutedEventArgs e)

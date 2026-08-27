@@ -237,26 +237,27 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Re-reads the mods folder and reconciles it with the profile: picks up mods added by hand,
-    /// drops rows whose folder is gone, and leaves everything else exactly as the user arranged it.
-    /// This is also the only way to adopt a mods folder after changing it in the sidebar.
+    /// Reads <paramref name="folder"/> and works out what would change, without changing anything.
+    /// Returns null when the folder is unusable.
     /// </summary>
-    [RelayCommand]
-    private async Task Refresh()
+    public async Task<ModReconcileResult?> ScanModsFolderAsync(string? folder)
     {
-        string? folder = GameConfig.ModsFolderPath;
         if (string.IsNullOrWhiteSpace(folder) || !_fileService.DirectoryExists(folder))
         {
             // Bailing out rather than reconciling against nothing. An unreadable or unset folder
             // scans as empty, which is indistinguishable from "every mod was deleted" — and acting
             // on that would wipe the list over a typo in a path.
-            StatusMessage = "Mods folder is not set or does not exist — nothing to refresh.";
-            return;
+            StatusMessage = "Mods folder is not set or does not exist — nothing to scan.";
+            return null;
         }
 
         var scanned = (await _modScanner.ScanDirectoryAsync(folder)).ToList();
-        var result  = ModFolderReconciler.Reconcile(ModList.AllMods.ToList(), scanned);
+        return ModFolderReconciler.Reconcile(ModList.AllMods.ToList(), scanned);
+    }
 
+    /// <summary>Commits the outcome of <see cref="ScanModsFolderAsync"/> to the list and the profile.</summary>
+    public void ApplyModFolderScan(ModReconcileResult result)
+    {
         if (result.Added.Count == 0 && result.Removed.Count == 0)
         {
             StatusMessage = $"Up to date — {ModList.AllMods.Count} mods.";
@@ -276,8 +277,22 @@ public partial class MainWindowViewModel : ObservableObject
         RefreshModMountPointDisplayNames();
         ProfileManager.AutoSave();
 
-        StatusMessage = $"Refreshed — {result.Added.Count} added, {result.Removed.Count} removed.";
-        _logService.Log($"Refresh: {result.Added.Count} added, {result.Removed.Count} removed from {folder}");
+        StatusMessage = $"{result.Added.Count} added, {result.Removed.Count} removed.";
+        _logService.Log($"Mods folder scan: {result.Added.Count} added, {result.Removed.Count} removed.");
+    }
+
+    /// <summary>
+    /// Re-reads the mods folder and reconciles it with the profile: picks up mods added by hand,
+    /// drops rows whose folder is gone, and leaves everything else exactly as the user arranged it.
+    ///
+    /// Applied without confirming, unlike changing the folder. Here the folder has not moved, so a
+    /// removal means that mod really was deleted from under the app — reporting it is the point.
+    /// </summary>
+    [RelayCommand]
+    private async Task Refresh()
+    {
+        if (await ScanModsFolderAsync(GameConfig.ModsFolderPath) is { } result)
+            ApplyModFolderScan(result);
     }
     [RelayCommand] private void ClearFocus() => RequestClearFocus?.Invoke();
     [RelayCommand] private void DeleteMountPoint(MountPointDef? mp) { if (mp != null) GameConfig.UserMountPoints.Remove(mp); }

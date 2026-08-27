@@ -463,7 +463,7 @@
                         </ListBox.ItemContainerTheme>
                         <ListBox.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="Refresh" Command="{Binding RefreshCommand}"/>
+                                <MenuItem Header="Rescan Mods Folder" Command="{Binding RefreshCommand}"/>
                                 <MenuItem Header="Open Folder" Command="{Binding OpenSelectedModFolderCommand}"/>
                                 <Separator/>
                                 <MenuItem Header="Change Mount Point" Click="ChangeMountPoint_Click"/>
