@@ -494,8 +494,7 @@ public partial class MainWindow : Window
     /// </summary>
     private async void BrowsePlugins_Click(object sender, RoutedEventArgs e)
     {
-        var services = (Application.Current as App)?.Services;
-        if (services?.GetService(typeof(PluginBrowserViewModel)) is not PluginBrowserViewModel vm) return;
+        if ((DataContext as MainWindowViewModel)?.PluginBrowser is not { } vm) return;
 
         await new PluginBrowserWindow(vm).ShowDialog(this);
 

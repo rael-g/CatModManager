@@ -29,7 +29,6 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly AppSessionState          _sessionState;
     private readonly PluginLoader             _pluginLoader;
     private readonly UiExtensionHost?         _uiExtensionHost;
-    private readonly PluginBrowserViewModel?  _pluginBrowserVm;
 
     // Coordinators (specialized logic)
     public ProfileCoordinator         Profiles  { get; }
@@ -42,6 +41,13 @@ public partial class MainWindowViewModel : ObservableObject
     public ModListViewModel         ModList        { get; }
     public ModInspectorViewModel    Inspector      { get; }
     public ExternalToolsViewModel   Tools          { get; }
+
+    /// <summary>
+    /// The plugin browser's state. Owned here rather than created on demand so the search results and
+    /// the installed list survive closing the window. The view opens it — showing a window needs an
+    /// owner, which is not something a view model should know about.
+    /// </summary>
+    public PluginBrowserViewModel? PluginBrowser { get; }
 
     public bool HasActiveDownloads => _sessionState.CheckHasActiveDownloads?.Invoke() ?? false;
 
@@ -87,7 +93,7 @@ public partial class MainWindowViewModel : ObservableObject
         _sessionState         = sessionState;
         _pluginLoader         = pluginLoader;
         _uiExtensionHost      = uiExtensionHost;
-        _pluginBrowserVm      = pluginBrowserVm;
+        PluginBrowser         = pluginBrowserVm;
 
         // 1. Initialize Sub-ViewModels
         GameConfig = new GameConfigViewModel(gameSupportService, gameDiscoveryService, logService);
