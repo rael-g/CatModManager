@@ -323,6 +323,25 @@
 
                         <!-- Right controls: always fully visible -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,12,0">
+                            <!-- Adding a mod has nothing to do with the selected one, so it lives
+                                 here rather than in the inspector, which hides itself when nothing
+                                 is selected. Outlined, not accent: LAUNCH stays the only accent. -->
+                            <Button Classes="mount-btn" VerticalAlignment="Center"
+                                    ToolTip.Tip="Install a mod from an archive or a folder">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="+" Foreground="{DynamicResource AccentColor}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="ADD MOD" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Button.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                        <MenuItem Header="From Archive…" Click="AddModFromArchive_Click"/>
+                                        <MenuItem Header="From Folder…"  Click="AddModFromFolder_Click"/>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+
+                            <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="4,8"/>
+
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="Args:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource TextSubtle}" Margin="0,0,8,0"/>
                                 <TextBox Text="{Binding GameConfig.LaunchArguments}" Watermark="-windowed..." Classes="command-bar-input" Width="140">
@@ -606,15 +625,6 @@
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
                                             <TextBlock Text="✕"/>
                                             <TextBlock Text="REMOVE MOD" FontSize="11" FontWeight="Bold"/>
-                                        </StackPanel>
-                                    </Button>
-
-                                    <Separator Background="{DynamicResource BorderColor}" Height="1" Margin="0,4"/>
-
-                                    <Button Click="AddMod_Click" Classes="launch-btn" HorizontalAlignment="Stretch" Height="40">
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                                            <TextBlock Text="+"/>
-                                            <TextBlock Text="ADD MOD" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>

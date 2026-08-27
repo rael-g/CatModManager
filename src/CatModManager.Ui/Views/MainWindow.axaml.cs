@@ -391,34 +391,44 @@ public partial class MainWindow : Window
         // DataSubFolder removal: this button logic is now handled via Mount Points in the UI.
     }
 
-    private async void AddMod_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Archive and folder are separate menu entries rather than one picker falling back to the
+    /// other. The fallback made cancelling the file dialog open a folder dialog, so backing out of
+    /// "add a mod" took two dismissals and looked like the app had ignored the first one.
+    /// </summary>
+    private async void AddModFromArchive_Click(object sender, RoutedEventArgs e)
     {
-        var topLevel = GetTopLevel(this);
-        if (!(DataContext is MainWindowViewModel vm)) return;
+        if (DataContext is not MainWindowViewModel vm) return;
 
-        var options = new FilePickerOpenOptions
+        var files = await GetTopLevel(this)!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Select Mod (Archive)", AllowMultiple = true,
-            FileTypeFilter = new[] {
+            Title = "Select Mod Archive",
+            AllowMultiple = true,
+            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.DownloadsFolderPath),
+            FileTypeFilter = new[]
+            {
                 new FilePickerFileType("Mod Archives") { Patterns = new[] { "*.zip", "*.7z", "*.rar", "*.tar" } },
-                new FilePickerFileType("All Files") { Patterns = new[] { "*.*" } }
+                new FilePickerFileType("All Files")    { Patterns = new[] { "*.*" } }
             }
-        };
-        var result = await topLevel!.StorageProvider.OpenFilePickerAsync(options);
+        });
 
-        string[] paths;
-        if (result.Count > 0)
-            paths = result.Select(f => f.Path.LocalPath).ToArray();
-        else
+        foreach (var file in files)
+            await vm.AddModCommand.ExecuteAsync(file.Path.LocalPath);
+    }
+
+    private async void AddModFromFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+
+        var folders = await GetTopLevel(this)!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            var folderResult = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select Mod Folder" });
-            paths = folderResult.Count > 0 ? new[] { folderResult[0].Path.LocalPath } : Array.Empty<string>();
-        }
+            Title = "Select Mod Folder",
+            AllowMultiple = false,
+            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.DownloadsFolderPath)
+        });
 
-        if (paths.Length == 0) return;
-
-        foreach (var path in paths)
-            await vm.AddModCommand.ExecuteAsync(path);
+        if (folders.Count >= 1)
+            await vm.AddModCommand.ExecuteAsync(folders[0].Path.LocalPath);
     }
 
     private async void AddMountPoint_Click(object sender, RoutedEventArgs e)
