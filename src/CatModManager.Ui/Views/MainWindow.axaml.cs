@@ -488,6 +488,22 @@ public partial class MainWindow : Window
         _ = vm.OpenFolder(absPath);
     }
 
+    /// <summary>
+    /// Opened from the code-behind rather than through a command: showing a window needs an owner,
+    /// and the view model has no business knowing about one. Every other dialog here works the same.
+    /// </summary>
+    private async void BrowsePlugins_Click(object sender, RoutedEventArgs e)
+    {
+        var services = (Application.Current as App)?.Services;
+        if (services?.GetService(typeof(PluginBrowserViewModel)) is not PluginBrowserViewModel vm) return;
+
+        await new PluginBrowserWindow(vm).ShowDialog(this);
+
+        // Installing or removing a plugin only takes effect on restart, but the installed list is
+        // shared state — re-read it so reopening the window does not show a stale snapshot.
+        vm.RefreshInstalledPlugins();
+    }
+
     private async void AddTool_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel vm) return;

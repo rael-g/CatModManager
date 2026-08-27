@@ -249,7 +249,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <Button Command="{Binding OpenPluginBrowserCommand}"
+                            <Button Click="BrowsePlugins_Click"
                                     HorizontalAlignment="Stretch" Padding="8,4"
                                     Background="Transparent"
                                     BorderBrush="{DynamicResource BorderColor}"

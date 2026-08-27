@@ -235,7 +235,6 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand] private void DeleteMountPoint(MountPointDef? mp) { if (mp != null) GameConfig.UserMountPoints.Remove(mp); }
     [RelayCommand] private void ExecuteSidebarAction(ISidebarAction? a) => a?.Execute();
 
-    [RelayCommand] private void OpenPluginBrowser() { }
     public Task OpenFolder(string path) => _processService.OpenFolderAsync(path);
     [RelayCommand] private async Task OpenModsFolder() => await _processService.OpenFolderAsync(GameConfig.ModsFolderPath ?? "");
     [RelayCommand] private async Task OpenDownloadsFolder() => await _processService.OpenFolderAsync(GameConfig.DownloadsFolderPath ?? "");
