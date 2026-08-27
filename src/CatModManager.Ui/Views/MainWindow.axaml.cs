@@ -505,16 +505,7 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm) return;
         if (sender is not Button btn || btn.Tag is not CatModManager.Core.Models.MountPointDef mp) return;
 
-        var expanded = System.Environment.ExpandEnvironmentVariables(mp.Path);
-        string absPath;
-        if (System.IO.Path.IsPathRooted(expanded))
-            absPath = expanded;
-        else if (!string.IsNullOrEmpty(vm.GameConfig.BaseFolderPath))
-            absPath = System.IO.Path.Combine(vm.GameConfig.BaseFolderPath, expanded);
-        else
-            absPath = expanded;
-
-        _ = vm.OpenFolder(absPath);
+        _ = vm.OpenFolder(mp.ResolveAbsolute(vm.GameConfig.BaseFolderPath));
     }
 
     /// <summary>

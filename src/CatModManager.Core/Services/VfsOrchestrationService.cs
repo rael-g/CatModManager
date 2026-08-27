@@ -162,12 +162,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
     }
 
     private static string ResolveMountPointPath(string gameFolder, string mpPath)
-    {
-        if (string.IsNullOrEmpty(mpPath)) return gameFolder;
-        var expanded = Environment.ExpandEnvironmentVariables(mpPath);
-        if (Path.IsPathRooted(expanded)) return expanded;
-        return Path.Combine(gameFolder, expanded);
-    }
+        => MountPointDef.Resolve(mpPath, gameFolder);
 
     private async Task UnmountAllAsync()
     {

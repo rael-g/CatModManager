@@ -33,13 +33,7 @@ public class SimpleConflictResolver : IConflictResolver
         // 1. Map physical game files first (lowest priority)
         if (!string.IsNullOrEmpty(baseFolderPath) && Directory.Exists(baseFolderPath))
         {
-            string scanRoot = baseFolderPath;
-            if (!string.IsNullOrEmpty(dataSubFolder))
-            {
-                scanRoot = Path.IsPathRooted(dataSubFolder) 
-                    ? dataSubFolder 
-                    : Path.Combine(baseFolderPath, dataSubFolder);
-            }
+            string scanRoot = MountPointDef.Resolve(dataSubFolder, baseFolderPath);
 
             if (Directory.Exists(scanRoot))
             {

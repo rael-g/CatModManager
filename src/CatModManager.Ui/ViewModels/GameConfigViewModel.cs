@@ -82,16 +82,7 @@ public partial class GameConfigViewModel : ViewModelBase
                         string.Equals(u.Id, mp.Id, StringComparison.OrdinalIgnoreCase));
                     var rawPath = userOverride?.Path ?? mp.Path ?? "";
 
-                    var expanded = Environment.ExpandEnvironmentVariables(rawPath);
-                    string abs;
-                    if (string.IsNullOrEmpty(expanded))
-                        abs = BaseFolderPath ?? "";
-                    else if (Path.IsPathRooted(expanded))
-                        abs = expanded;
-                    else if (!string.IsNullOrEmpty(BaseFolderPath))
-                        abs = Path.Combine(BaseFolderPath, expanded);
-                    else
-                        abs = expanded;
+                    var abs = MountPointDef.Resolve(rawPath, BaseFolderPath);
                     return new MountPointDef(mp.Id, mp.Name, abs) { IsGameDefined = true };
                 })
                 .ToList();

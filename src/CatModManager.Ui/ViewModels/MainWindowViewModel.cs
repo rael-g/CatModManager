@@ -317,13 +317,7 @@ public partial class MainWindowViewModel : ObservableObject
         var points = GameConfig.EffectiveMountPoints;
         if (points.Count == 0) { await _processService.OpenFolderAsync(GameConfig.BaseFolderPath ?? ""); return; }
         
-        var sub = points[0].Path;
-        if (string.IsNullOrEmpty(sub)) { await _processService.OpenFolderAsync(GameConfig.BaseFolderPath ?? ""); return; }
-        
-        var expanded = Environment.ExpandEnvironmentVariables(sub);
-        string folder = Path.IsPathRooted(expanded) ? expanded :
-            !string.IsNullOrEmpty(GameConfig.BaseFolderPath) ? Path.Combine(GameConfig.BaseFolderPath, expanded) : expanded;
-        await _processService.OpenFolderAsync(folder);
+        await _processService.OpenFolderAsync(points[0].ResolveAbsolute(GameConfig.BaseFolderPath));
     }
     [RelayCommand] private void OpenAppDataFolder() => _processService.OpenFolderAsync(_pathService.BaseDataPath);
 
