@@ -20,13 +20,32 @@ namespace CatModManager.Ui.Views;
 public partial class MainWindow : Window
 {
     private Point _dragStartPoint;
+    private Mod?  _dragCandidate;
+
+    /// <summary>
+    /// How far the pointer must travel before a press becomes a drag. Without a threshold every
+    /// click on a row would begin a drag and selection would stop working.
+    /// </summary>
+    private const double DragThreshold = 4;
 
     private bool _isShuttingDown;
 
     public MainWindow()
     {
         InitializeComponent();
-        
+
+        // Registered here, tunnelling, rather than as PointerPressed="..." in XAML. ListBoxItem
+        // handles the bubbling PointerPressed to update selection and marks it handled, so a
+        // bubbling handler on the ListBox is never reached — which is why drag-to-reorder had
+        // never worked. Tunnelling sees the event on the way down, before the item consumes it.
+        var modsList = this.FindControl<ListBox>("ModsListBox");
+        if (modsList != null)
+        {
+            modsList.AddHandler(PointerPressedEvent,  OnPointerPressed,  RoutingStrategies.Tunnel);
+            modsList.AddHandler(PointerMovedEvent,    OnPointerMoved,    RoutingStrategies.Tunnel);
+            modsList.AddHandler(PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Tunnel);
+        }
+
         DataContextChanged += OnDataContextChanged;
         
         Closing += async (s, e) => {
@@ -189,31 +208,58 @@ public partial class MainWindow : Window
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        _dragCandidate = null;
+
         // Outside reorder mode a press is a selection, not the start of a load-order edit.
         if (!ReorderArmed) return;
+        if (sender is not ListBox listBox) return;
+        if (!e.GetCurrentPoint(listBox).Properties.IsLeftButtonPressed) return;
 
-        if (sender is ListBox listBox && e.GetCurrentPoint(listBox).Properties.IsLeftButtonPressed)
+        // The checkbox is a control in its own right; dragging from it would mean enabling a mod
+        // and moving it at once.
+        var source = e.Source as Visual;
+        while (source != null)
         {
-            var visualSource = e.Source as Visual;
-            while (visualSource != null)
-            {
-                if (visualSource is CheckBox) return; 
-                if (visualSource is ListBoxItem) break;
-                visualSource = visualSource.GetVisualParent();
-            }
-
-            _dragStartPoint = e.GetPosition(listBox);
-            var item = listBox.InputHitTest(e.GetPosition(listBox)) as Visual;
-            while (item != null && !(item is ListBoxItem)) item = item.GetVisualParent();
-
-            if (item is ListBoxItem listBoxItem && listBoxItem.Content is Mod mod)
-            {
-                var data = new DataObject();
-                data.Set("ModItem", mod);
-                DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
-            }
+            if (source is CheckBox) return;
+            if (source is ListBoxItem) break;
+            source = source.GetVisualParent();
         }
+
+        _dragStartPoint = e.GetPosition(listBox);
+
+        var item = listBox.InputHitTest(_dragStartPoint) as Visual;
+        while (item != null && item is not ListBoxItem) item = item.GetVisualParent();
+
+        // Only remember what could be dragged. Starting the drag here would swallow the click and
+        // make rows unselectable.
+        if (item is ListBoxItem listBoxItem && listBoxItem.Content is Mod mod)
+            _dragCandidate = mod;
     }
+
+    private void OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragCandidate is not { } mod || !ReorderArmed) return;
+        if (sender is not ListBox listBox) return;
+
+        if (!e.GetCurrentPoint(listBox).Properties.IsLeftButtonPressed)
+        {
+            _dragCandidate = null;
+            return;
+        }
+
+        var current = e.GetPosition(listBox);
+        if (Math.Abs(current.X - _dragStartPoint.X) < DragThreshold &&
+            Math.Abs(current.Y - _dragStartPoint.Y) < DragThreshold)
+            return;
+
+        _dragCandidate = null;
+
+        var data = new DataObject();
+        data.Set("ModItem", mod);
+        _ = DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
+    }
+
+    private void OnPointerReleased(object? sender, PointerReleasedEventArgs e) => _dragCandidate = null;
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {

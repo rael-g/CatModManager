@@ -353,7 +353,17 @@
                 <Grid Grid.Row="1" RowDefinitions="32, *">
                     <Border Grid.Row="0" Background="{DynamicResource SidebarHeaderBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
                         <Grid ColumnDefinitions="44, 32, *, 100, 70">
-                            <TextBlock Grid.Column="0" Text="✓" Classes="col-header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <!-- Filters to enabled mods only. Not a sort: it hides rows, so the dot
+                                 indicator matters — a shorter list with no explanation reads as
+                                 mods having gone missing. -->
+                            <Button Grid.Column="0" Classes="sort-header" HorizontalAlignment="Center"
+                                    Command="{Binding ModList.ToggleEnabledFilterCommand}"
+                                    ToolTip.Tip="Show only enabled mods / show all">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <TextBlock Text="✓" Classes="col-header" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding ModList.EnabledFilterIndicator}" FontSize="9" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
 
                             <!-- Sortable headers. Disabled while reordering: that mode owns the
                                  order, and letting a click re-sort mid-drag would move the rows
@@ -394,7 +404,7 @@
                     </Border>
 
                     <ListBox Grid.Row="1" Name="ModsListBox" ItemsSource="{Binding ModList.DisplayedMods}" SelectedItem="{Binding ModList.SelectedMod}" SelectionMode="Single" DragDrop.AllowDrop="True"
-                             PointerPressed="OnPointerPressed" DragDrop.DragOver="OnDragOver" DragDrop.Drop="OnDrop">
+                             DragDrop.DragOver="OnDragOver" DragDrop.Drop="OnDrop">
                         <ListBox.ItemContainerTheme>
                             <!-- Full custom template — no BasedOn so FluentTheme never interferes -->
                             <ControlTheme TargetType="ListBoxItem">
