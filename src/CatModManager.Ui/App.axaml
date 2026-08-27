@@ -100,6 +100,22 @@
             <Setter Property="Padding" Value="12,8"/>
         </Style>
 
+        <!-- Every mod row eases opacity and position, so a live reorder slides instead of snapping. -->
+        <Style Selector="ListBox#ModsListBox Grid">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <!-- Held state: dimmed and nudged, so the row reads as picked up rather than merely hovered. -->
+        <Style Selector="ListBox#ModsListBox Grid.dragging">
+            <Setter Property="Opacity" Value="0.45"/>
+            <Setter Property="RenderTransform" Value="translateX(6px) scale(0.99)"/>
+        </Style>
+
         <!-- Looks like the plain header it replaces; only the cursor and hover reveal it clicks. -->
         <Style Selector="Button.sort-header">
             <Setter Property="Background" Value="Transparent"/>

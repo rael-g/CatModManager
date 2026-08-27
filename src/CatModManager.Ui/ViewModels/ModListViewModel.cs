@@ -222,6 +222,49 @@ public partial class ModListViewModel : ObservableObject
             AllMods[i].Priority = AllMods.Count - 1 - i;
     }
 
+    /// <summary>The mod currently being dragged, so its row can show it. Null when nothing is.</summary>
+    public Mod? DraggingMod { get; private set; }
+
+    /// <summary>
+    /// Starts a drag: rows will reorder live as the pointer moves, and the load order is written
+    /// once at the end instead of on every step. Without this a single drag across ten rows would
+    /// save the profile ten times.
+    /// </summary>
+    public void BeginDragReorder(Mod mod)
+    {
+        DraggingMod = mod;
+        mod.IsDragging = true;
+    }
+
+    /// <summary>Moves a row mid-drag. Same reordering as MoveMod, minus the save.</summary>
+    public void DragOver(Mod target)
+    {
+        if (DraggingMod is not { } dragged || ReferenceEquals(dragged, target)) return;
+
+        int from = AllMods.IndexOf(dragged);
+        int to   = AllMods.IndexOf(target);
+        if (from < 0 || to < 0) return;
+
+        // The Move has to be inside the suppression too, not just UpdatePriorities: any change to
+        // AllMods triggers an AutoSave of its own. A drag across ten rows would otherwise rewrite
+        // the profile ten times, and again for every priority it touched on the way.
+        using (SuppressAutoSave?.Invoke() ?? NullDisposable.Instance)
+        {
+            AllMods.Move(from, to);
+            UpdatePriorities();
+        }
+
+        RebuildDisplayedMods();
+    }
+
+    /// <summary>Ends the drag and persists the load order it produced.</summary>
+    public void EndDragReorder()
+    {
+        if (DraggingMod is { } dragged) dragged.IsDragging = false;
+        DraggingMod = null;
+        AutoSave?.Invoke();
+    }
+
     public void MoveMod(int oldIndex, int newIndex)
     {
         if (oldIndex < 0 || oldIndex >= AllMods.Count || newIndex < 0 || newIndex >= AllMods.Count) return;

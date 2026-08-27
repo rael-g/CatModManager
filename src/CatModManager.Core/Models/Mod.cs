@@ -99,9 +99,18 @@ public class Mod : ObservableObject, IModInfo
         set => SetProperty(ref _isInstalling, value); 
     }
 
+    private bool _isDragging;
+    /// <summary>True while this row is being dragged, so the list can show which one is moving.</summary>
+    [TomlIgnore]
+    public bool IsDragging
+    {
+        get => _isDragging;
+        set => SetProperty(ref _isDragging, value);
+    }
+
     private bool _isBroken;
     [TomlIgnore]
-    public bool IsBroken 
+    public bool IsBroken
     { 
         get => _isBroken; 
         set => SetProperty(ref _isBroken, value); 

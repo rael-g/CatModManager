@@ -454,7 +454,11 @@
                         </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:Mod">
-                                <Grid Background="Transparent">
+                                <!-- The row being dragged dims and shifts slightly, so there is
+                                     feedback while the button is held rather than only on drop.
+                                     Transitions carry it, and the rows it displaces, smoothly. -->
+                                <Grid Background="Transparent" Classes.dragging="{Binding IsDragging}"
+                                      RenderTransform="none">
                                     <!-- Discreet Progress Overlay (Bottom Edge) -->
                                     <ProgressBar IsVisible="{Binding IsInstalling}" 
                                                  Value="{Binding InstallProgress}" Maximum="100" 

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CatModManager.Core.Models;
 using CatModManager.PluginSdk;
@@ -256,37 +257,53 @@ public partial class MainWindow : Window
 
         var data = new DataObject();
         data.Set("ModItem", mod);
-        _ = DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
+
+        if (DataContext is MainWindowViewModel vm) vm.ModList.BeginDragReorder(mod);
+
+        // DoDragDrop blocks until the drop completes, so the end of the drag — however it ends,
+        // including a cancel or a drop outside the list — is right here.
+        _ = DragDrop.DoDragDrop(e, data, DragDropEffects.Move)
+                    .ContinueWith(_ => Dispatcher.UIThread.Post(EndDrag));
+    }
+
+    private void EndDrag()
+    {
+        if (DataContext is MainWindowViewModel vm) vm.ModList.EndDragReorder();
     }
 
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e) => _dragCandidate = null;
 
+    /// <summary>The mod whose row sits under <paramref name="point"/>, if any.</summary>
+    private static Mod? ModUnder(ListBox listBox, Point point)
+    {
+        var element = listBox.InputHitTest(point) as Visual;
+        while (element != null && element is not ListBoxItem) element = element.GetVisualParent();
+        return (element as ListBoxItem)?.Content as Mod;
+    }
+
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (ReorderArmed && e.Data.Contains("ModItem")) e.DragEffects = DragDropEffects.Move;
-        else e.DragEffects = DragDropEffects.None;
+        if (!ReorderArmed || !e.Data.Contains("ModItem"))
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.Move;
+
+        // Reorder as the pointer passes each row rather than waiting for the drop. Holding the
+        // change back until release means no feedback during the drag at all: the list sits still
+        // and only jumps once the button comes up.
+        if (sender is ListBox listBox && DataContext is MainWindowViewModel vm &&
+            ModUnder(listBox, e.GetPosition(listBox)) is { } target)
+            vm.ModList.DragOver(target);
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        if (!ReorderArmed) return;
-
-        if (sender is ListBox listBox && e.Data.Get("ModItem") is Mod draggedMod)
-        {
-            var point = e.GetPosition(listBox);
-            var targetElement = listBox.InputHitTest(point) as Visual;
-            while (targetElement != null && !(targetElement is ListBoxItem)) targetElement = targetElement.GetVisualParent();
-
-            if (targetElement is ListBoxItem targetItem && targetItem.Content is Mod targetMod)
-            {
-                if (DataContext is MainWindowViewModel vm)
-                {
-                    int oldIndex = vm.ModList.AllMods.IndexOf(draggedMod);
-                    int newIndex = vm.ModList.AllMods.IndexOf(targetMod);
-                    if (oldIndex != -1 && newIndex != -1 && oldIndex != newIndex) vm.ModList.MoveMod(oldIndex, newIndex);
-                }
-            }
-        }
+        // The rows are already where they belong — DragOver moved them on the way. All that is
+        // left is to stop dragging and let the new load order be saved.
+        EndDrag();
     }
 
     private async Task<IStorageFolder?> GetStartFolderAsync(string? preferredPath, string? fallbackPath = null)
