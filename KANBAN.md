@@ -46,10 +46,23 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   **Está errado** — baixar não instala. `_installCallback` só é chamado por clique do usuário na aba
   de downloads (`NexusDownloadsTabControl.cs:676`); nada de auto-install ao concluir.
 
-  Ou seja: ainda **não há hipótese sustentada**. Não inventar outra sem medição. Próximo passo é
-  repro instrumentada — vários downloads pesados simultâneos com RSS do processo amostrado ao longo
-  do tempo (e `dotnet-counters` pra separar heap gerenciado de memória nativa), pra descobrir se o
-  crescimento é do CMM ou de pressão de I/O/cache do sistema.
+  **Causa encontrada (27/08/2026): vazamento de assinaturas na aba de downloads.**
+  `NexusDownloadsTabControl.BuildCard` fazia `entry.PropertyChanged += ...` e nada desassinava.
+  `RebuildCards` descarta e recria todos os cards a cada mudança da coleção **e** a cada transição
+  ativo/concluído, mas a `DownloadEntry` sobrevive ao card — então cada reconstrução deixava mais um
+  handler morto preso à entrada, cada um segurando viva a árvore visual inteira do card descartado e
+  ainda executando a cada tick de progresso. Medido: 25 ciclos deixaram **51 handlers numa única
+  entrada** onde deveria haver 1. Explica a ordem dos sintomas (UI trava primeiro, memória sobe
+  depois) e por que piorava com vários downloads: mais entradas × mais transições.
+  Corrigido rastreando as assinaturas e removendo-as antes de descartar os cards; teste em
+  `tests/CatModManager.Tests/Plugins/NexusMods/DownloadCardSubscriptionTests.cs`, verificado por
+  mutação (sem a desassinatura: 51 contra 1 esperado).
+
+  **Ainda não fechado.** Repro instrumentada de 8 min com 3 downloads simultâneos (>900 MB, 3
+  conclusões) mostrou RSS estável em 402–415 MB, subindo ~10 MB em cada reconstrução e voltando —
+  sem crescimento monotônico. Mas 8 minutos não descarta vazamento lento. Fechar só depois de uma
+  sessão longa de uso real com RSS amostrado; se voltar a crescer, aí sim `dotnet-counters` pra
+  separar heap gerenciado de memória nativa.
 
 - **Retry de download recomeça do zero e reabre a página do Nexus.** Para usuário não-premium, o link
   de CDN vem de um token nxm de uso único; ao falhar, o `RetryDownload` não tem como repetir a
