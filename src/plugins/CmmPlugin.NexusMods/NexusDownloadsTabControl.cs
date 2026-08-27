@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using CatModManager.PluginSdk;
@@ -32,6 +34,18 @@ public class NexusDownloadsTabControl : UserControl
     private readonly TextBlock  _collectionBannerText;
     private readonly Button     _pauseResumeBtn;
     private Button? _nxmBtn;
+
+    /// <summary>
+    /// Every PropertyChanged handler the current set of cards installed, so it can be taken back off
+    /// before the cards are thrown away.
+    ///
+    /// A DownloadEntry outlives the card showing it, and the cards are rebuilt wholesale on every
+    /// collection change and on every active/inactive transition. Subscribing without ever
+    /// unsubscribing left one dead handler per rebuild per entry, each holding its discarded card's
+    /// entire visual tree alive and still running on every progress tick — so a batch of downloads
+    /// made the UI thread slower with each rebuild while memory climbed and never came back.
+    /// </summary>
+    private readonly List<(DownloadEntry Entry, PropertyChangedEventHandler Handler)> _cardSubscriptions = new();
 
     private static readonly IBrush BackgroundBrush = CmmPalette.Brushes.ContentBg;
     private static readonly IBrush CardBrush       = CmmPalette.Brushes.AppBackground;
@@ -542,6 +556,11 @@ public class NexusDownloadsTabControl : UserControl
 
     private void RebuildCards()
     {
+        // Before the cards go, so their handlers go with them instead of outliving them.
+        foreach (var (entry, handler) in _cardSubscriptions)
+            entry.PropertyChanged -= handler;
+        _cardSubscriptions.Clear();
+
         _activePanel.Children.Clear();
         _completedPanel.Children.Clear();
 
@@ -697,7 +716,7 @@ public class NexusDownloadsTabControl : UserControl
             cardBorder.ContextMenu = menu;
         }
 
-        entry.PropertyChanged += (_, args) =>
+        PropertyChangedEventHandler onEntryChanged = (_, args) =>
         {
             void Update()
             {
@@ -729,6 +748,9 @@ public class NexusDownloadsTabControl : UserControl
             if (Dispatcher.UIThread.CheckAccess()) Update();
             else Dispatcher.UIThread.InvokeAsync(Update);
         };
+
+        entry.PropertyChanged += onEntryChanged;
+        _cardSubscriptions.Add((entry, onEntryChanged));
 
         return cardBorder;
     }
