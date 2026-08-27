@@ -26,12 +26,72 @@
 
     <Grid RowDefinitions="32, *, 24">
         
-        <!-- 1. Custom Title Bar (Drag Zone) -->
-        <Grid Grid.Row="0" Background="{DynamicResource AppBackground}" PointerPressed="TitleBar_PointerPressed">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,140,0" IsHitTestVisible="False">
-                <TextBlock Text="CMM" Foreground="{DynamicResource AccentColor}" FontWeight="Black" FontSize="10" Margin="0,0,8,0"/>
-                <TextBlock Text="THE SCHRÖDINGER CAT MOD MANAGER" FontSize="10" Foreground="{DynamicResource TextSubtle}" FontWeight="SemiBold"/>
+        <!-- 1. Custom Title Bar (Drag Zone + Menu)
+
+             The menu lives here rather than in a bar of its own: these 32px already exist and were
+             doing nothing but carrying the app name. It is also the home for every command that is
+             used rarely, which is what keeps the command bar below from growing until it clips. -->
+        <Grid Grid.Row="0" Background="{DynamicResource AppBackground}" PointerPressed="TitleBar_PointerPressed"
+              ColumnDefinitions="Auto, *">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="CMM" Foreground="{DynamicResource AccentColor}" FontWeight="Black" FontSize="10"
+                           Margin="12,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+
+                <Menu VerticalAlignment="Center">
+                    <MenuItem Header="_File">
+                        <MenuItem Header="Add Mod">
+                            <MenuItem Header="From _Archive…" Click="AddModFromArchive_Click"/>
+                            <MenuItem Header="From _Folder…"  Click="AddModFromFolder_Click"/>
+                        </MenuItem>
+                        <MenuItem Header="_Rescan Mods Folder" Command="{Binding RefreshCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Open Folder">
+                            <MenuItem Header="_Mods"      Command="{Binding OpenModsFolderCommand}"/>
+                            <MenuItem Header="_Downloads" Command="{Binding OpenDownloadsFolderCommand}"/>
+                            <MenuItem Header="_Game"      Command="{Binding OpenGameFolderCommand}"/>
+                            <MenuItem Header="Game D_ata" Command="{Binding OpenGameDataFolderCommand}"/>
+                            <MenuItem Header="App Data"   Command="{Binding OpenAppDataFolderCommand}"/>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="E_xit" Click="Exit_Click"/>
+                    </MenuItem>
+
+                    <MenuItem Header="_Mod">
+                        <MenuItem Header="_Open Folder"        Command="{Binding OpenSelectedModFolderCommand}"/>
+                        <MenuItem Header="Change _Mount Point" Click="ChangeMountPoint_Click"/>
+                        <Separator/>
+                        <MenuItem Header="_Remove Mod" Command="{Binding RemoveModCommand}"/>
+                    </MenuItem>
+
+                    <MenuItem Header="_Profile">
+                        <MenuItem Header="_New Profile"    Command="{Binding ProfileManager.NewProfileCommand}"/>
+                        <MenuItem Header="_Rename Profile" Command="{Binding ProfileManager.RenameProfileCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="_Delete Profile" Command="{Binding ProfileManager.DeleteProfileCommand}"/>
+                    </MenuItem>
+
+                    <MenuItem Header="_Game">
+                        <MenuItem Header="_Auto Detect Game…"      Command="{Binding GameConfig.AutoDetectGameCommand}"/>
+                        <MenuItem Header="Detect Game _Mode"       Command="{Binding GameConfig.DetectGameSupportCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Add Mount _Point…"       Click="AddMountPoint_Click"/>
+                        <Separator/>
+                        <MenuItem Header="{Binding Vfs.MountButtonText}" Command="{Binding Vfs.ToggleMountCommand}"/>
+                        <MenuItem Header="_Launch Game"            Command="{Binding LaunchGameCommand}"/>
+                    </MenuItem>
+
+                    <MenuItem Header="_Tools">
+                        <MenuItem Header="Add _Tool…"       Click="AddTool_Click"/>
+                        <Separator/>
+                        <MenuItem Header="_Browse Plugins…" Click="BrowsePlugins_Click"/>
+                    </MenuItem>
+                </Menu>
             </StackPanel>
+
+            <TextBlock Grid.Column="1" Text="THE SCHRÖDINGER CAT MOD MANAGER"
+                       FontSize="10" Foreground="{DynamicResource TextSubtle}" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Margin="0,0,140,0" IsHitTestVisible="False"/>
         </Grid>
 
         <!-- 2. Main Layout (Sidebar + Content + Inspector) -->

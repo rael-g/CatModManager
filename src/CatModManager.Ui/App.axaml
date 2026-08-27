@@ -217,6 +217,22 @@
             <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextMuted}"/>
         </Style>
 
+        <!-- The title-bar menu. Sized down to sit inside 32px without making the bar taller. -->
+        <Style Selector="Menu">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="Menu > MenuItem">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="MinHeight" Value="24"/>
+        </Style>
+        <Style Selector="Menu > MenuItem:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+
         <Style Selector="MenuFlyoutPresenter">
             <Setter Property="Background" Value="{DynamicResource SidebarHeaderBg}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
