@@ -174,7 +174,6 @@ public partial class ModListViewModel : ObservableObject
         _isRebuilding = true;
         try
         {
-            DisplayedMods.Clear();
             var query = AllMods.AsEnumerable();
             if (!string.IsNullOrWhiteSpace(SearchText))
                 query = query.Where(m => m.Name.Contains(SearchText, System.StringComparison.OrdinalIgnoreCase));
@@ -202,7 +201,19 @@ public partial class ModListViewModel : ObservableObject
             if (SortColumn != ModSortColumn.Priority)
                 ordered = ordered.ThenBy(m => m.Priority);
 
-            foreach (var mod in ordered)
+            var result = ordered.ToList();
+
+            // Nothing to do when the list already reads this way, and "nothing to do" has to mean
+            // not touching the collection at all. Clearing and refilling with the same rows still
+            // tears down and recreates every container, which is visible: right after a drag the
+            // order is already correct, so this ran as a pure no-op and yet made an unrelated row
+            // flash its hover colour as the recycled containers settled.
+            if (result.Count == DisplayedMods.Count &&
+                !result.Where((mod, i) => !ReferenceEquals(mod, DisplayedMods[i])).Any())
+                return;
+
+            DisplayedMods.Clear();
+            foreach (var mod in result)
                 DisplayedMods.Add(mod);
         }
         finally { _isRebuilding = false; }
