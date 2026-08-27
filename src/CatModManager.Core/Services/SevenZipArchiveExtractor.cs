@@ -34,6 +34,8 @@ public class SevenZipArchiveExtractor : IArchiveExtractor
             var options = new ExtractionOptions { ExtractFullPath = true, Overwrite = true };
 
             using var reader = archive.ExtractAllEntries();
+            double lastReported = -1;
+
             while (reader.MoveToNextEntry())
             {
                 ct.ThrowIfCancellationRequested();
@@ -41,7 +43,23 @@ public class SevenZipArchiveExtractor : IArchiveExtractor
 
                 reader.WriteEntryToDirectory(destinationDir, options);
                 count++;
-                if (total > 0) progress?.Report((double)count / total * 100);
+
+                // Throttled to whole percentage points, the way the downloader already does it.
+                // Progress<T> marshals every report to the UI thread, and the handler there
+                // recomputes an aggregate over the mod list and invalidates layout. Reporting once
+                // per entry meant a large archive enqueued one such callback per file — tens of
+                // thousands of them, for several archives at once. The UI thread could not drain
+                // the queue as fast as extraction filled it, so the window stopped responding and
+                // the backlog grew until the process was killed for memory.
+                if (progress != null && total > 0)
+                {
+                    double pct = (double)count / total * 100;
+                    if (pct - lastReported >= 1.0 || count == total)
+                    {
+                        progress.Report(pct);
+                        lastReported = pct;
+                    }
+                }
             }
         }, ct);
     }
