@@ -104,7 +104,12 @@ public partial class MainWindowViewModel : ObservableObject
         // 2. Initialize Coordinators
         Profiles  = new ProfileCoordinator(profileService, configService, logService, sessionState, () => GameConfig, () => ModList, RefreshModMountPointDisplayNames, SyncActiveModsToState);
         Vfs       = new VfsLifecycleCoordinator(vfsOrchestrator, logService, () => GameConfig, () => ModList, SyncActiveModsToState);
-        Installer = new ModInstallationCoordinator(modManagementService, modScanner, fileService, logService, sessionState, uiExtensionHost, () => GameConfig, () => ModList, (m, s) => { });
+        // Finishing an install has to persist, same as any other edit to the list. This callback was
+        // empty, so a freshly installed mod lived only in memory: it worked until the app closed and
+        // was gone on the next start, still sitting in the mods folder with nothing referring to it.
+        // It survived only by accident, when some later action — toggling it, reordering — saved.
+        Installer = new ModInstallationCoordinator(modManagementService, modScanner, fileService, logService, sessionState, uiExtensionHost, () => GameConfig, () => ModList,
+            (mod, source) => { SyncActiveModsToState(); ProfileManager.AutoSave(); });
 
         // 3. Wire Events & Callbacks
         Vfs.PropertyChanged       += (s, e) =>
