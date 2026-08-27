@@ -153,18 +153,21 @@ public class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
-    public void DisplayedMods_Sorting_ByPriority()
+    public void DisplayedMods_AreSortedByPriority_WithTheConflictWinnerLast()
     {
         var vm = CreateViewModel();
         var mod1 = new Mod("Mod1", "Path1", 0);
         var mod2 = new Mod("Mod2", "Path2", 0);
-        
+
         vm.ModList.AllMods.Add(mod1);
         vm.ModList.AllMods.Add(mod2);
 
+        // The list reads bottom-wins, matching MO2 and the direction plugins load in. This test
+        // used to assert the reverse — and did so by naming the rows, which passed only because
+        // insertion order happened to line up with the old descending sort.
         var displayed = vm.ModList.DisplayedMods.ToList();
-        Assert.Equal("Mod1", displayed[0].Name);
-        Assert.Equal("Mod2", displayed[1].Name);
+        Assert.Equal(displayed.OrderBy(m => m.Priority), displayed);
+        Assert.Equal(displayed.Max(m => m.Priority), displayed.Last().Priority);
     }
 
     // MOCKS

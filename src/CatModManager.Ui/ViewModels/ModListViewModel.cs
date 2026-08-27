@@ -31,29 +31,75 @@ public partial class ModListViewModel : ObservableObject
     /// </summary>
     [ObservableProperty] private bool _isReorderEnabled;
 
-    /// <summary>
-    /// Lowest priority first, so the winner of a file conflict sits at the bottom — the layering
-    /// order MO2 uses, and the same direction plugins load in. Reorder mode forces this on, because
-    /// dragging is only unambiguous while what you see is the priority order itself.
-    /// </summary>
-    [ObservableProperty] private bool _sortByPriorityAscending;
+    /// <summary>Which column the list is ordered by. Priority is the load order itself.</summary>
+    [ObservableProperty] private ModSortColumn _sortColumn = ModSortColumn.Priority;
 
-    private bool _sortBeforeReorder;
+    /// <summary>
+    /// Ascending by default, which for Priority puts the lowest first — so the winner of a file
+    /// conflict sits at the bottom. That is the layering order MO2 uses and the same direction
+    /// plugins load in; having files and plugins disagree on screen is a reliable way to make
+    /// someone edit the wrong end of the list.
+    /// </summary>
+    [ObservableProperty] private bool _sortAscending = true;
+
+    private (ModSortColumn Column, bool Ascending)? _sortBeforeReorder;
 
     partial void OnIsReorderEnabledChanged(bool value)
     {
         if (value)
         {
-            _sortBeforeReorder = SortByPriorityAscending;
-            SortByPriorityAscending = true;
+            // Dragging only means something while the screen shows the priority order itself.
+            // Sorted by name, a drop position maps to no particular priority at all.
+            _sortBeforeReorder = (SortColumn, SortAscending);
+            SortColumn    = ModSortColumn.Priority;
+            SortAscending = true;
         }
-        else
+        else if (_sortBeforeReorder is { } previous)
         {
-            SortByPriorityAscending = _sortBeforeReorder;
+            SortColumn    = previous.Column;
+            SortAscending = previous.Ascending;
+            _sortBeforeReorder = null;
         }
     }
 
-    partial void OnSortByPriorityAscendingChanged(bool value) => RebuildDisplayedMods();
+    partial void OnSortColumnChanged(ModSortColumn value)
+    {
+        NotifySortIndicators();
+        RebuildDisplayedMods();
+    }
+
+    partial void OnSortAscendingChanged(bool value)
+    {
+        NotifySortIndicators();
+        RebuildDisplayedMods();
+    }
+
+    private void NotifySortIndicators()
+    {
+        OnPropertyChanged(nameof(PrioritySortIndicator));
+        OnPropertyChanged(nameof(NameSortIndicator));
+        OnPropertyChanged(nameof(CategorySortIndicator));
+    }
+
+    /// <summary>
+    /// Handles a click on a column header: the same column flips direction, a different one becomes
+    /// the sort. Ignored while reordering, since that mode owns the ordering.
+    /// </summary>
+    [RelayCommand]
+    public void SortBy(ModSortColumn column)
+    {
+        if (IsReorderEnabled) return;
+
+        if (SortColumn == column) SortAscending = !SortAscending;
+        else { SortColumn = column; SortAscending = true; }
+    }
+
+    public string PrioritySortIndicator => IndicatorFor(ModSortColumn.Priority);
+    public string NameSortIndicator     => IndicatorFor(ModSortColumn.Name);
+    public string CategorySortIndicator => IndicatorFor(ModSortColumn.Category);
+
+    private string IndicatorFor(ModSortColumn column) =>
+        SortColumn != column ? string.Empty : SortAscending ? "▲" : "▼";
 
     public ObservableCollection<string> Categories    { get; } = new() { "All", "Uncategorized" };
     public ObservableCollection<Mod>    DisplayedMods { get; } = new();
@@ -110,9 +156,25 @@ public partial class ModListViewModel : ObservableObject
                 query = query.Where(m => m.Name.Contains(SearchText, System.StringComparison.OrdinalIgnoreCase));
             if (SelectedCategory != "All")
                 query = query.Where(m => m.Category == SelectedCategory);
-            var ordered = SortByPriorityAscending
-                ? query.OrderBy(m => m.Priority)
-                : query.OrderByDescending(m => m.Priority);
+            // Priority always breaks ties, so mods sharing a name or category keep a stable,
+            // meaningful order instead of shuffling between rebuilds.
+            IOrderedEnumerable<Mod> ordered = SortColumn switch
+            {
+                ModSortColumn.Name => SortAscending
+                    ? query.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
+                    : query.OrderByDescending(m => m.Name, StringComparer.OrdinalIgnoreCase),
+
+                ModSortColumn.Category => SortAscending
+                    ? query.OrderBy(m => m.Category, StringComparer.OrdinalIgnoreCase)
+                    : query.OrderByDescending(m => m.Category, StringComparer.OrdinalIgnoreCase),
+
+                _ => SortAscending
+                    ? query.OrderBy(m => m.Priority)
+                    : query.OrderByDescending(m => m.Priority),
+            };
+
+            if (SortColumn != ModSortColumn.Priority)
+                ordered = ordered.ThenBy(m => m.Priority);
 
             foreach (var mod in ordered)
                 DisplayedMods.Add(mod);

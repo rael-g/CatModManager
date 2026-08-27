@@ -68,7 +68,7 @@ public class ModListReorderTests
         foreach (bool ascending in new[] { false, true })
         {
             var vm = WithMods("A", "B", "C");
-            vm.SortByPriorityAscending = ascending;
+            vm.SortAscending = ascending;
 
             var middle = vm.DisplayedMods[1];
             vm.SelectedMod = middle;
@@ -84,7 +84,7 @@ public class ModListReorderTests
         foreach (bool ascending in new[] { false, true })
         {
             var vm = WithMods("A", "B", "C");
-            vm.SortByPriorityAscending = ascending;
+            vm.SortAscending = ascending;
 
             var middle = vm.DisplayedMods[1];
             vm.SelectedMod = middle;
