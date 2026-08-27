@@ -365,8 +365,9 @@ public partial class MainWindow : Window
         });
         if (folders.Count >= 1)
         {
-            // Just update the path — don't scan (that would clear the current mod list).
-            // User can press Refresh to explicitly scan the new folder.
+            // Only the path changes here. Adopting the new folder's contents is Refresh's job, and
+            // it stays a separate deliberate step: it drops every mod whose folder no longer
+            // resolves, which after pointing somewhere else is potentially the whole list.
             vm.GameConfig.ModsFolderPath = folders[0].Path.LocalPath;
         }
     }

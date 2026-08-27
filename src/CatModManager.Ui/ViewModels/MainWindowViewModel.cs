@@ -236,7 +236,49 @@ public partial class MainWindowViewModel : ObservableObject
         catch { return false; }
     }
 
-    [RelayCommand] private Task Refresh() { ModList.RebuildDisplayedMods(); return Task.CompletedTask; }
+    /// <summary>
+    /// Re-reads the mods folder and reconciles it with the profile: picks up mods added by hand,
+    /// drops rows whose folder is gone, and leaves everything else exactly as the user arranged it.
+    /// This is also the only way to adopt a mods folder after changing it in the sidebar.
+    /// </summary>
+    [RelayCommand]
+    private async Task Refresh()
+    {
+        string? folder = GameConfig.ModsFolderPath;
+        if (string.IsNullOrWhiteSpace(folder) || !_fileService.DirectoryExists(folder))
+        {
+            // Bailing out rather than reconciling against nothing. An unreadable or unset folder
+            // scans as empty, which is indistinguishable from "every mod was deleted" — and acting
+            // on that would wipe the list over a typo in a path.
+            StatusMessage = "Mods folder is not set or does not exist — nothing to refresh.";
+            return;
+        }
+
+        var scanned = (await _modScanner.ScanDirectoryAsync(folder)).ToList();
+        var result  = ModFolderReconciler.Reconcile(ModList.AllMods.ToList(), scanned);
+
+        if (result.Added.Count == 0 && result.Removed.Count == 0)
+        {
+            StatusMessage = $"Up to date — {ModList.AllMods.Count} mods.";
+            return;
+        }
+
+        using (ModList.SuppressUpdates())
+        {
+            ModList.AllMods.Clear();
+            foreach (var mod in result.Mods)
+                ModList.AllMods.Add(mod);
+        }
+
+        ModList.UpdatePriorities();
+        ModList.UpdateCategories();
+        ModList.RebuildDisplayedMods();
+        RefreshModMountPointDisplayNames();
+        ProfileManager.AutoSave();
+
+        StatusMessage = $"Refreshed — {result.Added.Count} added, {result.Removed.Count} removed.";
+        _logService.Log($"Refresh: {result.Added.Count} added, {result.Removed.Count} removed from {folder}");
+    }
     [RelayCommand] private void ClearFocus() => RequestClearFocus?.Invoke();
     [RelayCommand] private void DeleteMountPoint(MountPointDef? mp) { if (mp != null) GameConfig.UserMountPoints.Remove(mp); }
     [RelayCommand] private void ExecuteSidebarAction(ISidebarAction? a) => a?.Execute();
