@@ -209,9 +209,21 @@ internal sealed class DragReorderAnimator
     private double LayoutTop(ListBoxItem container) =>
         container.Bounds.Y - (_list?.Scroll?.Offset.Y ?? 0);
 
-    private static ITransform Translate(double y) =>
-        TransformOperations.Parse(
-            string.Format(CultureInfo.InvariantCulture, "translateY({0}px)", y));
+    /// <summary>
+    /// Builds a vertical offset for <see cref="TransformOperations.Parse"/>.
+    ///
+    /// Fixed-point on purpose. The default double formatting switches to scientific notation for
+    /// very small magnitudes, and the offsets here are differences between two nearly equal
+    /// coordinates — a fast drag produces values like 1E-14 routinely. The parser has no notion of
+    /// an exponent and throws "Invalid unit: E-14px", which took the whole window down.
+    /// Sub-pixel precision is worthless for a translation anyway.
+    /// </summary>
+    internal static ITransform Translate(double y)
+    {
+        if (double.IsNaN(y) || double.IsInfinity(y)) y = 0;
+        return TransformOperations.Parse(
+            "translateY(" + y.ToString("0.###", CultureInfo.InvariantCulture) + "px)");
+    }
 
     private static Transitions SettleTransition() => new()
     {
