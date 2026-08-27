@@ -93,7 +93,10 @@
             <Setter Property="TextBlock.Foreground" Value="White"/>
         </Style>
 
-        <Style Selector="Button.mount-btn">
+        <!-- The secondary button look: outlined, never accent. Purely visual, so anything can wear
+             it. `mount-btn` stays a separate marker class carrying no style of its own — it says
+             *which* button this is, which is how the mount button is found by name elsewhere. -->
+        <Style Selector="Button.outline-btn">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
             <Setter Property="BorderThickness" Value="1"/>

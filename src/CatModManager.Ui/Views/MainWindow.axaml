@@ -326,7 +326,7 @@
                             <!-- Adding a mod has nothing to do with the selected one, so it lives
                                  here rather than in the inspector, which hides itself when nothing
                                  is selected. Outlined, not accent: LAUNCH stays the only accent. -->
-                            <Button Classes="mount-btn" VerticalAlignment="Center"
+                            <Button Classes="outline-btn" VerticalAlignment="Center"
                                     ToolTip.Tip="Install a mod from an archive or a folder">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <TextBlock Text="+" Foreground="{DynamicResource AccentColor}" VerticalAlignment="Center"/>
@@ -351,7 +351,7 @@
 
                             <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="4,8"/>
 
-                            <Button Command="{Binding Vfs.ToggleMountCommand}" Classes="mount-btn">
+                            <Button Command="{Binding Vfs.ToggleMountCommand}" Classes="outline-btn mount-btn">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Vfs.MountButtonIcon}" Foreground="{Binding Vfs.MountButtonColor}" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding Vfs.MountButtonText}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
