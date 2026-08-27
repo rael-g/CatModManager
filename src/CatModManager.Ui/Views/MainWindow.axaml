@@ -88,10 +88,11 @@
                 </Menu>
             </StackPanel>
 
-            <TextBlock Grid.Column="1" Text="THE SCHRÖDINGER CAT MOD MANAGER"
-                       FontSize="10" Foreground="{DynamicResource TextSubtle}" FontWeight="SemiBold"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Margin="0,0,140,0" IsHitTestVisible="False"/>
+            <!-- No app name here on purpose. ExtendClientAreaToDecorationsHint leaves the window
+                 title to the system, which draws it from Title — GNOME centres it right above this
+                 row, and Windows and KDE show it too. Printing it again gave two identical strings
+                 stacked on each other. The accent CMM to the left is the branding that remains. -->
+            <Panel Grid.Column="1"/>
         </Grid>
 
         <!-- 2. Main Layout (Sidebar + Content + Inspector) -->
@@ -214,6 +215,15 @@
                                             <Button Grid.Column="2" Click="SelectBaseFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
                                         </Grid>
                                     </StackPanel>
+                                    <!-- Set once per profile, so it belongs with the other per-profile
+                                         fields rather than taking 200px of the command bar forever. -->
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="LAUNCH ARGUMENTS" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                                        <TextBox Text="{Binding GameConfig.LaunchArguments}" Watermark="-windowed…" Classes="path-field">
+                                            <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                                        </TextBox>
+                                    </StackPanel>
+
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="APP DATA" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
@@ -358,12 +368,7 @@
                                           VerticalAlignment="Center"
                                           FontWeight="SemiBold"
                                           FontSize="12"
-                                          Margin="8,0,0,0"/>
-                                <Button Command="{Binding ProfileManager.NewProfileCommand}"
-                                        Content="+"
-                                        Classes="small-icon"
-                                        ToolTip.Tip="New Profile"
-                                        Margin="2,0,8,0"/>
+                                          Margin="8,0,8,0"/>
 
                                 <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
 
@@ -404,15 +409,6 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
-
-                            <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="4,8"/>
-
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="Args:" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource TextSubtle}" Margin="0,0,8,0"/>
-                                <TextBox Text="{Binding GameConfig.LaunchArguments}" Watermark="-windowed..." Classes="command-bar-input" Width="140">
-                                    <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                </TextBox>
-                            </StackPanel>
 
                             <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="4,8"/>
 

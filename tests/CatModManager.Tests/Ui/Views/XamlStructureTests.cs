@@ -114,9 +114,10 @@ public class XamlStructureTests
         Assert.NotNull(renameTextBox);
         Assert.True(HasEnterBinding(renameTextBox), "Rename TextBox should have Enter key binding.");
 
-        // Launch Args TextBox
+        // Launch Args TextBox. Found by what it is bound to, not by its watermark — the watermark is
+        // display text and rewording it should not fail a test about key bindings.
         var argsTextBox = doc.Descendants(av + "TextBox")
-            .FirstOrDefault(t => t.Attribute("Watermark")?.Value == "-windowed...");
+            .FirstOrDefault(t => t.Attribute("Text")?.Value.Contains("LaunchArguments") == true);
         Assert.NotNull(argsTextBox);
         Assert.True(HasEnterBinding(argsTextBox), "Launch Args TextBox should have Enter key binding.");
     }
