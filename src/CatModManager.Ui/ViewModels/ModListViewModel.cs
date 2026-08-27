@@ -31,6 +31,24 @@ public partial class ModListViewModel : ObservableObject
     /// </summary>
     [ObservableProperty] private bool _isReorderEnabled;
 
+    /// <summary>
+    /// Hides disabled mods. A filter, not a sort — it changes which rows exist on screen, so the
+    /// row you drag past may not be the row directly below in the real load order.
+    /// </summary>
+    [ObservableProperty] private bool _showOnlyEnabled;
+
+    partial void OnShowOnlyEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EnabledFilterIndicator));
+        RebuildDisplayedMods();
+    }
+
+    /// <summary>Marks the ✓ header while the list is filtered, so hidden rows are never a surprise.</summary>
+    public string EnabledFilterIndicator => ShowOnlyEnabled ? "•" : string.Empty;
+
+    [RelayCommand]
+    public void ToggleEnabledFilter() => ShowOnlyEnabled = !ShowOnlyEnabled;
+
     /// <summary>Which column the list is ordered by. Priority is the load order itself.</summary>
     [ObservableProperty] private ModSortColumn _sortColumn = ModSortColumn.Priority;
 
@@ -156,6 +174,8 @@ public partial class ModListViewModel : ObservableObject
                 query = query.Where(m => m.Name.Contains(SearchText, System.StringComparison.OrdinalIgnoreCase));
             if (SelectedCategory != "All")
                 query = query.Where(m => m.Category == SelectedCategory);
+            if (ShowOnlyEnabled)
+                query = query.Where(m => m.IsEnabled);
             // Priority always breaks ties, so mods sharing a name or category keep a stable,
             // meaningful order instead of shuffling between rebuilds.
             IOrderedEnumerable<Mod> ordered = SortColumn switch
