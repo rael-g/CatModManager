@@ -64,6 +64,28 @@ public partial class ModInstallationCoordinator : ObservableObject
         _onModInstalled = onModInstalled;
     }
 
+    /// <summary>
+    /// The name a mod gets from where it came from.
+    ///
+    /// Two things go wrong if this is just GetFileNameWithoutExtension. A folder picked on Linux
+    /// comes back with a trailing separator, and that function returns empty for "/mods/MyMod/" —
+    /// the mod installed with a blank name. And a folder is not a file: "Better Combat v1.2" has no
+    /// extension to strip, so stripping one leaves "Better Combat v1".
+    /// </summary>
+    internal static string DeriveModName(string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath)) return "Mod";
+
+        string trimmed = Path.TrimEndingDirectorySeparator(sourcePath.Trim());
+
+        string name = Directory.Exists(trimmed)
+            ? Path.GetFileName(trimmed)
+            : Path.GetFileNameWithoutExtension(trimmed);
+
+        // Nothing sensible left — a filesystem root, say. Better a placeholder than a blank row.
+        return string.IsNullOrWhiteSpace(name) ? "Mod" : name;
+    }
+
     public async Task InstallModAtMountPointAsync(string sourcePath, string? mountPointId)
     {
         var config = _gameConfigProvider();
@@ -79,7 +101,7 @@ public partial class ModInstallationCoordinator : ObservableObject
         var mountPoint = config.EffectiveMountPoints.FirstOrDefault(mp => mp.Id == mountPointId) 
                          ?? config.EffectiveMountPoints.FirstOrDefault();
         
-        string baseName = Path.GetFileNameWithoutExtension(sourcePath);
+        string baseName = DeriveModName(sourcePath);
         var existingMod = modList.AllMods.FirstOrDefault(m => 
             string.Equals(Path.GetFileName(m.ModRootPath), baseName, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(m.Name, baseName, StringComparison.OrdinalIgnoreCase));
