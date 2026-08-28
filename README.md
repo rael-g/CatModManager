@@ -2,87 +2,261 @@
 
 > *"Mods only exist when observed."*
 
-**Cat Mod Manager** is a mod management solution for Windows and Linux, built with **.NET 10** and **Avalonia UI**. Its core mechanic is a **Safe Swap** system that overlays mods onto your game directory only during gameplay, keeping the original files 100% untouched.
+A **universal** mod manager for Windows and Linux, built with **.NET 10** and **Avalonia UI**.
+
+CMM overlays your mods onto the game directory only while you play, and removes
+them cleanly when you stop. Your game installation is never modified.
 
 ---
 
-## The "Safe Swap" Concept
+## Why this exists
 
-Instead of physically copying or replacing game files, CMM uses a driver-level overlay:
+This project started with a broken game install.
 
-- **Windows** — NTFS hard links are created at mount time. The game reads mod files through the link; original files are backed up with a dot-prefix. Unmounting removes all links and restores originals. No third-party kernel driver required.
-- **Linux** — A read-only FUSE filesystem is mounted over the game directory. The game sees a merged view of base files and mod overrides. Unmounting cleanly detaches the mount and the original directory reappears untouched — but if CMM is killed or crashes while mounted, the kernel does *not* auto-restore access: it leaves a disconnected mount stub (`Transport endpoint is not connected`) until something runs `fusermount -u`/`-uz` on it. See [KANBAN.md](KANBAN.md) for the planned startup recovery for this case.
+Installing mods by hand into a game running under an emulator went wrong, there
+was no disk space for a backup, and the only way out was a full re-download. The
+obvious next step was to find a mod manager that handled emulated games — and
+there wasn't one.
 
-Both approaches leave no permanent changes to your game directory.
+That absence is not an oversight. It follows from the two approaches mod managers
+usually take.
+
+One builds a virtual filesystem by injecting code into the game process. It gives
+excellent isolation, but it has to be taught about each executable it hooks, so
+every new title is an engineering task and support arrives some time after
+release. An emulated game is out of reach entirely: the process is the
+*emulator*, and hooking it does not give you the filesystem the emulated game
+sees.
+
+The other simply copies mod files into the game folder and leaves them there.
+Nothing to teach, and it works anywhere — but there is no isolation. What's
+installed is installed, and undoing it is your problem.
+
+CMM takes a third position. It mounts a directory and gets out of the way.
+It does not know, and does not need to know, what is going to read those files —
+a native game, a Proton prefix, or an emulator are all the same to it.
+
+**The practical consequence: supporting a new game costs nothing.** You point CMM
+at a folder and it works on release day, without waiting for anyone to ship an
+update.
+
+---
+
+## The "Safe Swap"
+
+Two backends, one guarantee: **the original installation is never written to.**
+
+| | Mechanism | Notes |
+|---|---|---|
+| **Linux** | Read-only **FUSE** filesystem mounted over the target directory | The game sees a merged view of base files and mod overrides. Nothing is copied. |
+| **Windows** | **NTFS hard links** created at mount time | Originals are set aside with a dot-prefix and restored on unmount. No kernel driver, no admin rights. |
+
+Both are *sessions*, not deployments. They have a beginning and an end, and the
+end returns the game to exactly where it started.
+
+---
+
+## Multiple mount points
+
+A game is rarely one folder. Mods land in the `Data` directory, script extenders
+and ENB land in the game *root*, and configuration and saves live somewhere under
+your user profile entirely.
+
+CMM treats this as the normal case. A profile can have any number of mount
+points, each pointing at a relative path (resolved against the game folder), an
+absolute path, or the game root itself.
+
+**Mount points are added in the app, at any time, to any profile.** They are not
+a property of a supported game — they are yours. Nothing needs to be declared in
+advance, no file has to exist, and you do not have to wait for a game to be
+"supported" before you can put mods somewhere unusual. Add a mount point for a
+config folder in `AppData`, for a second data directory an emulator reads from,
+for anything at all — and remove it when you're done.
+
+A game definition can pre-fill a few of them so you don't have to type the
+obvious ones. That is the only thing it does here.
+
+This is what makes script extenders, ENB, and similar root-level components
+ordinary. Their files have to sit next to the game executable, outside the `Data`
+folder — which is why they are so often the one thing you're told to copy in by
+hand, mod manager or not. Here the game root is just another mount point:
+
+```toml
+[[MountPoints]]
+Id   = "data"
+Name = "Data"
+Path = "Data"          # relative → <game folder>/Data
+
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""              # empty → the game folder itself
+```
+
+Root-level components install like any other mod — managed, profile-aware, and
+removed cleanly on unmount.
+
+---
+
+## Community-maintainable game support
+
+CMM is designed so that **the core and the game support are separate concerns**,
+maintained by different people.
+
+### Nothing is required
+
+You do not need a definition file to play. Select the game folder and the
+executable, and CMM has what it needs. Everything below is convenience.
+
+### Game definitions are plain TOML
+
+A definition is a text file. No code, no compilation, no pull request to this
+repository. Drop it into your `game_definitions` folder and it is picked up.
+
+```toml
+GameId      = "skyrimspecialedition"
+DisplayName = "The Elder Scrolls V: Skyrim Special Edition"
+
+NexusDomain = "skyrimspecialedition"
+SteamAppId  = 489830
+
+# Used to recognise the folder during auto-detection.
+RequiredFiles = ["SkyrimSE.exe", "Data"]
+
+[[MountPoints]]
+Id   = "data"
+Name = "Data"
+Path = "Data"
+
+[[MountPoints]]
+Id   = "root"
+Name = "Game Root"
+Path = ""
+
+SaveFolderPattern = "%USERPROFILE%\\Documents\\My Games\\Skyrim Special Edition\\Saves"
+```
+
+Paths may be relative, absolute, or contain environment variables. Mount points
+that come from the file are marked as game-defined and shown read-only, so a
+definition can't be silently broken — but you can add as many of your own
+alongside them as you like.
+
+Over twenty definitions ship in [`samples/game_definitions/`](samples/game_definitions/)
+— Skyrim, Elden Ring, Baldur's Gate 3, Cyberpunk 2077, the RE Engine catalogue,
+Armored Core VI, Dragon's Dogma 2, and others.
+
+### Plugins handle the rest
+
+When a game needs behaviour rather than configuration, that goes in a plugin
+against `CatModManager.PluginSdk`. Plugins are loaded at runtime from the
+`plugins/` directory next to the executable — installing one is copying a DLL.
+
+This split is deliberate. **If development of the core stops, game support does
+not have to.** A new release can be covered by a TOML file written in five
+minutes, and a genuinely unusual game by a plugin that never touches this
+codebase.
 
 ---
 
 ## Features
 
-- **Profile Management** — Multiple mod configurations per game, switch with one click.
-- **Priority-based Mod Loading** — Drag-and-drop reordering. Higher priority mods win conflicts.
-- **FOMOD Installer** — Native FOMOD XML wizard support.
-- **External Tools** — Register and launch tools (Bodyslide, Nemesis, LOOT, etc.) directly from CMM, with optional VFS auto-mount before launch.
-- **Nexus Mods Integration** (plugin)
-  - NXM link handler (`nxm://`) for one-click mod manager downloads.
-  - In-app mod browser with full-text search.
-  - Nexus Collections — paste a collection URL to queue all required mods for download.
-  - Per-profile download history.
-- **RE Engine / Capcom Games** — Automatic `.pak` mod detection and launcher integration.
-- **Bethesda Games** — Plugin list management for Skyrim, Fallout, etc.
-- **Game Auto-Detection** — Scans Steam, GOG, and Epic libraries.
-- **Crash Recovery** — Hard link state persisted in SQLite; stale mounts cleaned up on next launch.
+**Core**
+
+- **Profiles** — multiple mod configurations per game, switched with one click.
+- **Priority-based conflict resolution** — drag-and-drop ordering; higher priority wins.
+- **Multiple mount points** — any number, per profile, relative or absolute, added and removed at any time from the app.
+- **Game auto-detection** — scans Steam, GOG, and Epic libraries.
+- **Crash recovery** — hard-link state persisted in SQLite; stale mounts cleaned on next launch.
+- **External tools** — register BodySlide, Nemesis, LOOT, xEdit and friends, and launch them from CMM with the VFS mounted first, so they see the same merged view the game will.
+- **Launch integration** — launch the game directly, or through a platform: put `steam` in the executable field and `-applaunch <appid>` in the arguments to keep the overlay and achievements working.
+
+**Bundled plugins**
+
+| Plugin | What it does |
+|---|---|
+| `CmmPlugin.NexusMods` | `nxm://` one-click download handler, in-app mod browser with search, Nexus Collections (paste a URL to queue every required mod), per-profile download history |
+| `CmmPlugin.FomodInstaller` | Native FOMOD XML installer wizard |
+| `CmmPlugin.REEngine` | RE Engine / Capcom `.pak` detection and launcher integration |
+| `CmmPlugin.BethesdaTools` | Plugin list (`plugins.txt`) management for Skyrim, Fallout, Starfield |
+| `CmmPlugin.SaveManager` | Save backup (scaffold) |
 
 ---
 
-## Getting Started
+## Installation
 
-### Prerequisites
+### Requirements
 
-- .NET 10.0 SDK
-- **Linux only:** `libfuse2` (or `fuse2` on Arch), `fuse3`, `xdg-utils`, `desktop-file-utils` — see [deploy/linux/DEPENDENCIES.md](deploy/linux/DEPENDENCIES.md) for exact package names and what each one is for.
+- **.NET 10.0** runtime (SDK if building from source)
+- **Linux:** `fuse2`/`libfuse2`, `fuse3`, `xdg-utils`, `desktop-file-utils` —
+  exact package names per distribution are in
+  [deploy/linux/DEPENDENCIES.md](deploy/linux/DEPENDENCIES.md)
+- **Windows:** an **NTFS** volume for the game (hard links are an NTFS feature).
+  No administrator rights needed.
 
-### Build and Run
+### From source
 
 ```bash
-# Build
+git clone <repo-url> CatModManager
+cd CatModManager
+
 dotnet build CatModManager.slnx
-
-# Run
 dotnet run --project src/CatModManager.Ui/CatModManager.Ui.csproj
-
-# Test
-dotnet test CatModManager.slnx
-
-# Single test class
-dotnet test CatModManager.slnx --filter "FullyQualifiedName~SimpleConflictResolverTests"
 ```
+
+### Linux — install to the desktop
+
+```bash
+./deploy/linux/dev-host-install.sh     # installs .desktop entry + nxm:// handler
+./deploy/linux/dev-host-uninstall.sh   # removes it
+```
+
+### Windows — installer
+
+An Inno Setup script is provided at [deploy/windows/CatModManager.iss](deploy/windows/CatModManager.iss).
+
+---
+
+## Usage
+
+1. **Add a game.** CMM scans your Steam, GOG, and Epic libraries on first run.
+   If yours isn't found, point it at the folder yourself.
+2. **Check the mount points.** A shipped definition configures them for you.
+   Otherwise add them — usually `Data` and the root, or just the root.
+3. **Install mods.** Drag archives in, or let the `nxm://` handler catch
+   downloads from Nexus. FOMOD installers open their wizard automatically.
+4. **Order them.** Drag to set priority. Later wins conflicts.
+5. **Mount and play.** Press LAUNCH — CMM mounts, starts the game, and unmounts
+   once it exits. Or mount by hand and leave it, if you'd rather.
+
+Anything CMM mounted for you, CMM unmounts. A mount you made by hand is yours and
+stays.
 
 ---
 
 ## Architecture
 
 ```
-CatModManager.Core          ← Business logic (models, services, VFS orchestration)
-CatModManager.VirtualFileSystem ← Platform drivers (HardlinkDriver / FuseDriver)
-CatModManager.PluginSdk     ← Public plugin API
-CatModManager.Ui            ← Avalonia MVVM shell
-src/plugins/
-  CmmPlugin.NexusMods       ← Nexus Mods integration
-  CmmPlugin.FomodInstaller  ← FOMOD XML wizard
-  CmmPlugin.REEngine        ← RE Engine / Capcom games
-  CmmPlugin.BethesdaTools   ← Bethesda plugin list
-  CmmPlugin.SaveManager     ← Save backup (scaffold)
+CatModManager.Core               ← models, services, VFS orchestration
+CatModManager.VirtualFileSystem  ← platform drivers (FuseDriver / HardlinkDriver)
+CatModManager.PluginSdk          ← the public plugin API
+CatModManager.Ui                 ← Avalonia MVVM shell
+src/plugins/                     ← the bundled plugins listed above
 ```
 
-Dependency flow: `Ui` → `Core` ← `VirtualFileSystem`
-Plugins depend only on `PluginSdk`; they are loaded at runtime from the `plugins/` output directory.
+Dependencies flow `Ui → Core ← VirtualFileSystem`. Plugins depend on
+`PluginSdk` alone, which is why they can be built and shipped independently of
+this repository.
+
+```bash
+dotnet test CatModManager.slnx
+dotnet test CatModManager.slnx --filter "FullyQualifiedName~SimpleConflictResolverTests"
+```
 
 ---
 
-## Plugin Development
+## Writing a plugin
 
-Implement `ICmmPlugin` from `CatModManager.PluginSdk`:
+Implement `ICmmPlugin`:
 
 ```csharp
 public class MyPlugin : ICmmPlugin
@@ -100,4 +274,16 @@ public class MyPlugin : ICmmPlugin
 }
 ```
 
-Build your plugin as a class library referencing `CatModManager.PluginSdk.dll`. Drop the output DLL into the `plugins/` folder next to `CatModManager.dll`.
+Build as a class library referencing `CatModManager.PluginSdk.dll` and drop the
+output into `plugins/`, next to `CatModManager.dll`.
+
+---
+
+## Status
+
+Version 0.1.0 — early, and under active development. Expect rough edges, and
+please report the ones you hit.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
