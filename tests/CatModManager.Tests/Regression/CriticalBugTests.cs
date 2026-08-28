@@ -21,7 +21,7 @@ public class CriticalBugTests : IDisposable
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "CMM_Critical_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
-        _logService = new LogService();
+        _logService = new LogService("");
         _pathService = new MockPathService { BaseDataPath = _tempDir };
     }
 

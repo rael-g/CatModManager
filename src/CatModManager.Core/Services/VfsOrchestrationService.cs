@@ -125,6 +125,11 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         }
         catch (Exception ex)
         {
+            // Logged, not just returned. The failure used to reach the status bar and nowhere else,
+            // so the one message that explained why a mount failed was gone the moment the app
+            // closed — and the stack trace, which says *where* it failed, was never recorded at all.
+            _logService.LogError("Mount failed", ex);
+
             _lastGameFolderPath = null;
             await UnmountAllAsync();
             return OperationResult.Failure($"MOUNT ERROR: {ex.Message}", ex);
@@ -150,6 +155,7 @@ public class VfsOrchestrationService : IVfsOrchestrationService
         }
         catch (Exception ex)
         {
+            _logService.LogError("Unmount failed", ex);
             return OperationResult.Failure($"UNMOUNT ERROR: {ex.Message}", ex);
         }
     }

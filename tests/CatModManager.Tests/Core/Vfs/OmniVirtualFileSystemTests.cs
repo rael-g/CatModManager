@@ -24,7 +24,7 @@ public class OmniVirtualFileSystemTests : IDisposable
         _baseFolder = Path.Combine(_tempDir, "Base");
         Directory.CreateDirectory(_mountPoint);
         Directory.CreateDirectory(_baseFolder);
-        _logService = new LogService();
+        _logService = new LogService("");
     }
 
     [Fact]

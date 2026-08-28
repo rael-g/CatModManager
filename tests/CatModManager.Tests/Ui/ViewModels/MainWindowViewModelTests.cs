@@ -36,7 +36,7 @@ public class MainWindowViewModelTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), "CMM_VmFinal_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
         
-        _logService = new LogService();
+        _logService = new LogService("");
         
         string appData = Path.Combine(_tempDir, "AppData");
         Directory.CreateDirectory(appData);

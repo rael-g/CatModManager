@@ -19,7 +19,7 @@ public class SimpleConflictResolverTests : IDisposable
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "ResolverTests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
-        _logService = new LogService();
+        _logService = new LogService("");
         _extractor = new SevenZipArchiveExtractor();
     }
 
