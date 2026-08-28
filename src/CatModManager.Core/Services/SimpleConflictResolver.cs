@@ -30,6 +30,12 @@ public class SimpleConflictResolver : IConflictResolver
     {
         var finalMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
 
+        // Where the overlay will land. Files under it get a descriptor held open, because after the
+        // mount their path resolves back through the overlay; files outside it can be re-opened
+        // normally. Mods usually live outside — but nothing stops one sitting inside, so this is
+        // decided per path rather than per scan.
+        string? shadowRoot = null;
+
         // 1. Map physical game files first (lowest priority)
         if (!string.IsNullOrEmpty(baseFolderPath) && Directory.Exists(baseFolderPath))
         {
@@ -37,8 +43,11 @@ public class SimpleConflictResolver : IConflictResolver
 
             if (Directory.Exists(scanRoot))
             {
-                ScanRecursive(scanRoot, scanRoot, finalMap, p => p, forbiddenPath);
+                // Everything here sits under the directory about to be mounted over.
+                ScanRecursive(scanRoot, scanRoot, finalMap, p => p, forbiddenPath, pinHandles: true);
             }
+
+            shadowRoot = scanRoot;
         }
 
         // 2. Overlay enabled mods (sorted by priority ASC, so higher priority overwrites)
@@ -67,7 +76,8 @@ public class SimpleConflictResolver : IConflictResolver
             }
             else if (Directory.Exists(mod.ModRootPath))
             {
-                ScanRecursive(mod.ModRootPath, mod.ModRootPath, finalMap, p => p, null);
+                ScanRecursive(mod.ModRootPath, mod.ModRootPath, finalMap, p => p, null,
+                              pinHandles: IsUnder(mod.ModRootPath, shadowRoot));
             }
         }
 
@@ -80,12 +90,36 @@ public class SimpleConflictResolver : IConflictResolver
         return Array.Empty<ConflictReport>();
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> sits inside <paramref name="root"/> — i.e. whether a mount
+    /// over <paramref name="root"/> will shadow it. Linux paths are case-sensitive; Windows are not.
+    /// </summary>
+    internal static bool IsUnder(string? path, string? root)
+    {
+        if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(root)) return false;
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        try
+        {
+            string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+            string under = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+
+            return full.Equals(under, comparison)
+                || full.StartsWith(under + Path.DirectorySeparatorChar, comparison);
+        }
+        catch { return false; }
+    }
+
     private void ScanRecursive(
         string currentDir, 
         string rootDir, 
         IDictionary<string, IFileSource> map, 
         Func<string, string> pathTransform,
-        string? forbiddenPath)
+        string? forbiddenPath,
+        bool pinHandles = false)
     {
         try
         {
@@ -96,7 +130,7 @@ public class SimpleConflictResolver : IConflictResolver
 
                 if (Directory.Exists(entry))
                 {
-                    ScanRecursive(entry, rootDir, map, pathTransform, forbiddenPath);
+                    ScanRecursive(entry, rootDir, map, pathTransform, forbiddenPath, pinHandles);
                 }
                 else
                 {
@@ -104,7 +138,15 @@ public class SimpleConflictResolver : IConflictResolver
                     string targetKey = pathTransform(relPath).Replace('/', '\\').Trim('\\');
 
                     if (!string.IsNullOrEmpty(targetKey))
-                        map[targetKey] = new PhysicalFileSource(entry);
+                    {
+                        // Per entry, so one unreadable file costs one file — the whole scan used to
+                        // stop at the first one, because the catch below wraps the enumeration.
+                        try { map[targetKey] = new PhysicalFileSource(entry, pinHandles); }
+                        catch (Exception ex)
+                        {
+                            _logService.LogError($"ConflictResolver: skipping unreadable file '{entry}'", ex);
+                        }
+                    }
                 }
             }
         }

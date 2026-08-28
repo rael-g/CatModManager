@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Microsoft.Win32.SafeHandles;
 
 namespace CatModManager.Core.Services;
 
@@ -10,14 +11,33 @@ public interface IFileSource
     Stream OpenRead();
 }
 
-public class PhysicalFileSource : IFileSource
+public class PhysicalFileSource : IFileSource, IDisposable
 {
     public string FilePath { get; }
     public long Length { get; }
     public DateTime LastWriteTime { get; }
-    private readonly byte[] _data;
 
-    public PhysicalFileSource(string filePath)
+    /// <summary>
+    /// An open descriptor kept for files that a later FUSE mount will shadow, or null when the
+    /// file can simply be re-opened by path.
+    /// </summary>
+    private readonly SafeFileHandle? _pinned;
+
+    /// <param name="pinHandle">
+    /// True when this file lives under the directory the VFS is about to mount over.
+    ///
+    /// Once the overlay is up, that path resolves back through the mount, so a FUSE handler
+    /// re-opening it by path blocks waiting for a handler thread to serve its own nested open() —
+    /// the whole filesystem deadlocks. Holding a descriptor opened *before* the mount sidesteps
+    /// that: the inode is already resolved and reads never consult the path again.
+    ///
+    /// This used to be solved by reading every file into memory in this constructor. That is what
+    /// made mounting take a minute and hold gigabytes: a 2 GB mod list was 2 GB read off disk and
+    /// held in RAM on every mount, and Starfield's own .ba2 files — over the 2 GB
+    /// <see cref="File.ReadAllBytes"/> ceiling — threw, which the resolver's catch swallowed along
+    /// with the rest of that directory's scan. A descriptor costs nothing and has neither limit.
+    /// </param>
+    public PhysicalFileSource(string filePath, bool pinHandle = false)
     {
         // Use the long path prefix to bypass Windows 260-character limit
         if (OperatingSystem.IsWindows())
@@ -29,14 +49,74 @@ public class PhysicalFileSource : IFileSource
         Length = info.Length;
         LastWriteTime = info.LastWriteTime;
 
-        // Read fully into memory now, before this path can be shadowed by a later
-        // FUSE mount. On Linux, unmodified base-game files are scanned from the very
-        // directory the VFS then mounts over — a lazy re-open by path at FUSE-read
-        // time would route back through that same mount, deadlocking (the handler
-        // thread blocks waiting for a free handler thread to serve its own nested
-        // open() call). Reading eagerly avoids ever touching the path again.
-        _data = File.ReadAllBytes(FilePath);
+        if (pinHandle)
+        {
+            // A game folder with more files than the process may hold descriptors would otherwise
+            // fail the whole mount. Re-opening by path is only wrong under FUSE, and a hard-link
+            // deployment never reads through this at all, so degrading is better than refusing.
+            try { _pinned = File.OpenHandle(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite); }
+            catch { _pinned = null; }
+        }
     }
 
-    public Stream OpenRead() => new MemoryStream(_data, writable: false);
+    public Stream OpenRead() => _pinned != null
+        ? new PinnedHandleStream(_pinned, Length)
+        : new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+    public void Dispose() => _pinned?.Dispose();
+
+    /// <summary>
+    /// A read-only view over a shared descriptor, with its own position. FUSE serves reads from
+    /// several threads at once, so seeking a shared <see cref="FileStream"/> is not an option.
+    /// </summary>
+    private sealed class PinnedHandleStream : Stream
+    {
+        private readonly SafeFileHandle _handle;
+        private long _position;
+
+        public PinnedHandleStream(SafeFileHandle handle, long length)
+        {
+            _handle = handle;
+            Length = length;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => true;
+        public override bool CanWrite => false;
+        public override long Length { get; }
+
+        public override long Position
+        {
+            get => _position;
+            set => _position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            int read = RandomAccess.Read(_handle, buffer, _position);
+            _position += read;
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            _position = origin switch
+            {
+                SeekOrigin.Begin   => offset,
+                SeekOrigin.Current => _position + offset,
+                _                  => Length + offset,
+            };
+            return _position;
+        }
+
+        public override void Flush() { }
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        // The descriptor belongs to the source, which outlives every stream handed out over it.
+        protected override void Dispose(bool disposing) { }
+    }
 }
