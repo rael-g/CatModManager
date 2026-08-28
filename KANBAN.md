@@ -4,6 +4,24 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## To Do
 
+- **102 linhas de lixo em `active_mounts` no `cmm.db` do usuário.** Restos de quando os testes
+  rodavam contra o banco real (já corrigido). Apontam pra `/tmp/<guid>` inexistente, então são
+  inertes, mas precisam de limpeza com confirmação explícita. `hardlink_entries` pode conter uma
+  montagem **ativa** e não deve ser tocado junto.
+
+- **Aba Ferramentas não expõe `Arguments` nem `MountBeforeLaunch`.** Os dois existem em
+  `ExternalTool`, são persistidos no perfil e são usados em `ExternalToolsViewModel.LaunchTool`, mas
+  não há campo na UI pra editá-los — só dá pra ligar mexendo no TOML do perfil na mão. O README já
+  promete "with optional VFS auto-mount before launch", o que hoje é verdade só no código. Ou expor
+  os dois campos, ou tirar a promessa do README.
+
+- **Preservar downloads Nexus ao trocar de perfil.** Trocar de perfil no meio de um download do
+  Nexus pode cancelar/perder o progresso. Em `src/plugins/CmmPlugin.NexusMods/NexusModsPlugin.cs`,
+  `LoadDownloadsForProfile()` troca toda a coleção `Downloads` pelo conjunto do novo perfil (via
+  `NexusDownloadService.LoadDownloads`), sem tratar entradas com `IsActive == true`. Precisa manter
+  downloads ativos vivos até terminarem (globais, não amarrados a perfil) ou migrá-los pro histórico
+  do novo perfil sem interromper a stream HTTP. Adicionar teste de regressão.
+
 - **[GRAVE] Sem recuperação de mount FUSE órfão após crash no Linux.** Se o processo do CMM morre
   (crash, `kill`, etc.) enquanto um mount FUSE está ativo, o kernel mantém a entrada de mount
   registrada mas **desconectada** ("Transport endpoint is not connected" ao acessar) — a pasta do
@@ -16,12 +34,122 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   `/proc/mounts` por entradas `fuse.CatModManager` que apontem pra pastas de jogos conhecidos e, se
   encontradas, tentar `fusermount -uz` nelas antes de abrir a UI.
 
-- **Preservar downloads Nexus ao trocar de perfil.** Trocar de perfil no meio de um download do
-  Nexus pode cancelar/perder o progresso. Em `src/plugins/CmmPlugin.NexusMods/NexusModsPlugin.cs`,
-  `LoadDownloadsForProfile()` troca toda a coleção `Downloads` pelo conjunto do novo perfil (via
-  `NexusDownloadService.LoadDownloads`), sem tratar entradas com `IsActive == true`. Precisa manter
-  downloads ativos vivos até terminarem (globais, não amarrados a perfil) ou migrá-los pro histórico
-  do novo perfil sem interromper a stream HTTP. Adicionar teste de regressão.
+- **Launch via plataforma (Steam primeiro), por configuração e não por arquitetura.** Hoje o Launch
+  só sabe abrir um `.exe`. No Linux quase todo jogo roda por Proton, então abrir o exe direto não
+  serve — mas o Launch não é inútil lá: basta apontar o executável pra própria Steam e passar
+  `-applaunch <appid>` nos args.
+
+  *Verificado (27/08/2026):* `Process.Start` com `UseShellExecute = true` e um nome puro (sem barra)
+  resolve pelo PATH no Linux — testado com `echo`. É exatamente o que `ProcessService.cs:31` já faz,
+  então o lançamento em si não precisa de mudança nenhuma.
+
+  *Descartado:* injetar as opções de inicialização da Steam em `localconfig.vdf`. É texto puro e o
+  caminho existe (`UserLocalConfigStore/Software/Valve/Steam/apps/<appid>/LaunchOptions`), mas a
+  Steam mantém o arquivo em memória e o reescreve ao sair — qualquer edição com ela aberta é
+  perdida, e "com a Steam aberta" é justamente quando alguém aperta Launch. Além de ser o config do
+  usuário, com controles e cloud dentro. `-applaunch` passa argumentos sem tocar nele.
+
+  *Descartado também:* uma abstração `IGameLauncher` com registro de launchers, detecção por loja
+  (ler `appmanifest_*.acf`, manifests do Heroic/Epic, `pga.db` do Lutris) e um `LaunchMode` gravado
+  no perfil. Funciona, mas custa uma semana, cada loja nova é mais código, e é *mais opaca* pro
+  usuário do que ver o comando literal num campo de texto. Só vale se um dia precisarmos de algo que
+  dois campos de texto não expressem.
+
+  Plano, nesta ordem:
+  1. Tirar o `IsReadOnly="True"` do campo de executável (`MainWindow.axaml:201`) — é o único motivo
+     de hoje não dar pra digitar `steam` ali. O file picker continua, como atalho.
+  2. Botão "Configurar pra Steam": preenche executável e args a partir do `SteamAppId` que a
+     definição do jogo já tem. No Linux escreve `steam`; no Windows, o caminho do `Steam.exe` lido do
+     registro (`HKCU\Software\Valve\Steam\SteamExe`), porque lá a Steam não fica no PATH. Quem
+     conhece a diferença de plataforma é o botão; o campo continua sendo texto puro.
+  3. `OnGameExecutablePathChanged` chama `DetectSupport(value)` (`GameConfigViewModel.cs:127`), que
+     com `steam` no campo não detecta nada. Passar a detectar pela pasta base, que é a informação
+     certa de qualquer forma.
+  4. `WaitForGameDirectoryProcesses` (`ProcessService.cs:52`) deriva a pasta do jogo do caminho do
+     executável; com `steam` vira o diretório de trabalho e ela gasta 30s achando nada, fazendo os
+     hooks de pós-saída dispararem cedo. Ancorar na pasta do jogo, que o perfil já tem. Vale pra
+     qualquer launcher — `-applaunch` faz o processo lançado ser a Steam, nunca o jogo.
+
+  Heroic e Lutris depois: mais botões preenchendo o mesmo par de campos, sem arquitetura nova.
+
+- **Args de lançamento são recurso de emulador, não de jogo.** `IGameSupport.GetLaunchArguments`
+  existe e a única implementação (`CustomGameSupport.cs:74`) retorna `""` — nunca foi usado. A
+  intenção original era abrir um jogo específico via emulador. Jogo de loja não recebe args, e com
+  o Launch via Steam o campo passa a carregar `-applaunch <id>`. Decidir se o campo vira exclusivo
+  de definições que o pedem (escondido nas demais) ou se continua genérico.
+
+- **Enxugar a UI agora que existe o menu dropdown.** Antes do menu, cada comando novo era enfiado
+  onde coubesse. Com o menu na barra de título, dá pra decidir o que *merece* estar visível.
+
+  Critério proposto: a barra e a sidebar carregam só o que se usa **várias vezes por sessão**;
+  o que é de configuração inicial ou uso raro fica só no menu. Duplicar não é errado por si — MOUNT
+  e LAUNCH são os dois verbos principais e devem estar nos dois lugares — mas o resto está duplicado
+  por acidente, não por escolha.
+
+  Duplicatas que dá pra remover da tela (o menu já cobre):
+  - Botão `⊕ AUTO DETECT` na sidebar = `Game ▸ Auto Detect Game…`.
+  - Botão `BROWSE PLUGINS` no rodapé da sidebar = `Tools ▸ Browse Plugins…`.
+  - Botão `✕` de apagar perfil na sidebar = `Profile ▸ Delete Profile`. Ainda por cima é destrutivo e
+    fica encostado no campo de renomear.
+  - `OPEN FOLDER` / `REMOVE MOD` na aba INFO do inspetor = `Mod ▸ …` **e** o menu de contexto da
+    linha. Três cópias da mesma ação; o menu de contexto é o lugar natural.
+
+  Repetição de código no XAML (819 linhas num arquivo só):
+  - O padrão "rótulo + TextBox + ↗ + …" aparece **10 vezes** na sidebar, copiado e colado. Vira um
+    `UserControl` com rótulo, caminho e visibilidade dos botões como propriedades.
+  - O padrão "botão outline com ícone + rótulo em caixa alta" aparece 6 vezes escrevendo
+    `Background`/`BorderBrush`/`BorderThickness` inline, **apesar de a classe `outline-btn` já
+    existir** justamente pra isso.
+  - Os dois `ItemsControl` de mount points (predefinidos vs. do usuário) têm templates quase
+    idênticos. Já foi notado quando corrigimos o handler errado de um deles; a duplicação ficou.
+  - `MainWindow.axaml` (819 linhas) devia virar sidebar / lista de mods / inspetor em `UserControl`s
+    separados, com `MainWindow.axaml.cs` (545 linhas de handlers) indo junto.
+
+  Inconsistência visual pendente: linha da lista com `Height="44"` fixo (`MainWindow.axaml:555`)
+  contra `MinHeight="34"` usado em outros lugares.
+
+  Nos testes a mesma coisa: `MockFileService`, `MockProcessService`, `MockGameSupportService` e
+  `MockPathService`/`MockCatPathService` estão reescritos como classes aninhadas privadas em 4
+  arquivos diferentes. Cada mudança de interface
+  obriga a corrigir todas as cópias (aconteceu duas vezes só nesta sessão). Deviam estar em
+  `tests/CatModManager.Tests/Support/`, onde `StubFileService`, `MockLogService` e agora
+  `TempPathService` já vivem. O caso do path service não é só repetição: uma das quatro cópias era
+  o serviço real, e escrevia no banco do usuário (ver item acima).
+
+- **No Linux sob Proton, o CMM não consegue enxergar o processo do jogo.** Testado com Metaphor:
+  ReFantazio (appid 2679460) em 27/08/2026, aberto por `steam -applaunch`. O botão LAUNCH ficou
+  desabilitado ~30s, voltou ao normal com o jogo aberto, e ao fechar o jogo nada desmontou.
+
+  O comportamento está *correto* conforme decidido (sem confirmação de execução, não desmonta) — o
+  que falhou foi a detecção. `WaitForGameDirectoryProcesses` compara `process.MainModule.FileName`
+  (`IProcessRunner.cs:34`) com a pasta do jogo. No Linux isso é o alvo de `/proc/pid/exe`, e sob
+  Proton o processo é o wine do Proton, em `steamapps/common/Proton - Experimental/` — não a pasta
+  do jogo. O caminho do `.exe` só aparece em `/proc/pid/cmdline`.
+
+  *Não é limitação do modo Steam:* qualquer caminho que passe por Proton se comporta assim. No
+  Windows, abrindo o exe direto, o processo **é** o exe dentro da pasta do jogo e o ciclo fecha.
+
+  Ainda **não verificado empiricamente** — é dedução a partir do código, não leitura de `/proc`.
+  Confirmar em 10s com o jogo aberto: `ls -l /proc/<pid>/exe` contra `cat /proc/<pid>/cmdline`.
+
+  Fix provável: no Linux, casar também contra `cmdline`, não só contra a imagem do processo.
+  Adiado por decisão do usuário — o auto-unmount funcionando no Windows já é suficiente por ora.
+
+- **LAUNCH fica desabilitado só durante a espera, não durante o jogo.** Efeito colateral do item
+  acima: o botão cinza por 30s e depois azul de novo com o jogo aberto passa a informação errada.
+  Se a detecção passar a funcionar, ele fica cinza a sessão inteira — que é o certo. Reavaliar junto.
+
+- **A janela de espera do jogo é de 30s e pode ser curta demais.** `ProcessService` desiste depois de
+  30s sem ver processo na pasta do jogo. Uma primeira abertura via Proton (shaders, update, primeira
+  execução do prefixo) passa disso. A consequência hoje é conservadora — o launch reporta que não
+  conseguiu confirmar e **deixa montado** — então nada quebra, mas o auto-unmount simplesmente não
+  acontece nesses casos. Medir quanto tempo o Starfield leva de verdade e ajustar, ou trocar o
+  polling por algo baseado em evento.
+
+- **SaveManager nunca foi validado de ponta a ponta no Linux.** A resolução da pasta de saves
+  dentro do prefixo Wine foi corrigida e testada, mas backup e restore de verdade nunca rodaram lá.
+  Falta confirmar que `SaveBackupService` grava e restaura corretamente, e o que acontece com um
+  restore enquanto o jogo está aberto.
 
 - **Scanner de GOG pro Linux.** `GogScanner` (`src/CatModManager.Core/Services/GameDiscovery/`) lê o
   registro do Windows e o GOG Galaxy não tem cliente Linux, então lá ele sempre retorna vazio. Jogos
@@ -91,6 +219,17 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   diagnóstico (nenhum log/stack trace coletado ainda). Investigar se é timeout de HTTP, limite de
   memória/buffer no `NexusDownloadService`, ou algo específico de arquivos grandes na escrita em disco.
 
+- **`CmmPlugin.REEngine` ancora no executável configurado, que nem sempre é o jogo.** Usa
+  `ReEngineDetector.Detect(_state.GameExecutablePath)` sem a pasta de instalação. Um perfil que
+  lança por wrapper (`distrobox-enter`, script, `steam -applaunch`) não é detectado. Mesmo ponto
+  cego já corrigido em `BethesdaDetector`, `GamePathResolver` e `SaveDetector`.
+
+- **`GamePathResolver` do BethesdaTools duplica a descoberta de prefixo Wine.** A lógica agora
+  existe em `CatModManager.PluginSdk/WindowsUserFolders.cs`, escrita pro SaveManager e mais completa
+  (mapeia `%APPDATA%`/`%LOCALAPPDATA%`/`%USERPROFILE%` e resolve casing segmento a segmento).
+  Migrar o BethesdaTools pra ela e apagar a cópia. Não foi feito junto porque o código atual
+  funciona e a troca merece sua própria verificação.
+
 - **Validar aba PLUGINS com Starfield real.** O suporte Bethesda foi corrigido e testado com árvore
   Steam/Proton sintética em disco (resolução do prefixo, casing de `plugins.txt`, escrita do
   `StarfieldCustom.ini`), mas nunca rodou contra uma instalação real do jogo. Falta confirmar: se o
@@ -106,6 +245,27 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   `IModManagerState` já expõe `GameId`; expor também o `SteamAppId` da definição TOML resolveria.
 
 ## Feito
+
+- **Montar lia o conteúdo de todos os arquivos pra dentro da RAM (27/08/2026).** O usuário relatou
+  mount passando de ~5s pra quase 1 minuto. Causa: `PhysicalFileSource`, construído uma vez por
+  arquivo durante `SimpleConflictResolver.ScanRecursive`, fazia `File.ReadAllBytes` no construtor.
+  Montar custava **uma leitura completa da lista de mods** — 2,08 GB em 207 arquivos no perfil
+  Starfield real, em NTFS (ntfs3) — mais os mesmos 2 GB retidos em heap enquanto o mount durasse.
+  Medido: criar 800 hard links naquele mesmo filesystem leva 0,7s, então o I/O de deploy nunca foi
+  o gargalo. Piorou junto com a pasta de mods, não com o número de mods habilitados.
+
+  Segundo bug no mesmo lugar: os `.ba2` da Starfield passam de 4 GB, acima do teto de 2 GB do
+  `File.ReadAllBytes`, que então lançava — e o `catch { }` em volta do `foreach` do `ScanRecursive`
+  engolia a exceção **junto com o resto da varredura daquele diretório**. Os arquivos base do jogo
+  eram silenciosamente descartados do mapa.
+
+  A leitura ansiosa existia por um motivo real: sob FUSE, reabrir por caminho um arquivo que ficou
+  embaixo do mount faz o handler bloquear esperando por uma thread de handler pra servir o próprio
+  `open()` aninhado — deadlock. Trocado por manter um descritor aberto (`File.OpenHandle`) apenas
+  pros arquivos que ficam embaixo do alvo do mount, com leitura por offset via `RandomAccess`; o
+  resto reabre por caminho normalmente. O `catch` também passou a ser por arquivo.
+  Testes: `tests/CatModManager.Tests/Core/Services/ResolverDoesNotReadContentsTests.cs`, verificados
+  por mutação (restaurar o `ReadAllBytes` derruba 2 dos 4).
 
 - **Extração de `.7z` era quadrática no número de arquivos.** `SevenZipArchiveExtractor.ExtractAsync`
   chamava `entry.WriteToDirectory` por entrada, que é acesso aleatório. Num `.7z` *sólido* (o padrão)
