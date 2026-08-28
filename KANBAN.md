@@ -4,6 +4,14 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## To Do
 
+- **Suíte não foi validada depois dos commits de 27/08/2026.** Os 12 commits (de `perf(vfs): resolver
+  conflitos...` até `docs(kanban): ...`) foram feitos com a suíte passando 320/322 na última leitura
+  boa, mas **não** houve execução completa depois de fatiar os hunks. Três arquivos foram divididos
+  por hunk em vez de por arquivo — `HardlinkDriver.cs` (rollback vs. diagnóstico),
+  `BugReproductionTests.cs` e `MainWindowViewModelTests.cs` — e é exatamente aí que dá pra quebrar um
+  commit intermediário sem perceber. **Primeira coisa a fazer:** rodar `dotnet test` e, se der
+  problema, conferir também se cada commit compila isolado (`git rebase --exec "dotnet build"`).
+
 - **102 linhas de lixo em `active_mounts` no `cmm.db` do usuário.** Restos de quando os testes
   rodavam contra o banco real (já corrigido). Apontam pra `/tmp/<guid>` inexistente, então são
   inertes, mas precisam de limpeza com confirmação explícita. `hardlink_entries` pode conter uma
