@@ -109,13 +109,30 @@ public class MainWindowViewModelTests : IDisposable
 
         // ACT: Save fail
         await vm.ProfileManager.SaveProfileCommand.ExecuteAsync("any");
-        for (int i = 0; i < 20 && !vm.Logs.Any(l => l.Contains("SAVE ERROR", StringComparison.OrdinalIgnoreCase)); i++) await Task.Delay(100);
-        Assert.True(vm.Logs.Any(l => l.Contains("SAVE ERROR", StringComparison.OrdinalIgnoreCase)), "Log should contain SAVE ERROR");
+        Assert.True(await WaitForLog(vm, "SAVE ERROR"), "Log should contain SAVE ERROR");
 
         // ACT: Load fail
         await vm.ProfileManager.LoadProfileCommand.ExecuteAsync("any");
-        for (int i = 0; i < 20 && !vm.Logs.Any(l => l.Contains("LOAD ERROR", StringComparison.OrdinalIgnoreCase)); i++) await Task.Delay(100);
-        Assert.True(vm.Logs.Any(l => l.Contains("LOAD ERROR", StringComparison.OrdinalIgnoreCase)), "Log should contain LOAD ERROR");
+        Assert.True(await WaitForLog(vm, "LOAD ERROR"), "Log should contain LOAD ERROR");
+    }
+
+    /// <summary>
+    /// Polls the log for a line, on a snapshot each time.
+    ///
+    /// The loop used to call Any() straight on vm.Logs while background work was still appending to
+    /// it, and threw "Collection was modified" — intermittently, roughly one full-suite run in four.
+    /// A failure that says nothing about the behaviour under test is worse than no test at all,
+    /// because it trains you to re-run instead of read.
+    /// </summary>
+    private static async Task<bool> WaitForLog(MainWindowViewModel vm, string fragment)
+    {
+        for (int i = 0; i < 20; i++)
+        {
+            if (vm.Logs.ToArray().Any(l => l.Contains(fragment, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            await Task.Delay(100);
+        }
+        return false;
     }
 
     [Fact]
@@ -224,7 +241,7 @@ public class MainWindowViewModelTests : IDisposable
     }
 
     private class MockProcessService : IProcessService {
-        public Task<bool> StartProcessAsync(string f, string a, bool admin = false, bool waitForChildren = true) => Task.FromResult(true);
+        public Task<ProcessRunResult> StartProcessAsync(string f, string a, bool admin = false, bool waitForChildren = true, string? watch = null) => Task.FromResult(new ProcessRunResult(true, false));
         public Task OpenFolderAsync(string p) => Task.CompletedTask;
     }
 
