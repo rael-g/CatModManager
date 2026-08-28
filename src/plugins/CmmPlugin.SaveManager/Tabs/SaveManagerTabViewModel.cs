@@ -32,7 +32,7 @@ public partial class SaveManagerTabViewModel : ObservableObject
 
     public void Refresh()
     {
-        CurrentGame = _detector.Detect(_state.GameExecutablePath);
+        CurrentGame = _detector.Detect(_state.GameExecutablePath, _state.DataFolderPath);
 
         if (CurrentGame == null)
         {
@@ -42,7 +42,7 @@ public partial class SaveManagerTabViewModel : ObservableObject
             return;
         }
 
-        SaveFolder = SaveDetector.ResolveSaveFolder(CurrentGame);
+        SaveFolder = _detector.ResolveSaveFolder(CurrentGame, _state.DataFolderPath, _state.GameExecutablePath);
         Status = SaveFolder != null
             ? $"{CurrentGame.DisplayName} — {SaveFolder}"
             : $"{CurrentGame.DisplayName} — save folder not found on disk";

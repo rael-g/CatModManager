@@ -20,10 +20,10 @@ public class SaveManagerLaunchHook : IGameLaunchHook
 
     public async Task OnBeforeLaunchAsync(LaunchContext ctx)
     {
-        var def = _detector.Detect(ctx.ExecutablePath ?? _state.GameExecutablePath);
+        var def = _detector.Detect(ctx.ExecutablePath ?? _state.GameExecutablePath, _state.DataFolderPath);
         if (def == null) return;
 
-        string? saveFolder = SaveDetector.ResolveSaveFolder(def);
+        string? saveFolder = _detector.ResolveSaveFolder(def, _state.DataFolderPath, ctx.ExecutablePath ?? _state.GameExecutablePath);
         if (saveFolder == null)
         {
             _log.Log($"[SaveManager] Save folder not found for {def.DisplayName} — skipping backup.");

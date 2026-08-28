@@ -14,7 +14,7 @@ public class SaveManagerPlugin : ICmmPlugin
 
     public void Initialize(IPluginContext context)
     {
-        var detector = new SaveDetector(context.Log);
+        var detector = new SaveDetector(context.Log, new WindowsUserFolders(new PhysicalFileService(), context.Log));
         detector.Load(context.AppDataPath);
 
         var backupService = new SaveBackupService(context.AppDataPath, context.Log);

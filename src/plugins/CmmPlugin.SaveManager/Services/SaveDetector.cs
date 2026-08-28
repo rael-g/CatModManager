@@ -12,9 +12,14 @@ namespace CmmPlugin.SaveManager.Services;
 public class SaveDetector
 {
     private readonly IPluginLogger       _log;
+    private readonly WindowsUserFolders  _userFolders;
     private readonly List<SaveGameDef>   _defs = [];
 
-    public SaveDetector(IPluginLogger log) => _log = log;
+    public SaveDetector(IPluginLogger log, WindowsUserFolders userFolders)
+    {
+        _log         = log;
+        _userFolders = userFolders;
+    }
 
     /// <summary>
     /// Loads (or re-loads) save definitions from the two standard game_definitions directories:
@@ -83,33 +88,45 @@ public class SaveDetector
 
     public int Count => _defs.Count;
 
-    /// <summary>Detects a known save-managed game from an executable path.</summary>
-    public SaveGameDef? Detect(string? executablePath)
+    /// <summary>
+    /// Detects a known save-managed game.
+    /// </summary>
+    /// <param name="gameFolder">
+    /// The install folder. Checked because the configured executable is not necessarily the game —
+    /// it can be a launcher, a wrapper script, or a bare command with no directory at all, which is
+    /// normal for a game started through Proton or a container.
+    /// </param>
+    public SaveGameDef? Detect(string? executablePath, string? gameFolder = null)
     {
-        if (string.IsNullOrEmpty(executablePath)) return null;
-        string exeName = Path.GetFileName(executablePath);
+        if (!string.IsNullOrEmpty(executablePath))
+        {
+            string exeName = Path.GetFileName(executablePath);
+            var byName = _defs.FirstOrDefault(d =>
+                d.ExecutableNames.Any(e => string.Equals(e, exeName, StringComparison.OrdinalIgnoreCase)));
+            if (byName != null) return byName;
+        }
+
+        return FindInFolder(gameFolder)
+            ?? FindInFolder(string.IsNullOrEmpty(executablePath) ? null : Path.GetDirectoryName(executablePath));
+    }
+
+    private SaveGameDef? FindInFolder(string? dir)
+    {
+        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
+
         return _defs.FirstOrDefault(d =>
-            d.ExecutableNames.Any(e => string.Equals(e, exeName, StringComparison.OrdinalIgnoreCase)));
+            d.ExecutableNames.Any(e => File.Exists(Path.Combine(dir, e))));
     }
 
     /// <summary>
-    /// Resolves the actual save folder on disk, expanding environment variables.
-    /// If the pattern ends with <c>\*</c>, scans for the first numeric (Steam-ID) subfolder.
+    /// The game's save folder on disk, or null when it cannot be located.
+    ///
+    /// Every definition writes this as a Windows path (<c>%APPDATA%\RE2</c>). That used to be
+    /// expanded against the host environment, which on Linux resolves to nothing at all — the
+    /// variables do not exist there and the saves live inside the Wine prefix regardless. So the
+    /// whole plugin reported "save folder not found" for every game on Linux.
     /// </summary>
-    public static string? ResolveSaveFolder(SaveGameDef def)
-    {
-        string expanded = Environment.ExpandEnvironmentVariables(def.SaveFolderPattern);
-
-        if (expanded.EndsWith("\\*") || expanded.EndsWith("/*"))
-        {
-            string parent = expanded[..^2];
-            if (!Directory.Exists(parent)) return null;
-
-            return Directory.EnumerateDirectories(parent)
-                .FirstOrDefault(d => Path.GetFileName(d).All(char.IsDigit));
-        }
-
-        return Directory.Exists(expanded) ? expanded : null;
-    }
+    public string? ResolveSaveFolder(SaveGameDef def, string? gameFolder = null, string? executablePath = null)
+        => _userFolders.Resolve(def.SaveFolderPattern, gameFolder, executablePath);
 }
 

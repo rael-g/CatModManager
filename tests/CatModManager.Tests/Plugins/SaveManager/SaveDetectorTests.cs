@@ -23,6 +23,9 @@ public class SaveDetectorTests : IDisposable
 
     public void Dispose() { if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true); }
 
+    private SaveDetector NewDetector() =>
+        new(_log, new WindowsUserFolders(new PhysicalFileService(), _log));
+
     [Fact]
     public void Load_ReadsTomls_WithSaveFolderPattern()
     {
@@ -36,7 +39,7 @@ RequiredFiles = [""game.exe""]
 SaveFolderPattern = ""C:\\Saves\\Test""
 ");
 
-        var detector = new SaveDetector(_log);
+        var detector = NewDetector();
         detector.Load(_tempDir);
 
         Assert.True(detector.Count >= 1);
@@ -55,7 +58,7 @@ SaveFolderPattern = ""C:\\Saves\\Test""
 
         var def = new SaveGameDef { SaveFolderPattern = baseDir + "\\*" };
         
-        string? resolved = SaveDetector.ResolveSaveFolder(def);
+        string? resolved = NewDetector().ResolveSaveFolder(def);
         
         Assert.Equal(userDir, resolved);
     }
