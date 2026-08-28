@@ -71,7 +71,14 @@ public class HardlinkDriver : IFileSystemDriver
         }
         catch (Exception ex)
         {
-            Rollback(entries);
+            var stranded = Rollback(entries);
+
+            // Whatever rollback could not undo is still sitting in the game folder. Recording it
+            // is the only way the next unmount — or the next startup's crash recovery — can find
+            // it: an unrecorded link is invisible to this driver forever, and the real game file
+            // it displaced stays a dot-backup nobody will ever restore.
+            if (stranded.Count > 0)
+                try { _store.Save(mountPoint, stranded); } catch { /* nothing better to try */ }
 
             // Losing write access to the state store is worth its own advice; anything else
             // propagates as-is, with the diagnosis WalkAndLink already attached.
@@ -93,8 +100,11 @@ public class HardlinkDriver : IFileSystemDriver
     /// game, say) must not strand the other several hundred. Runs in reverse so a later entry
     /// nested under an earlier one is cleared first.
     /// </summary>
-    private static void Rollback(List<HardlinkStateEntry> entries)
+    /// <returns>The entries that could not be fully undone, so the caller can record them.</returns>
+    private static List<HardlinkStateEntry> Rollback(List<HardlinkStateEntry> entries)
     {
+        var stranded = new List<HardlinkStateEntry>();
+
         for (int i = entries.Count - 1; i >= 0; i--)
         {
             var e = entries[i];
@@ -107,8 +117,10 @@ public class HardlinkDriver : IFileSystemDriver
                     TryClearHidden(e.DestPath);
                 }
             }
-            catch { /* best-effort: restore as much as can be restored */ }
+            catch { stranded.Add(e); /* best-effort: restore as much as can be restored */ }
         }
+
+        return stranded;
     }
 
     public void Unmount()
@@ -237,6 +249,17 @@ public class HardlinkDriver : IFileSystemDriver
             string? backupPath = null;
             if (File.Exists(destPath))
             {
+                // A destination that is already a hard link to this very mod file is this driver's
+                // own work, left behind by a session that never got to unmount. Moving it aside
+                // would file a mod file away as if it were the player's original — and the next
+                // unmount would then "restore" it over the real game file. Adopt it instead: record
+                // it so unmount removes it, and leave the link exactly where it is.
+                if (IsSameFile(destPath, physPath))
+                {
+                    entries.Add(new HardlinkStateEntry(rel, destPath, null));
+                    continue;
+                }
+
                 backupPath = Path.Combine(
                     Path.GetDirectoryName(destPath)!,
                     '.' + Path.GetFileName(destPath));
@@ -351,6 +374,42 @@ public class HardlinkDriver : IFileSystemDriver
         : StringComparer.Ordinal;
 
     /// <summary>
+    /// Whether the two paths name one and the same file on disk — that is, whether one is already
+    /// a hard link to the other.
+    ///
+    /// Windows compares the volume serial and the file index, which is what NTFS actually
+    /// identifies a file by. Elsewhere this returns false, and the caller falls back to treating
+    /// the destination as an unrelated file: slower and noisier, never wrong.
+    /// </summary>
+    internal static bool IsSameFile(string a, string b)
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+
+        try
+        {
+            return TryGetId(a, out var idA) && TryGetId(b, out var idB) && idA == idB;
+        }
+        catch { return false; }
+
+        static bool TryGetId(string path, out (uint Volume, ulong Index) id)
+        {
+            id = default;
+
+            // FILE_READ_ATTRIBUTES only, and sharing everything: identifying a file must never be
+            // the thing that locks it out from under whatever else is reading it.
+            using var handle = CreateFileW(
+                path, FileReadAttributes, FileShareAll, IntPtr.Zero,
+                OpenExisting, FileFlagBackupSemantics, IntPtr.Zero);
+
+            if (handle.IsInvalid) return false;
+            if (!GetFileInformationByHandle(handle, out var info)) return false;
+
+            id = (info.VolumeSerialNumber, ((ulong)info.FileIndexHigh << 32) | info.FileIndexLow);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Extra detail for a move that failed for no visible reason.
     ///
     /// Read-only on purpose. An earlier version retried the move to see whether the failure was
@@ -444,6 +503,40 @@ public class HardlinkDriver : IFileSystemDriver
         string lpFileName,
         string lpExistingFileName,
         IntPtr lpSecurityAttributes);
+
+    private const uint FileReadAttributes     = 0x0080;
+    private const uint FileShareAll           = 0x0001 | 0x0002 | 0x0004; // read | write | delete
+    private const uint OpenExisting           = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle hFile, out ByHandleFileInformation lpFileInformation);
 
     /// <summary>POSIX hard link. Note the argument order is (existing, new) — the
     /// opposite of CreateHardLinkW.</summary>
