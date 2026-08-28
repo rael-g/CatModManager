@@ -43,7 +43,7 @@ public partial class PluginsTabViewModel : ObservableObject
     [RelayCommand]
     public void Refresh()
     {
-        var game = _detector.Detect(_state.GameExecutablePath);
+        var game = _detector.Detect(_state.GameExecutablePath, _state.DataFolderPath);
         if (game == null)
         {
             _pluginsTextPath = null;
@@ -51,11 +51,11 @@ public partial class PluginsTabViewModel : ObservableObject
             Entries.Clear();
             Status = string.IsNullOrEmpty(_state.GameExecutablePath)
                 ? "No game executable configured."
-                : "Game not recognized as a supported Bethesda game.";
+                : $"Not recognized as a supported Bethesda game (executable '{_state.GameExecutablePath}', folder '{_state.DataFolderPath}').";
             return;
         }
 
-        _pluginsTextPath = _paths.GetPluginsTextPath(game, _state.GameExecutablePath);
+        _pluginsTextPath = _paths.GetPluginsTextPath(game, _state.GameExecutablePath, _state.DataFolderPath);
         if (_pluginsTextPath == null)
         {
             CanEdit = false;
@@ -76,7 +76,7 @@ public partial class PluginsTabViewModel : ObservableObject
     {
         if (string.IsNullOrEmpty(_pluginsTextPath)) return;
 
-        var game = _detector.Detect(_state.GameExecutablePath);
+        var game = _detector.Detect(_state.GameExecutablePath, _state.DataFolderPath);
         if (game == null) return;
 
         _loadOrder.Save(_pluginsTextPath, game.UsesStarFormat);

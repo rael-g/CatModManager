@@ -29,14 +29,14 @@ public class BethesdaLaunchHook : IGameLaunchHook
     {
         string? exePath = ctx.ExecutablePath ?? _state.GameExecutablePath;
 
-        var game = _detector.Detect(exePath);
+        var game = _detector.Detect(exePath, _state.DataFolderPath);
         if (game == null) return Task.CompletedTask;
 
         // Loose files are ignored by Starfield/FO4 without this, so do it before anything else —
         // a correct load order is useless if the engine never reads the mounted Data folder.
-        _looseFiles.Apply(game, _paths.GetMyGamesPath(game, exePath));
+        _looseFiles.Apply(game, _paths.GetMyGamesPath(game, exePath, _state.DataFolderPath));
 
-        string? pluginsTextPath = _paths.GetPluginsTextPath(game, exePath);
+        string? pluginsTextPath = _paths.GetPluginsTextPath(game, exePath, _state.DataFolderPath);
         if (pluginsTextPath == null)
         {
             _log.LogError(

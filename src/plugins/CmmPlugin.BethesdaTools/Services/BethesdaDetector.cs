@@ -52,15 +52,30 @@ public class BethesdaDetector
                 CustomIniFile: "StarfieldCustom.ini"),
         };
 
-    public BethesdaGame? Detect(string? executablePath)
+    /// <param name="gameFolder">
+    /// The install folder CMM has configured for the profile. Checked because the configured
+    /// executable is not always the game: it can be a launcher, a script, or a bare command with no
+    /// directory at all when the game is started through a wrapper such as a container or a custom
+    /// script. The install folder is what actually identifies the game, so it is worth more here
+    /// than the command used to start it.
+    /// </param>
+    public BethesdaGame? Detect(string? executablePath, string? gameFolder = null)
     {
-        if (string.IsNullOrEmpty(executablePath)) return null;
+        if (!string.IsNullOrEmpty(executablePath))
+        {
+            string exeName = Path.GetFileNameWithoutExtension(executablePath);
+            if (_known.TryGetValue(exeName, out var byName)) return byName;
+        }
 
-        string exeName = Path.GetFileNameWithoutExtension(executablePath);
-        if (_known.TryGetValue(exeName, out var game)) return game;
+        return FindInFolder(gameFolder)
+            ?? FindInFolder(string.IsNullOrEmpty(executablePath) ? null : Path.GetDirectoryName(executablePath));
+    }
 
-        string? dir = Path.GetDirectoryName(executablePath);
+    /// <summary>Looks for any known game executable sitting directly in <paramref name="dir"/>.</summary>
+    private BethesdaGame? FindInFolder(string? dir)
+    {
         if (string.IsNullOrEmpty(dir)) return null;
+
         foreach (var (knownExe, knownGame) in _known)
             if (_fileService.FileExists(Path.Combine(dir, knownExe + ".exe")))
                 return knownGame;

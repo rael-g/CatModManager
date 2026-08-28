@@ -29,9 +29,13 @@ public class GamePathResolver
     }
 
     /// <summary>Full path to Plugins.txt, or null when the prefix could not be located.</summary>
-    public string? GetPluginsTextPath(BethesdaGame game, string? gameExecutablePath)
+    /// <param name="gameFolder">
+    /// The configured install folder. Used as the anchor for finding the Steam library, because the
+    /// configured executable may be a launcher or a bare command that is nowhere near the game.
+    /// </param>
+    public string? GetPluginsTextPath(BethesdaGame game, string? gameExecutablePath, string? gameFolder = null)
     {
-        string? localAppData = GetLocalAppDataRoot(gameExecutablePath, game.LocalAppDataFolder);
+        string? localAppData = GetLocalAppDataRoot(gameExecutablePath, gameFolder, game.LocalAppDataFolder);
         if (localAppData == null) return null;
 
         string gameDir = ResolveChildDirectory(localAppData, game.LocalAppDataFolder);
@@ -54,29 +58,29 @@ public class GamePathResolver
     }
 
     /// <summary>Full path to the "My Games/&lt;Game&gt;" folder holding the .ini files, or null.</summary>
-    public string? GetMyGamesPath(BethesdaGame game, string? gameExecutablePath)
+    public string? GetMyGamesPath(BethesdaGame game, string? gameExecutablePath, string? gameFolder = null)
     {
-        string? myGames = GetDocumentsRoot(gameExecutablePath, game.GameFolder);
+        string? myGames = GetDocumentsRoot(gameExecutablePath, gameFolder, game.GameFolder);
         return myGames == null ? null : ResolveChildDirectory(myGames, game.GameFolder);
     }
 
     // ── Roots ────────────────────────────────────────────────────────────────
 
-    private string? GetLocalAppDataRoot(string? gameExecutablePath, string gameFolder)
+    private string? GetLocalAppDataRoot(string? gameExecutablePath, string? installFolder, string gameFolder)
     {
         if (OperatingSystem.IsWindows())
             return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
-        return SelectRoot(gameExecutablePath, gameFolder, userDir =>
+        return SelectRoot(gameExecutablePath, installFolder, gameFolder, userDir =>
             ResolveChildDirectory(ResolveChildDirectory(userDir, "AppData"), "Local"));
     }
 
-    private string? GetDocumentsRoot(string? gameExecutablePath, string gameFolder)
+    private string? GetDocumentsRoot(string? gameExecutablePath, string? installFolder, string gameFolder)
     {
         if (OperatingSystem.IsWindows())
             return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
-        return SelectRoot(gameExecutablePath, gameFolder, userDir =>
+        return SelectRoot(gameExecutablePath, installFolder, gameFolder, userDir =>
             ResolveChildDirectory(ResolveChildDirectory(userDir, "Documents"), "My Games"));
     }
 
@@ -85,11 +89,11 @@ public class GamePathResolver
     /// may be probed — prefer one that already holds this game's folder, and only fall back to the
     /// first usable prefix (so a first run can still create the file) when none does.
     /// </summary>
-    private string? SelectRoot(string? gameExecutablePath, string gameFolder, Func<string, string> toRoot)
+    private string? SelectRoot(string? gameExecutablePath, string? installFolder, string gameFolder, Func<string, string> toRoot)
     {
         string? fallback = null;
 
-        foreach (string prefix in EnumerateCandidatePrefixes(gameExecutablePath))
+        foreach (string prefix in EnumerateCandidatePrefixes(gameExecutablePath, installFolder))
         {
             string? userDir = GetUserDirectory(prefix);
             if (userDir == null) continue;
@@ -119,7 +123,7 @@ public class GamePathResolver
     /// Prefixes worth probing, most specific first: the explicit environment overrides, then every
     /// Steam compatdata prefix sitting next to the game's own steamapps/common install.
     /// </summary>
-    private IEnumerable<string> EnumerateCandidatePrefixes(string? gameExecutablePath)
+    private IEnumerable<string> EnumerateCandidatePrefixes(string? gameExecutablePath, string? installFolder)
     {
         string? compatData = Environment.GetEnvironmentVariable("STEAM_COMPAT_DATA_PATH");
         if (!string.IsNullOrEmpty(compatData))
@@ -129,7 +133,11 @@ public class GamePathResolver
         if (!string.IsNullOrEmpty(winePrefix))
             yield return winePrefix;
 
-        string? steamApps = FindSteamAppsRoot(gameExecutablePath);
+        // Anchor on the install folder first: the configured executable is not necessarily inside
+        // the Steam library — it may be a launcher, a wrapper script, or a bare command.
+        string? steamApps = WalkUpToSteamApps(installFolder)
+                            ?? WalkUpToSteamApps(string.IsNullOrEmpty(gameExecutablePath)
+                                                 ? null : Path.GetDirectoryName(gameExecutablePath));
         if (steamApps == null) yield break;
 
         // Prefixes are keyed by Steam AppId; we don't know it, so probe each one and let
@@ -139,12 +147,12 @@ public class GamePathResolver
             yield return Path.Combine(dir, "pfx");
     }
 
-    /// <summary>Walks up from the executable looking for the enclosing "steamapps" directory.</summary>
-    private static string? FindSteamAppsRoot(string? gameExecutablePath)
+    /// <summary>Walks up from a directory looking for the enclosing "steamapps" directory.</summary>
+    private static string? WalkUpToSteamApps(string? startDirectory)
     {
-        if (string.IsNullOrEmpty(gameExecutablePath)) return null;
+        if (string.IsNullOrEmpty(startDirectory)) return null;
 
-        var dir = new DirectoryInfo(Path.GetDirectoryName(gameExecutablePath) ?? string.Empty);
+        var dir = new DirectoryInfo(startDirectory);
         while (dir != null)
         {
             if (string.Equals(dir.Name, "steamapps", StringComparison.OrdinalIgnoreCase))
