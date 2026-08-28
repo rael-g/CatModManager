@@ -84,11 +84,12 @@ public class ProfileRegressionTests : IDisposable
         Assert.Contains(vm.ProfileManager.CurrentProfileName!, vm.ProfileManager.AvailableProfiles);
     }
 
-    [Fact(Skip = "Fails due to empty path in mock profile load")]
+    [Fact]
     public async Task Profile_Selection_Should_Load_Data()
     {
         var vm = CreateVm();
-        
+        await vm.InitialLoadTask;
+
         // Setup initial profiles
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
         string profileA = vm.ProfileManager.CurrentProfileName!;
