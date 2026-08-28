@@ -65,6 +65,7 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
         }
         catch (Exception ex)
         {
+            ReleaseBackend();
             ErrorOccurred?.Invoke(this, ex.Message);
             throw;
         }
@@ -72,7 +73,17 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
 
     public void Unmount()
     {
+        // Before the driver, not after. Unmounting deletes the deployed links and renames the
+        // displaced game files back, and Windows will not let go of a file this process still
+        // holds a descriptor on — the deletes fail quietly and the mod files stay in the game
+        // folder for good.
+        ReleaseBackend();
         _driver.Unmount();
+    }
+
+    private void ReleaseBackend()
+    {
+        _backend?.Dispose();
         _backend = null;
     }
 

@@ -11,7 +11,7 @@ namespace CatModManager.Core.Vfs;
 /// Implements the low-level IFileSystem interface expected by VFS drivers.
 /// Decouples the file mapping and directory caching from the VFS orchestration.
 /// </summary>
-internal class ModFileSystemBackend : IFileSystem
+internal class ModFileSystemBackend : IFileSystem, IDisposable
 {
     private readonly IDictionary<string, IFileSource> _fileMap;
     private readonly Dictionary<string, HashSet<string>> _directoryCache = new(StringComparer.OrdinalIgnoreCase);
@@ -59,6 +59,18 @@ internal class ModFileSystemBackend : IFileSystem
         if (_fileMap.TryGetValue(normalized, out var source) && source is PhysicalFileSource pfs)
             return pfs.FilePath;
         return null;
+    }
+
+    /// <summary>
+    /// Releases the descriptors the resolver pinned on game-folder files. Nothing kept them alive
+    /// beyond the mount before, so they lingered until the GC happened to run — leaving handles
+    /// open on files the unmount is trying to delete, on no schedule anyone can predict.
+    /// </summary>
+    public void Dispose()
+    {
+        foreach (var source in _fileMap.Values)
+            if (source is IDisposable d)
+                try { d.Dispose(); } catch { /* one stuck handle must not stop the rest */ }
     }
 
     private string Normalize(string path) => path.Replace('/', '\\').Trim('\\');

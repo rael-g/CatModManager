@@ -54,14 +54,20 @@ public class PhysicalFileSource : IFileSource, IDisposable
             // A game folder with more files than the process may hold descriptors would otherwise
             // fail the whole mount. Re-opening by path is only wrong under FUSE, and a hard-link
             // deployment never reads through this at all, so degrading is better than refusing.
-            try { _pinned = File.OpenHandle(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite); }
+            // FileShare.Delete is not optional. Every file pinned here sits under the mount point,
+            // which is exactly the set of files the hard-link driver is about to rename aside or
+            // delete — and Windows refuses both while a handle is open without it. Without Delete
+            // the app locks itself out of its own game folder: the mount fails with "could not set
+            // aside the existing file", and the unmount silently fails to remove what it deployed,
+            // which is how mod files end up living in the game folder permanently.
+            try { _pinned = File.OpenHandle(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); }
             catch { _pinned = null; }
         }
     }
 
     public Stream OpenRead() => _pinned != null
         ? new PinnedHandleStream(_pinned, Length)
-        : new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        : new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
     public void Dispose() => _pinned?.Dispose();
 
