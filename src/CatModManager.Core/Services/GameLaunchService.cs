@@ -22,14 +22,15 @@ public class GameLaunchService : IGameLaunchService
         _launchHooks    = launchHooks ?? [];
     }
 
-    public async Task<OperationResult> LaunchGameAsync(
+    public async Task<OperationResult<bool>> LaunchGameAsync(
         string? gameExecutablePath,
         string? launchArguments,
         IGameSupport activeGameSupport,
-        IEnumerable<Mod> enabledMods)
+        IEnumerable<Mod> enabledMods,
+        string? gameFolderPath = null)
     {
         if (string.IsNullOrEmpty(gameExecutablePath))
-            return OperationResult.Failure("No game executable specified.");
+            return OperationResult<bool>.Failure("No game executable specified.");
 
         try
         {
@@ -47,19 +48,27 @@ public class GameLaunchService : IGameLaunchService
                 await hook.OnBeforeLaunchAsync(ctx);
 
             _logService.Log($"Launching: {gameExecutablePath} {finalArgs}");
-            bool success = await _processService.StartProcessAsync(gameExecutablePath, finalArgs, false);
+            // The game folder, not the executable's folder: through Steam the process we start is
+            // Steam itself, so the post-exit hooks would otherwise wait on the wrong directory.
+            var run = await _processService.StartProcessAsync(
+                gameExecutablePath, finalArgs, runAsAdmin: false, waitForChildren: true,
+                watchFolder: string.IsNullOrWhiteSpace(gameFolderPath) ? null : gameFolderPath);
 
-            foreach (var hook in _launchHooks)
-                await hook.OnAfterExitAsync(ctx);
+            // Only once the game has actually exited. These hooks used to run unconditionally, so a
+            // launch that never produced a game — Steam reporting a missing licence, say — still
+            // told every plugin the session was over.
+            if (run.GameObserved)
+                foreach (var hook in _launchHooks)
+                    await hook.OnAfterExitAsync(ctx);
 
-            if (!success)
-                return OperationResult.Failure("Could not start game process.");
+            if (!run.Started)
+                return OperationResult<bool>.Failure("Could not start game process.");
 
-            return OperationResult.Success();
+            return OperationResult<bool>.Success(run.GameObserved);
         }
         catch (Exception ex)
         {
-            return OperationResult.Failure($"LAUNCH ERROR: {ex.Message}", ex);
+            return OperationResult<bool>.Failure($"LAUNCH ERROR: {ex.Message}", ex);
         }
     }
 }

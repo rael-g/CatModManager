@@ -169,20 +169,62 @@ public partial class MainWindowViewModel : ObservableObject
     private async Task LaunchGame()
     {
         if (GameConfig.ActiveGameSupport == null) { StatusMessage = "Select a game first."; return; }
+
+        // Only what this launch mounted gets unmounted afterwards. A mount you made yourself is a
+        // decision of yours, and outliving the game is the point of having made it.
+        bool mountedForThisLaunch = false;
+
         if (!Vfs.IsVfsMounted)
         {
             var res = await Vfs.ToggleMountInternal();
             if (!res.IsSuccess) { StatusMessage = $"Mount failed: {res.ErrorMessage}"; return; }
+            mountedForThisLaunch = true;
         }
 
         StatusMessage = "Launching game...";
         try
         {
             var activeMods = ModList.AllMods.Where(m => m.IsEnabled && !m.IsBroken && !m.IsInstalling).ToList();
-            await _gameLauncher.LaunchGameAsync(GameConfig.GameExecutablePath, GameConfig.LaunchArguments, GameConfig.ActiveGameSupport, activeMods);
-            StatusMessage = "Game running.";
+            var result = await _gameLauncher.LaunchGameAsync(GameConfig.GameExecutablePath, GameConfig.LaunchArguments, GameConfig.ActiveGameSupport, activeMods, GameConfig.BaseFolderPath);
+
+            if (!result.IsSuccess)
+            {
+                // The result used to be discarded, so a launch that never happened still reported
+                // "Game running."
+                StatusMessage = $"Launch failed: {result.ErrorMessage}";
+                return;
+            }
+
+            if (result.Value)
+            {
+                StatusMessage = "Game closed.";
+                if (mountedForThisLaunch) await UnmountAfterPlaying();
+            }
+            else
+            {
+                // Started something, never saw the game. Steam refusing a licence looks like this,
+                // and so does a first Proton run that is still compiling shaders past the wait
+                // window — which is why the mount stays put. Pulling the files out from under a
+                // game that is merely slow to appear would be far worse than leaving it mounted.
+                StatusMessage = "Launched, but the game was never seen running — still mounted.";
+                _logService.Log("Launch could not be confirmed; leaving the mount in place.");
+            }
         }
         catch (Exception ex) { _logService.LogError("Launch failed", ex); StatusMessage = $"Launch error: {ex.Message}"; }
+    }
+
+    /// <summary>
+    /// Closes out a mount this launch opened. Best effort: the game is already gone, so failing to
+    /// unmount is worth reporting but not worth turning the launch into an error.
+    /// </summary>
+    private async Task UnmountAfterPlaying()
+    {
+        if (!Vfs.IsVfsMounted) return;
+
+        var res = await Vfs.ToggleMountInternal();
+        StatusMessage = res.IsSuccess
+            ? "Game closed — unmounted."
+            : $"Game closed, but unmounting failed: {res.ErrorMessage}";
     }
 
     [RelayCommand] private async Task AddMod(string? path = null) => await Installer.InstallModAtMountPointAsync(path ?? "", null);

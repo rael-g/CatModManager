@@ -20,7 +20,7 @@ public class ProcessService : IProcessService
         _runner = runner ?? new DefaultProcessRunner();
     }
 
-    public async Task<bool> StartProcessAsync(string filePath, string arguments, bool runAsAdmin, bool waitForChildren = true)
+    public async Task<ProcessRunResult> StartProcessAsync(string filePath, string arguments, bool runAsAdmin, bool waitForChildren = true, string? watchFolder = null)
     {
         try
         {
@@ -33,24 +33,44 @@ public class ProcessService : IProcessService
             };
 
             var success = await _runner.StartAsync(info);
-            if (!success) return false;
+            if (!success) return new ProcessRunResult(false, false);
 
-            if (waitForChildren)
-                await WaitForGameDirectoryProcesses(filePath);
+            bool observed = waitForChildren
+                && await WaitForGameDirectoryProcesses(watchFolder ?? DirectoryOf(filePath));
 
-            return true;
+            return new ProcessRunResult(true, observed);
         }
         catch (Exception ex)
         {
             _logService.LogError($"Failed to start process: {filePath}", ex);
-            return false;
+            return new ProcessRunResult(false, false);
         }
     }
 
-    private async Task WaitForGameDirectoryProcesses(string launcherPath)
+    /// <summary>
+    /// The folder holding <paramref name="fileName"/>, or null when it is a bare command name
+    /// resolved through PATH — "steam" is not a file in the working directory, and treating it as
+    /// one made this watch the working directory and find nothing for its full 30 seconds.
+    /// </summary>
+    private static string? DirectoryOf(string fileName)
     {
-        var gameDir = Path.GetDirectoryName(Path.GetFullPath(launcherPath));
-        if (string.IsNullOrEmpty(gameDir)) return;
+        if (string.IsNullOrWhiteSpace(fileName)) return null;
+        if (fileName.IndexOf(Path.DirectorySeparatorChar) < 0 &&
+            fileName.IndexOf(Path.AltDirectorySeparatorChar) < 0)
+            return null;
+
+        try { return Path.GetDirectoryName(Path.GetFullPath(fileName)); }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Waits for the game to exit. Returns whether it was ever seen at all — a launch that never
+    /// produced a process in the game folder is not a session that ended, and callers that undo
+    /// things on exit must not treat it as one.
+    /// </summary>
+    private async Task<bool> WaitForGameDirectoryProcesses(string? gameDir)
+    {
+        if (string.IsNullOrEmpty(gameDir)) return false;
 
         var prefix = gameDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var userSession = Process.GetCurrentProcess().SessionId;
@@ -78,9 +98,12 @@ public class ProcessService : IProcessService
             {
                 _logService.Log($"Detected {children.Count} game process(es); waiting for exit...");
                 await Task.WhenAll(children.Select(p => _runner.WaitForExitAsync(p)));
-                return;
+                return true;
             }
         }
+
+        _logService.Log($"No game process appeared under '{gameDir}' within the wait window.");
+        return false;
     }
 
     public Task OpenFolderAsync(string path)

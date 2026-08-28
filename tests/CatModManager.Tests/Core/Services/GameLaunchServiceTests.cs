@@ -19,7 +19,7 @@ public class GameLaunchServiceTests
     public GameLaunchServiceTests()
     {
         _processService = Substitute.For<IProcessService>();
-        _processService.StartProcessAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(true);
+        _processService.StartProcessAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(new ProcessRunResult(true, true));
         _logService = new MockLogService();
     }
 
@@ -44,7 +44,7 @@ public class GameLaunchServiceTests
         var support = Substitute.For<IGameSupport>();
         
         var service = new GameLaunchService(_processService, _logService, new[] { hook });
-        _processService.StartProcessAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(true);
+        _processService.StartProcessAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(new ProcessRunResult(true, true));
 
         await service.LaunchGameAsync("game.exe", "", support, Enumerable.Empty<Mod>());
 
@@ -55,7 +55,7 @@ public class GameLaunchServiceTests
     [Fact]
     public async Task LaunchGameAsync_ReturnsFailure_WhenProcessStartFails()
     {
-        _processService.StartProcessAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(false);
+        _processService.StartProcessAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(new ProcessRunResult(false, false));
         var support = Substitute.For<IGameSupport>();
         
         var service = new GameLaunchService(_processService, _logService);

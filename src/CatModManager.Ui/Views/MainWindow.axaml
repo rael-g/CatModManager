@@ -198,7 +198,12 @@
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="EXECUTABLE" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
                                         <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.GameExecutablePath}" IsReadOnly="True" Classes="path-field">
+                                            <!-- Editable, unlike the folder fields: this may be a command name rather
+                                                 than a path. Launching a game through Steam means running Steam
+                                                 ("steam" on Linux, where PATH resolves it) with -applaunch, and a file
+                                                 picker cannot express that. -->
+                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.GameExecutablePath}" Classes="path-field"
+                                                     Watermark="path to the game, or a command like &quot;steam&quot;">
                                                 <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
                                             </TextBox>
                                             <Button Grid.Column="1" Command="{Binding OpenGameExecutableFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open containing folder"/>

@@ -222,7 +222,7 @@ public class BugReproductionTests : IDisposable
         public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
     }
     private class MockProcessService : IProcessService {
-        public Task<bool> StartProcessAsync(string f, string a, bool admin = false, bool waitForChildren = true) => Task.FromResult(true);
+        public Task<ProcessRunResult> StartProcessAsync(string f, string a, bool admin = false, bool waitForChildren = true, string? watch = null) => Task.FromResult(new ProcessRunResult(true, false));
         public Task OpenFolderAsync(string p) => Task.CompletedTask;
     }
     private class MockModManagementService : IModManagementService {

@@ -200,7 +200,7 @@ public class ProfileRegressionTests : IDisposable
     }
 
     private class MockProcessService : IProcessService {
-        public Task<bool> StartProcessAsync(string p, string a, bool admin = false, bool waitForChildren = true) => Task.FromResult(true);
+        public Task<ProcessRunResult> StartProcessAsync(string p, string a, bool admin = false, bool waitForChildren = true, string? watch = null) => Task.FromResult(new ProcessRunResult(true, false));
         public Task OpenFolderAsync(string p) => Task.CompletedTask;
     }
 
