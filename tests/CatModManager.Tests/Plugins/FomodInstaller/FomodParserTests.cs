@@ -81,4 +81,26 @@ public class FomodParserTests : IDisposable
 
         Assert.Equal("MyAwesomeMod/", config.WrapperPrefix);
     }
+
+    /// <summary>
+    /// "Jiggle Physics Standard Body and Outfits" (Starfield, Nexus 15608) wraps everything in a
+    /// folder called <c>Jiggle_Fomod/</c>. Searching the key for the first "fomod/" found it inside
+    /// the wrapper's own name, so the prefix came out as "Jiggle_" and every source pointed at a
+    /// path that does not exist — the install produced an empty mod folder, silently.
+    /// </summary>
+    [Fact]
+    public void Parse_WhenWrapperNameItselfEndsInFomod_StillDetectsTheWholeWrapper()
+    {
+        var mockExtractor = Substitute.For<IArchiveExtractor>();
+        string nestedConfig = "Jiggle_Fomod/fomod/ModuleConfig.xml";
+
+        mockExtractor.GetFileList(Arg.Any<string>()).Returns(new[] { nestedConfig });
+
+        var xmlStream = new MemoryStream(Encoding.UTF8.GetBytes(BasicFomodXml));
+        mockExtractor.OpenFileStream(Arg.Any<string>(), nestedConfig).Returns(xmlStream);
+
+        var config = FomodParser.Parse(_dummyZip, mockExtractor);
+
+        Assert.Equal("Jiggle_Fomod/", config.WrapperPrefix);
+    }
 }

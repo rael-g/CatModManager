@@ -38,11 +38,14 @@ public static class FomodParser
 
         // Detect wrapper folder: if ModuleConfig.xml is not at "fomod/..." but at
         // "WrapperName/fomod/...", FOMOD source paths are relative to "WrapperName/".
+        // Found by trimming the known "fomod/ModuleConfig.xml" suffix rather than by searching for
+        // "fomod/": a wrapper folder whose own name ends in "fomod" — Starfield's "Jiggle_Fomod/" —
+        // matches the search inside its own name, yielding the prefix "Jiggle_". Every source then
+        // pointed at a path that does not exist and the install silently produced an empty folder.
         string? wrapperPrefix = null;
         var normalizedKey = configKey.Replace('\\', '/');
-        var fomodIdx  = normalizedKey.IndexOf("fomod/", StringComparison.OrdinalIgnoreCase);
-        if (fomodIdx > 0)
-            wrapperPrefix = normalizedKey[..fomodIdx];
+        if (normalizedKey.Length > ConfigPath.Length)
+            wrapperPrefix = normalizedKey[..^ConfigPath.Length];
 
         using var stream = extractor.OpenFileStream(archivePath, configKey);
         if (stream == null) throw new InvalidOperationException($"Could not open {configKey} from archive.");
