@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Headless.XUnit;
 using Xunit;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
@@ -31,7 +32,10 @@ public class BugReproductionTests : IDisposable
         Directory.CreateDirectory(_pathService.ProfilesPath);
     }
 
-    [Fact]
+    // AvaloniaFact, not Fact: the install path awaits Dispatcher.UIThread.InvokeAsync to insert the
+    // new mod into the list. Without a headless session there is no thread pumping that dispatcher,
+    // so the await never completes and the test hangs forever — taking the whole run with it.
+    [AvaloniaFact]
     public async Task Installation_Should_Use_Physical_Path_And_Prevent_Duplicates()
     {
         // SETUP
