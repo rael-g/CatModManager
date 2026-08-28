@@ -212,7 +212,27 @@ public class HardlinkDriver : IFileSystemDriver
                 backupPath = Path.Combine(
                     Path.GetDirectoryName(destPath)!,
                     '.' + Path.GetFileName(destPath));
-                File.Move(destPath, backupPath, overwrite: true);
+
+                try
+                {
+                    File.Move(destPath, backupPath, overwrite: true);
+                }
+                catch (Exception ex)
+                {
+                    // The raw exception names one path and does not say which role it played, so a
+                    // failure here read as "could not find <backup>" — a file that is supposed not
+                    // to exist yet. Say what was being moved where, and what was actually on disk.
+                    throw new IOException(
+                        $"Could not set aside the existing file before linking a mod over it.\n" +
+                        $"  entry:      '{rel}'\n" +
+                        $"  mount point:'{mountPoint}'\n" +
+                        $"  move from:  '{destPath}' (exists now: {File.Exists(destPath)})\n" +
+                        $"  move to:    '{backupPath}' (exists now: {File.Exists(backupPath)})\n" +
+                        $"  mod source: '{physPath}' (exists now: {File.Exists(physPath)})\n" +
+                        $"  reason:     {ex.GetType().Name}: {ex.Message}\n" +
+                        Diagnose(destPath, backupPath), ex);
+                }
+
                 TryHide(backupPath);
             }
 
@@ -267,6 +287,54 @@ public class HardlinkDriver : IFileSystemDriver
     private static StringComparer PathComparer => OperatingSystem.IsWindows()
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
+
+    /// <summary>
+    /// Extra detail for a move that failed for no visible reason.
+    ///
+    /// Read-only on purpose. An earlier version retried the move to see whether the failure was
+    /// stable, and undid it when it wasn't — writing to the game folder from inside an error path,
+    /// at the exact moment the filesystem is behaving unexpectedly, is the last place to be taking
+    /// liberties.
+    ///
+    /// What it answers: is the string we handed the OS the string we printed (invisible or
+    /// non-UTF8 characters do not survive a log line), does the destination directory exist and
+    /// hold something under that name already, and what does the source actually look like.
+    /// </summary>
+    private static string Diagnose(string source, string dest)
+    {
+        var sb = new System.Text.StringBuilder();
+        try
+        {
+            sb.Append("  from bytes: ").AppendLine(Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(source)));
+            sb.Append("  to bytes:   ").AppendLine(Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(dest)));
+
+            var dir = Path.GetDirectoryName(source)!;
+            sb.Append("  dest dir:   '").Append(dir).Append("' exists: ").AppendLine(Directory.Exists(dir).ToString());
+
+            // Every entry sharing the stem, dot-prefixed ones included. The pattern used to be
+            // "<stem>*", which silently skips exactly the backup names this code creates — so the
+            // one entry worth seeing was the one that could never show up.
+            var stem = Path.GetFileNameWithoutExtension(source);
+            var kin = Directory.EnumerateFileSystemEntries(dir)
+                               .Select(Path.GetFileName)
+                               .Where(n => n != null && n.Contains(stem, PathComparison))
+                               .OrderBy(n => n, PathComparer);
+            sb.Append("  siblings:   ").AppendLine(string.Join(", ", kin));
+
+            // A directory sitting where the backup should go, or a dangling symlink, both read as
+            // "does not exist" to File.Exists while still being in the way of a rename.
+            sb.Append("  dest kind:  ").AppendLine(
+                File.Exists(dest) ? "file" : Directory.Exists(dest) ? "DIRECTORY" : "absent");
+
+            var info = new FileInfo(source);
+            sb.Append("  source:     length ").Append(info.Length)
+              .Append(", attributes ").Append(info.Attributes)
+              .Append(", last written ").Append(info.LastWriteTimeUtc.ToString("O"));
+        }
+        catch (Exception ex) { sb.Append("  (diagnosis failed: ").Append(ex.Message).Append(')'); }
+
+        return sb.ToString();
+    }
 
     private static void TryHide(string path)
     {
