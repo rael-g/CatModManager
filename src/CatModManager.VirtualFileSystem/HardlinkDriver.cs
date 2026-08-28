@@ -60,30 +60,55 @@ public class HardlinkDriver : IFileSystemDriver
         _mountPoint = mountPoint;
         var entries = new List<HardlinkStateEntry>();
 
-        WalkAndLink(this, fileSystem, "", mountPoint, entries);
-
+        // Everything from here to Save() is the window where the game folder is modified but
+        // nothing is recorded anywhere. Any escape from it without undoing the work leaves the
+        // user's real game files renamed to dot-backups that no future unmount and no crash
+        // recovery will ever restore, because the DB never learned they existed.
         try
         {
+            WalkAndLink(this, fileSystem, "", mountPoint, entries);
             _store.Save(mountPoint, entries);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (Exception ex)
         {
-            foreach (var e in entries)
-            {
-                try
-                {
-                    if (File.Exists(e.DestPath)) File.Delete(e.DestPath);
-                    if (e.BackupPath != null && File.Exists(e.BackupPath))
-                        File.Move(e.BackupPath, e.DestPath, overwrite: true);
-                }
-                catch { }
-            }
-            throw new IOException(
-                $"Cannot persist crash-recovery state for '{mountPoint}'. " +
-                $"Run CMM as administrator or move the game outside of Program Files. ({ex.Message})", ex);
+            Rollback(entries);
+
+            // Losing write access to the state store is worth its own advice; anything else
+            // propagates as-is, with the diagnosis WalkAndLink already attached.
+            if (ex is UnauthorizedAccessException)
+                throw new IOException(
+                    $"Cannot persist crash-recovery state for '{mountPoint}'. " +
+                    $"Run CMM as administrator or move the game outside of Program Files. ({ex.Message})", ex);
+
+            throw;
         }
 
         _isMounted = true;
+    }
+
+    /// <summary>
+    /// Undoes a partial mount: drops each deployed link and puts the displaced game file back.
+    ///
+    /// Deliberately best-effort per entry — one file that refuses to budge (locked by a running
+    /// game, say) must not strand the other several hundred. Runs in reverse so a later entry
+    /// nested under an earlier one is cleared first.
+    /// </summary>
+    private static void Rollback(List<HardlinkStateEntry> entries)
+    {
+        for (int i = entries.Count - 1; i >= 0; i--)
+        {
+            var e = entries[i];
+            try
+            {
+                if (File.Exists(e.DestPath)) File.Delete(e.DestPath);
+                if (e.BackupPath != null && File.Exists(e.BackupPath))
+                {
+                    File.Move(e.BackupPath, e.DestPath, overwrite: true);
+                    TryClearHidden(e.DestPath);
+                }
+            }
+            catch { /* best-effort: restore as much as can be restored */ }
+        }
     }
 
     public void Unmount()
@@ -191,9 +216,12 @@ public class HardlinkDriver : IFileSystemDriver
                 TryHide(backupPath);
             }
 
-            driver.DeployFile(physPath, destPath, rel);
-
+            // Recorded before deploying, not after. The game file has already been moved aside at
+            // this point, so if the link fails the entry is the only thing that knows where the
+            // real file went — appending afterwards means a failed deploy strands it permanently.
             entries.Add(new HardlinkStateEntry(rel, destPath, backupPath));
+
+            driver.DeployFile(physPath, destPath, rel);
         }
     }
 
