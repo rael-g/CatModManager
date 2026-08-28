@@ -62,8 +62,21 @@ public partial class ExternalToolsViewModel : ViewModelBase
 
         StatusMessage = $"Launching {tool.Name}…";
         _logService.Log($"[Tools] Launching: {tool.ExecutablePath} {tool.Arguments}");
-        await _processService.StartProcessAsync(tool.ExecutablePath, tool.Arguments, waitForChildren: false);
-        StatusMessage = "";
+
+        // The result used to be discarded and the status blanked unconditionally, so a tool with a
+        // stale path — moved, uninstalled, on an unmounted drive — produced a flash of "Launching…"
+        // and then nothing at all. Indistinguishable from a tool that opened fine on another
+        // workspace, which is the one case where seeing nothing is correct.
+        var launch = await _processService.StartProcessAsync(tool.ExecutablePath, tool.Arguments, waitForChildren: false);
+
+        if (launch.Started)
+        {
+            StatusMessage = "";
+            return;
+        }
+
+        StatusMessage = $"Could not launch {tool.Name} — check that '{tool.ExecutablePath}' still exists.";
+        _logService.LogError($"[Tools] Launch failed for '{tool.Name}': {tool.ExecutablePath}");
     }
 
     [RelayCommand]
