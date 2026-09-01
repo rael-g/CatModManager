@@ -165,7 +165,22 @@ public class FomodWizardViewModel
         mapping[source] = dest;
     }
 
-    private static string GroupKey(FomodInstallStep step, FomodGroup group) =>
-        $"{step.Name}::{group.Name}";
+    /// <summary>
+    /// Identity of a group, by position rather than by name.
+    ///
+    /// The step's name is optional in the FOMOD format, and authoring tools leave it blank freely:
+    /// "My Little Nanako 3" (Fallout 4, Nexus 49813) has 43 steps all named "". Keying on
+    /// "{step.Name}::{group.Name}" then collapsed those 43 groups onto 14 keys — one key,
+    /// '::Eyelashes - Below', was shared by 14 different steps. Every step sharing a key shared its
+    /// selection state and, because the same string is the RadioButton GroupName, its radio group
+    /// too: choosing in one step cleared the others, and the install silently applied a single
+    /// choice where fourteen were meant. Position is the only identity the format guarantees.
+    /// </summary>
+    public string GroupKey(FomodInstallStep step, FomodGroup group)
+    {
+        int stepIdx  = _config.InstallSteps.IndexOf(step);
+        int groupIdx = stepIdx >= 0 ? _config.InstallSteps[stepIdx].Groups.IndexOf(group) : -1;
+        return $"{stepIdx}::{groupIdx}::{group.Name}";
+    }
 }
 

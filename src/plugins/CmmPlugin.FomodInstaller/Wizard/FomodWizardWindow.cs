@@ -21,6 +21,13 @@ public class FomodWizardWindow : Window
     private readonly IPluginLogger _log;
     private readonly IArchiveExtractor _extractor;
     private readonly string _archivePath;
+    /// <summary>
+    /// Image paths in ModuleConfig.xml are relative to the module root, which is the wrapper folder
+    /// when the archive has one — "My Little Nanako 3" asks for "01-00.png" and ships it as
+    /// "nana311/01-00.png". Without the prefix no image resolved, and TryLoadImageFromArchive
+    /// reports a miss by returning null, so every preview silently vanished.
+    /// </summary>
+    private readonly string _wrapperPrefix;
     private readonly ContentControl _stepContent;
     private readonly TextBlock _stepIndicator;
     private readonly Button _btnBack;
@@ -32,6 +39,7 @@ public class FomodWizardWindow : Window
         _log = log;
         _extractor = extractor;
         _archivePath = archivePath;
+        _wrapperPrefix = config.WrapperPrefix ?? string.Empty;
         _vm = new FomodWizardViewModel(config);
 
         Title = $"Install: {config.ModuleName}";
@@ -117,8 +125,17 @@ public class FomodWizardWindow : Window
 
     private void Render()
     {
+        // The step's own name is preferred, but it is optional in the format and often blank — 43
+        // blank ones in a row leave the user with no idea where they are, so fall back to the first
+        // group's name, which authoring tools do fill in.
+        string label = _vm.CurrentStep?.Name is { Length: > 0 } n
+            ? n
+            : _vm.CurrentStep?.Groups.FirstOrDefault()?.Name ?? string.Empty;
+
         _stepIndicator.Text = _vm.TotalSteps > 0
-            ? $"Step {_vm.CurrentStepNumber} of {_vm.TotalSteps}"
+            ? (label.Length > 0
+                ? $"Step {_vm.CurrentStepNumber} of {_vm.TotalSteps} — {label}"
+                : $"Step {_vm.CurrentStepNumber} of {_vm.TotalSteps}")
             : "No steps — click Install to proceed.";
 
         _btnBack.IsEnabled = _vm.CanGoBack;
@@ -183,7 +200,7 @@ public class FomodWizardWindow : Window
             {
                 Content = plugin.Name,
                 IsChecked = selected.Contains(plugin.Name),
-                GroupName = $"{step.Name}::{group.Name}",
+                GroupName = _vm.GroupKey(step, group),
                 IsEnabled = group.Type != GroupType.SelectAll
             };
             radio.IsCheckedChanged += (_, _) =>
@@ -221,7 +238,8 @@ public class FomodWizardWindow : Window
 
         if (!string.IsNullOrEmpty(plugin.ImagePath))
         {
-            var bmp = TryLoadImageFromArchive(_extractor, _archivePath, plugin.ImagePath);
+            var bmp = TryLoadImageFromArchive(
+                _extractor, _archivePath, _wrapperPrefix + plugin.ImagePath);
             if (bmp != null)
                 row.Children.Add(new Image
                 {
