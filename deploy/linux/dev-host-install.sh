@@ -1,12 +1,12 @@
 #!/bin/bash
 # Sets up this host to run a native (non-distrobox) self-contained CMM build for
 # testing — the only way to validate things that need the real host mount
-# namespace (FUSE mounts, nxm:// launched from the browser, etc.), since
-# distrobox containers have their own isolated namespace for both.
+# namespace and desktop session (nxm:// launched from the browser, .desktop
+# registration), since distrobox containers have their own isolated namespace.
 #
 # NOT part of the installer/release — this is a throwaway dev/test helper.
-# Only supports Arch/pacman today (matches this host). Adjust PKG_MANAGER
-# commands below if you're on a different distro.
+# Only supports Arch/pacman today (matches this host). Adjust the pacman calls
+# below if you're on a different distro.
 
 set -euo pipefail
 
@@ -17,23 +17,23 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # platform now, and those need nothing installed.
 REQUIRED_PKGS=(xdg-utils desktop-file-utils)
 
-echo "== Verificando dependências =="
+echo "== Checking dependencies =="
 missing=()
 for pkg in "${REQUIRED_PKGS[@]}"; do
     if pacman -Qi "$pkg" >/dev/null 2>&1; then
-        echo "  $pkg: já instalado"
+        echo "  $pkg: already installed"
     else
-        echo "  $pkg: falta"
+        echo "  $pkg: missing"
         missing+=("$pkg")
     fi
 done
 
 if [ ${#missing[@]} -gt 0 ]; then
-    echo "== Instalando: ${missing[*]} =="
+    echo "== Installing: ${missing[*]} =="
     sudo pacman -S --needed --noconfirm "${missing[@]}"
 fi
 
-echo "== Publicando build self-contained em $PUBLISH_DIR =="
+echo "== Publishing self-contained build to $PUBLISH_DIR =="
 dotnet publish "$REPO_ROOT/src/CatModManager.Ui/CatModManager.Ui.csproj" \
     -c Release -r linux-x64 --self-contained true \
     -p:PublishSingleFile=false \
@@ -45,27 +45,27 @@ dotnet publish "$REPO_ROOT/src/CatModManager.Ui/CatModManager.Ui.csproj" \
 # Copy it over by hand so the published app isn't plugin-less.
 BUILD_PLUGINS_DIR="$REPO_ROOT/src/CatModManager.Ui/bin/Release/net10.0/plugins"
 if [ -d "$BUILD_PLUGINS_DIR" ]; then
-    echo "== Copiando plugins para o build publicado =="
-    # Apaga antes: "cp -r origem destino" com o destino já existente copia para
-    # DENTRO dele, então re-rodar o script criava app/plugins/plugins/plugins/...
+    echo "== Copying plugins into the published build =="
+    # Delete first: "cp -r source dest" with dest already existing copies INTO
+    # it, so re-running the script used to create app/plugins/plugins/plugins/...
     rm -rf "$PUBLISH_DIR/app/plugins"
     cp -r "$BUILD_PLUGINS_DIR" "$PUBLISH_DIR/app/plugins"
 fi
 
-# ── Entrada no menu de aplicativos ──────────────────────────────────────────
-# Sem isso o app só abre por caminho completo no terminal. Entrada e ícone vão
-# para os diretórios per-user do XDG, então nada precisa de root.
+# ── Application menu entry ──────────────────────────────────────────────────
+# Without this the app only opens by full path from a terminal. The entry and
+# icon go to the per-user XDG directories, so nothing needs root.
 DESKTOP_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
 DESKTOP_FILE="$DESKTOP_DIR/cat-mod-manager.desktop"
 
-echo "== Registrando no menu de aplicativos =="
+echo "== Registering in the application menu =="
 mkdir -p "$DESKTOP_DIR" "$ICON_DIR"
 cp "$REPO_ROOT/src/CatModManager.Ui/Assets/icon.png" "$ICON_DIR/cat-mod-manager.png"
 
-# %U (ou %u) fica SEM aspas de propósito: a spec proíbe field code dentro de
-# argumento citado e os launchers obedecem literalmente, entregando a URL com
-# as aspas dentro do argumento. Foi o que quebrou o handler nxm:// antes.
+# %U (or %u) is deliberately left UNQUOTED: the spec forbids a field code inside
+# a quoted argument and launchers obey that literally, handing over the URL with
+# the quotes inside the argument. That is what broke the nxm:// handler before.
 cat > "$DESKTOP_FILE" <<DESKTOP
 [Desktop Entry]
 Type=Application
@@ -82,11 +82,11 @@ update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
 gtk-update-icon-cache -q -t -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
 echo ""
-echo "Pronto. Binário em: $PUBLISH_DIR/app/CatModManager"
-echo "Também disponível no menu de aplicativos como \"Cat Mod Manager\"."
-echo "Rode direto (sem distrobox) para testar FUSE/nxm de verdade:"
+echo "Done. Binary at: $PUBLISH_DIR/app/CatModManager"
+echo "Also available in the application menu as \"Cat Mod Manager\"."
+echo "Run it directly (outside distrobox) to test nxm:// for real:"
 echo "  $PUBLISH_DIR/app/CatModManager"
 echo ""
-echo "Para remover o app depois: dev-host-uninstall.sh"
-echo "(os pacotes de sistema instalados acima ficam — são dependências normais do"
-echo "seu sistema, não algo pra desinstalar junto com o app)"
+echo "To remove the app later: dev-host-uninstall.sh"
+echo "(the system packages installed above stay — they are ordinary dependencies"
+echo "of your system, not something to uninstall along with the app)"

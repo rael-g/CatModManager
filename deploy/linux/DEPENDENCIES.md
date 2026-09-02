@@ -1,72 +1,75 @@
 # Linux Dependencies
 
-Levantado durante a primeira validação real do CMM em Linux (Ubuntu 24.04, via distrobox).
-Usar como checklist na hora de montar o instalador/pacote Linux (`pack.cs`).
+Written during the first real validation of CMM on Linux (Ubuntu 24.04, via distrobox). Use it as the
+checklist when building the Linux installer/package (`pack.cs`).
 
-**Testando fora da distrobox**: o registro de `nxm://` só funciona de verdade quando o CMM roda no
-mesmo mount namespace do resto do sistema (o jogo, o navegador) — dentro da distrobox, nada disso
-é enxergado de fora. Para testar isso de verdade
-sem instalar nada permanente no host, use `dev-host-install.sh` / `dev-host-uninstall.sh` nesta
-pasta: publicam um build self-contained numa pasta isolada, instalando os pacotes pacman que faltarem
-(dependências normais do sistema, ficam instalados). O uninstall só remove essa pasta — não mexe em
-pacote nenhum.
+**Testing outside distrobox**: registering `nxm://` only works properly when CMM runs in the same
+mount namespace as the rest of the system (the game, the browser) — inside a distrobox, none of that
+is visible from outside. To test it for real without permanently installing anything on the host, use
+`dev-host-install.sh` / `dev-host-uninstall.sh` in this folder: they publish a self-contained build
+into an isolated directory and install any missing pacman packages (ordinary system dependencies —
+they stay installed). The uninstall script only removes that directory; it touches no packages.
 
-## Runtime (precisam existir na máquina do usuário)
+## Runtime (must exist on the user's machine)
 
-| Pacote (Ubuntu/Debian) | Para quê | Observação |
+| Package (Ubuntu/Debian) | What for | Note |
 |---|---|---|
-| ~~`libfuse2t64`~~, ~~`fuse3`~~ | **Não são mais necessários.** O driver FUSE foi aposentado e o Safe Swap usa hardlink em todas as plataformas, o que não exige pacote nenhum — só um filesystem que suporte hardlink (ext4, btrfs, xfs, NTFS) | Podem ser removidos do instalador |
-| `xdg-utils` (`xdg-mime`) | Registro do protocolo `nxm://` (`LinuxNxmProtocolHandler`) | Sem isso o registro falha silenciosamente (best-effort) — botão "nxm" na UI fica sempre "não registrado" |
-| `desktop-file-utils` (`update-desktop-database`) | Atualiza o cache de `.desktop` depois de registrar/desregistrar o `nxm://` | Best-effort; se faltar, o registro ainda funciona mas o cache do desktop environment pode demorar a refletir |
-| ASP.NET Core + .NET runtime (self-contained no publish, então não é dependência externa) | — | Publicar com `--self-contained true` (já é o que `pack.cs` faz) evita depender do `dotnet` do sistema |
-| Libs X11/GTK do Avalonia (`libx11-6`, `libice6`, `libsm6`, `libfontconfig1`) | Renderização da UI Avalonia | Normalmente já presentes em qualquer desktop Linux com ambiente gráfico; vale confirmar em distros minimalistas |
+| ~~`libfuse2t64`~~, ~~`fuse3`~~ | **No longer needed.** The FUSE driver was retired and the Safe Swap uses hard links on every platform, which requires no package at all — only a filesystem that supports hard links (ext4, btrfs, xfs, NTFS) | Can be dropped from the installer |
+| `xdg-utils` (`xdg-mime`) | Registering the `nxm://` protocol (`LinuxNxmProtocolHandler`) | Without it registration fails silently (best-effort) — the "nxm" button in the UI stays permanently "not registered" |
+| `desktop-file-utils` (`update-desktop-database`) | Refreshes the `.desktop` cache after registering/unregistering `nxm://` | Best-effort; if missing, registration still works but the desktop environment's cache may take a while to catch up |
+| ASP.NET Core + .NET runtime (self-contained in the publish, so not an external dependency) | — | Publishing with `--self-contained true` (what `pack.cs` already does) avoids depending on the system `dotnet` |
+| Avalonia's X11/GTK libraries (`libx11-6`, `libice6`, `libsm6`, `libfontconfig1`) | Rendering the Avalonia UI | Normally already present on any Linux desktop with a graphical environment; worth confirming on minimal distros |
 
-## Dev-only (não vão pro pacote final, só pra quem for compilar)
+## Dev-only (not shipped in the final package — only for building)
 
-| Pacote | Para quê |
+| Package | What for |
 |---|---|
 | `dotnet-sdk-10.0` | Build/publish |
-| `git`, `git-lfs` | Clone do repo (assets binários via LFS) |
-| `build-essential` | Compilação de dependências nativas transitivas |
+| `git`, `git-lfs` | Cloning the repo (binary assets via LFS) |
+| `build-essential` | Compiling transitive native dependencies |
 
-## Fix real que fica no código (não é workaround)
+## A real fix that stays in the code (not a workaround)
 
-Em [`src/CatModManager.Ui/Program.cs`](../../src/CatModManager.Ui/Program.cs), o mecanismo de
-instância única (IPC via named pipe pra encaminhar `nxm://` pra uma janela já aberta) tinha uma falha
-real no Linux: `NamedPipeServerStream` não recusa bind num pipe já em uso — ele apaga e recria por
-baixo dos panos, então uma segunda instância podia "roubar" o pipe da primeira, deixando-a inalcançável
-pro resto da execução. Corrigido com um lock de arquivo exclusivo (`FileShare.None`) que garante que só
-uma instância por vez rode o servidor de IPC. Esse fix é definitivo, funciona em qualquer distro e deve
-permanecer no código.
+In [`src/CatModManager.Ui/Program.cs`](../../src/CatModManager.Ui/Program.cs), the single-instance
+mechanism (IPC over a named pipe, forwarding `nxm://` to an already-open window) had a genuine bug on
+Linux: `NamedPipeServerStream` does not refuse to bind to a pipe already in use — it silently deletes
+and recreates it, so a second instance could "steal" the pipe from the first, leaving the first
+unreachable for the rest of its run. Fixed with an exclusive file lock (`FileShare.None`) that
+guarantees only one instance at a time runs the IPC server. This fix is permanent, works on any
+distro, and should stay in the code.
 
-## ⚠️ Workarounds de ambiente de dev — NÃO fazem parte do produto
+## ⚠️ Dev-environment workarounds — NOT part of the product
 
-Durante a validação do `nxm://` neste ambiente (distrobox `dev` + navegador no host), foram criados
-dois artefatos **fora do repo**, só pra viabilizar teste local. Eles não existem numa instalação real
-e **não devem ser copiados/empacotados**:
+While validating `nxm://` in this environment (distrobox `dev` + browser on the host), two artifacts
+were created **outside the repo**, purely to make local testing possible. They do not exist in a real
+installation and **must not be copied or packaged**:
 
-- `~/.local/bin/cmm-nxm-launcher.sh` — script wrapper que faz `distrobox enter dev -- .../CatModManager "%u"`.
-- `~/.local/share/applications/cmm-nxm-handler.desktop` — `.desktop` local apontando pro script acima.
+- `~/.local/bin/cmm-nxm-launcher.sh` — a wrapper script that runs `distrobox enter dev -- .../CatModManager "%u"`.
+- `~/.local/share/applications/cmm-nxm-handler.desktop` — a local `.desktop` pointing at that script.
 
-**Por que existem**: neste setup, o CMM roda dentro da distrobox `dev` (não instalado nativamente no
-host), então o handler de `nxm://` precisa entrar no container antes de executar o binário. Numa
-instalação real (`pack.cs` linux, self-contained, direto no host), isso não é necessário —
-`LinuxNxmProtocolHandler.Register()` (em
+**Why they exist**: in this setup CMM runs inside the distrobox `dev` (not installed natively on the
+host), so the `nxm://` handler has to enter the container before executing the binary. In a real
+installation (`pack.cs` linux, self-contained, straight onto the host) none of this is needed —
+`LinuxNxmProtocolHandler.Register()` (in
 [`src/plugins/CmmPlugin.NexusMods/LinuxNxmProtocolHandler.cs`](../../src/plugins/CmmPlugin.NexusMods/LinuxNxmProtocolHandler.cs))
-já gera o `.desktop` certo, com `Exec="{caminho-do-binário-instalado}" "%u"` — um único executável,
-sem indireção nenhuma.
+already generates the right `.desktop`, with `Exec="{path-to-installed-binary}" "%u"` — a single
+executable, no indirection.
 
-**Achado relevante que TEM que sobreviver ao release**: o parser de `Exec=` do GLib/`gio launch`
-(usado pelo GNOME e por extensão pelo mecanismo padrão de abrir `nxm://` a partir do navegador) não
-lida bem com uma linha `Exec=` de **múltiplos tokens antes do `%u`** (ex.: `distrobox enter dev --
-/caminho/binário "%u"` — 5 tokens). Nesse ambiente de teste, isso fazia a conexão por named pipe
-falhar silenciosamente toda vez que o link era clicado pelo navegador, mesmo funcionando perfeitamente
-via terminal. A solução foi sempre ter **um único executável no `Exec=`** (script wrapper aqui; o
-binário instalado direto no caso real). Como o `LinuxNxmProtocolHandler` real já gera `Exec="{exePath}"
-"%u"` (um token + `%u`), ele já está no formato seguro — mas se alguém no futuro "simplificar" isso pra
-incluir argumentos extras antes do `%u`, é bom lembrar desse quirk antes de reintroduzir o bug.
+**Finding that MUST survive the release**: the GLib / `gio launch` parser for `Exec=` (used by GNOME,
+and by extension by the standard mechanism for opening `nxm://` from the browser) does not handle an
+`Exec=` line with **multiple tokens before `%u`** (e.g. `distrobox enter dev -- /path/binary "%u"` —
+5 tokens). In this test environment that made the named-pipe connection fail silently every time the
+link was clicked in the browser, even though it worked perfectly from a terminal. The solution was to
+always have **a single executable in `Exec=`** (the wrapper script here; the installed binary in the
+real case). Since the real `LinuxNxmProtocolHandler` already generates `Exec="{exePath}" "%u"` (one
+token + `%u`), it is already in the safe form — but if someone later "simplifies" this to include
+extra arguments before `%u`, it is worth remembering this quirk before reintroducing the bug.
 
-## Pendências conhecidas (ver tarefas anotadas na sessão)
+## Known gaps
 
-- Sem scanner de Steam/GOG nativo pro Linux ainda — auto-detecção de jogos instalados não funciona lá (só via registro do Windows hoje).
-- ~~`winfsp.net` é dead weight na publicação~~ — **resolvido.** Ele e o `Mono.Fuse.NETStandard` saíram do `.csproj` do `CatModManager.VirtualFileSystem` junto com a aposentadoria do driver FUSE. O `winfsp.net`, em particular, era referenciado sem nenhum código no repositório usá-lo: ia no binário à toa.
+- No native Steam/GOG scanner for Linux yet — auto-detection of installed games does not work there
+  (today it only works via the Windows registry).
+- ~~`winfsp.net` is dead weight in the publish~~ — **resolved.** It and `Mono.Fuse.NETStandard` were
+  removed from `CatModManager.VirtualFileSystem.csproj` along with the retirement of the FUSE driver.
+  `winfsp.net` in particular was referenced without a single line of code in the repository using it:
+  it shipped in the binary for nothing.
