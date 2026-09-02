@@ -146,6 +146,37 @@ public class ProfileRegressionTests : IDisposable
         Assert.Contains("NewProfile", vm.ProfileManager.CurrentProfileName);
     }
 
+    [Fact]
+    public async Task DeleteProfile_Should_Not_Deadlock_And_Should_Select_Another()
+    {
+        var vm = CreateVm();
+        await vm.InitialLoadTask;
+
+        // Two profiles: deleting the only one has nothing to fall back to.
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
+        string survivor = vm.ProfileManager.CurrentProfileName!;
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
+        string doomed = vm.ProfileManager.CurrentProfileName!;
+
+        string doomedPath = _pathService.GetProfilePath(doomed);
+        Assert.Contains(doomed, vm.ProfileManager.AvailableProfiles);
+        Assert.True(File.Exists(doomedPath));
+
+        vm.ProfileManager.ConfirmDelete = _ => Task.FromResult(true);
+
+        // The regression this guards: DeleteProfile used to block the calling thread waiting on the
+        // confirmation dialog, so awaiting the command never returned. A timeout, not an await, is
+        // what makes that failure show up as a failed test instead of a hung run.
+        var delete = vm.ProfileManager.DeleteProfileCommand.ExecuteAsync(null);
+        var finished = await Task.WhenAny(delete, Task.Delay(5000));
+        Assert.True(finished == delete, "DeleteProfile deadlocked.");
+        await delete;
+
+        Assert.DoesNotContain(doomed, vm.ProfileManager.AvailableProfiles);
+        Assert.False(File.Exists(doomedPath));
+        Assert.Equal(survivor, vm.ProfileManager.CurrentProfileName);
+    }
+
     // MOCKS
     private class MockCatPathService : ICatPathService {
         public string BaseDataPath { get; }
