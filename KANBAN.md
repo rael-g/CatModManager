@@ -63,17 +63,30 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
   downloads ativos vivos até terminarem (globais, não amarrados a perfil) ou migrá-los pro histórico
   do novo perfil sem interromper a stream HTTP. Adicionar teste de regressão.
 
-- **[GRAVE] Sem recuperação de mount FUSE órfão após crash no Linux.** Se o processo do CMM morre
-  (crash, `kill`, etc.) enquanto um mount FUSE está ativo, o kernel mantém a entrada de mount
-  registrada mas **desconectada** ("Transport endpoint is not connected" ao acessar) — a pasta do
-  jogo parece ter sumido/vazio até alguém rodar `fusermount -uz` manualmente. Os arquivos reais nunca
-  são afetados (confirmado 2x nesta sessão: KOTOR e Max Payne), mas o susto é grande e não tem
-  recuperação automática. `VfsStateService.RecoverStaleMounts()` (`src/CatModManager.Core/Services/
-  VfsStateService.cs`), que roda na inicialização pra limpar sessões anteriores, só conhece o esquema
-  de hard links do Windows (restaura por `backup_path`) — não existe equivalente pra detectar/desmontar
-  um FUSE órfão no Linux. Fix: no startup (ou no `RecoverStaleMounts` do Linux), verificar
-  `/proc/mounts` por entradas `fuse.CatModManager` que apontem pra pastas de jogos conhecidos e, se
-  encontradas, tentar `fusermount -uz` nelas antes de abrir a UI.
+- ~~**[GRAVE] Sem recuperação de mount FUSE órfão após crash no Linux.**~~ **Resolvido por remoção
+  (01/09/2026):** o driver FUSE foi aposentado e o hardlink virou o driver de todas as plataformas,
+  então não há mais mount que possa ficar órfão.
+
+  Vale registrar o incidente que fechou a discussão, porque ele mostrou algo que a entrada original
+  não tinha percebido. Um órfão sobre `Fallout 4/Data` deixou 94 GB inacessíveis e, além disso,
+  **derrubou o driver de hardlink junto**: o mount novo falhou porque já havia algo montado ali, o
+  código caiu pro fallback de hardlink, e o `WalkAndLink` morreu com `ENOTCONN` ao entrar em
+  `Data/F4SE/Plugins`, que estava dentro da montagem morta. Ou seja, o driver experimental não era
+  um caminho paralelo — ele contaminava o caminho estável. Foi esse acoplamento, e não o custo de
+  manutenção, que justificou remover em vez de só despriorizar.
+
+  O órfão foi criado por um processo `testhost.dll`, isto é, por uma execução de `dotnet test`
+  montando sobre a pasta real do jogo. **Isso continua valendo como item aberto** — ver abaixo.
+
+- **Descobrir se algum teste monta em caminho real.** Durante a investigação do FUSE apareceu em
+  `/proc/mounts` uma entrada `fuse.testhost.dll` sobre
+  `~/.local/share/Steam/steamapps/common/Fallout 4/Data`, ou seja, a suíte montou sobre a pasta real
+  de um jogo do usuário. A montagem já foi desfeita e o driver FUSE já saiu, então o sintoma exato
+  não se repete — mas a causa (teste operando em caminho real em vez de sandbox) pode continuar viva
+  e agora se manifestaria via hardlink, que **escreve**. É a mesma família do que o commit `f5c5e08`
+  corrigiu pro banco de dados. Vale varrer a suíte à procura de testes que não usem `TempPathService`
+  e possam alcançar caminhos reais — `ProfileManagementTests.DeleteProfile_ShouldWork_And_CreateNewProfile`
+  (hoje `Skip`) é o suspeito conhecido, mas não foi confirmado como o autor deste mount.
 
 - **Launch via plataforma (Steam primeiro), por configuração e não por arquitetura.** Hoje o Launch
   só sabe abrir um `.exe`. No Linux quase todo jogo roda por Proton, então abrir o exe direto não

@@ -13,7 +13,9 @@ set -euo pipefail
 PUBLISH_DIR="${CMM_DEV_HOST_DIR:-$HOME/.local/opt/cmm-dev-host}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-REQUIRED_PKGS=(fuse2 fuse3 xdg-utils desktop-file-utils)
+# fuse2/fuse3 used to be here, for the retired FUSE driver. Deployment is hard links on every
+# platform now, and those need nothing installed.
+REQUIRED_PKGS=(xdg-utils desktop-file-utils)
 
 echo "== Verificando dependências =="
 missing=()

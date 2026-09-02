@@ -44,14 +44,19 @@ update.
 
 ## The "Safe Swap"
 
-Two backends, one guarantee: **the original installation is never written to.**
+One backend on every platform: **hard links**, created at mount time. Originals
+are set aside with a dot-prefix and restored on unmount. No kernel driver, no
+admin rights, no file content ever copied.
 
-| | Mechanism | Notes |
-|---|---|---|
-| **Linux** | Read-only **FUSE** filesystem mounted over the target directory | The game sees a merged view of base files and mod overrides. Nothing is copied. |
-| **Windows** | **NTFS hard links** created at mount time | Originals are set aside with a dot-prefix and restored on unmount. No kernel driver, no admin rights. |
+A read-only FUSE overlay was used on Linux for a while, and it is retired. It
+only ever worked on one platform, so it doubled the polish and testing for a
+minority of setups — and it was not a harmless parallel path: a mount left
+behind by a killed process stays registered but disconnected, and everything
+underneath it then fails with `ENOTCONN`, taking the hard link fallback down
+with it. The implementation stays in the repository history; it is no longer
+built or shipped.
 
-Both are *sessions*, not deployments. They have a beginning and an end, and the
+This is a *session*, not a deployment. It has a beginning and an end, and the
 end returns the game to exactly where it started.
 
 ---
@@ -187,9 +192,9 @@ codebase.
 ### Requirements
 
 - **.NET 10.0** runtime (SDK if building from source)
-- **Linux:** `fuse2`/`libfuse2`, `fuse3`, `xdg-utils`, `desktop-file-utils` —
-  exact package names per distribution are in
-  [deploy/linux/DEPENDENCIES.md](deploy/linux/DEPENDENCIES.md)
+- **Linux:** `xdg-utils`, `desktop-file-utils` — exact package names per
+  distribution are in [deploy/linux/DEPENDENCIES.md](deploy/linux/DEPENDENCIES.md).
+  A filesystem that supports hard links, which covers ext4, btrfs, xfs and NTFS.
 - **Windows:** an **NTFS** volume for the game (hard links are an NTFS feature).
   No administrator rights needed.
 
@@ -237,7 +242,7 @@ stays.
 
 ```
 CatModManager.Core               ← models, services, VFS orchestration
-CatModManager.VirtualFileSystem  ← platform drivers (FuseDriver / HardlinkDriver)
+CatModManager.VirtualFileSystem  ← deployment driver (HardlinkDriver)
 CatModManager.PluginSdk          ← the public plugin API
 CatModManager.Ui                 ← Avalonia MVVM shell
 src/plugins/                     ← the bundled plugins listed above

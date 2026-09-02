@@ -10,13 +10,16 @@ namespace CatModManager.Tests.VirtualFileSystem;
 public class FileSystemFactoryTests
 {
     [Fact]
-    public void CreateDriver_ReturnsNonNullDriver_OnSupportedPlatforms()
+    public void CreateDriver_ReturnsHardlinks_OnEverySupportedPlatform()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            var store  = new NullHardlinkStateStore();
-            var driver = FileSystemFactory.CreateDriver(store);
-            Assert.NotNull(driver);
+            // Linux used to get a FUSE overlay with a hard link fallback. Now every platform gets
+            // the same driver, so the target path no longer influences the choice.
+            var store = new NullHardlinkStateStore();
+
+            Assert.IsType<HardlinkDriver>(FileSystemFactory.CreateDriver(store));
+            Assert.IsType<HardlinkDriver>(FileSystemFactory.CreateDriver(store, "/anywhere"));
         }
     }
 
@@ -32,24 +35,15 @@ public class FileSystemFactoryTests
         Assert.IsType<HardlinkDriver>(driver);
     }
 
-    [Theory]
-    [InlineData("ext4",  true)]
-    [InlineData("btrfs", true)]
-    [InlineData("xfs",   true)]
-    [InlineData("ntfs",  false)]
-    [InlineData("ntfs3", false)]
-    public void FuseOverlay_IsUnavailableOnFilesystemsFusermountRefuses(string fsType, bool expected)
-    {
-        // fusermount rejects the mount itself ("mounting over filesystem type 0x7366746e is
-        // forbidden"), before CMM gets any say — so the driver has to be chosen up front.
-        Assert.Equal(expected, FileSystemFactory.IsFuseMountableFilesystem(fsType));
-    }
-
     [Fact]
-    public void FuseOverlay_IsAssumedAvailable_WhenTheTargetIsUnknown()
+    public void DescribeFilesystem_NamesTheFilesystem_ForDiagnostics()
     {
-        // Null target means crash recovery, which inspects state instead of mounting.
-        Assert.True(FileSystemFactory.SupportsFuseOverlay(null));
+        // Survives the FUSE driver because a cross-device hard link failure is otherwise reported
+        // as a bare "Invalid cross-device link", with no hint of which filesystems were involved.
+        Assert.Equal("an unknown filesystem", FileSystemFactory.DescribeFilesystem(null));
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            Assert.NotEqual("an unknown filesystem", FileSystemFactory.DescribeFilesystem("/"));
     }
 
     private sealed class NullHardlinkStateStore : IHardlinkStateStore

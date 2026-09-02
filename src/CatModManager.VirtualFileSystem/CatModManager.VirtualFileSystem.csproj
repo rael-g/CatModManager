@@ -12,10 +12,10 @@
     </AssemblyAttribute>
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Mono.Fuse.NETStandard" Version="1.1.0" />
-    <PackageReference Include="winfsp.net" Version="2.1.25156" />
-  </ItemGroup>
-
+  <!--
+    No VFS packages here on purpose. Mono.Fuse.NETStandard went with the retired FUSE driver, and
+    winfsp.net was a leftover from the abandoned Windows VFS experiment — still shipped in the
+    binary even though no code referenced it. Deployment is hard links on every platform now.
+  -->
 
 </Project>

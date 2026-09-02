@@ -3,9 +3,9 @@
 Levantado durante a primeira validação real do CMM em Linux (Ubuntu 24.04, via distrobox).
 Usar como checklist na hora de montar o instalador/pacote Linux (`pack.cs`).
 
-**Testando fora da distrobox**: FUSE e o registro de `nxm://` só funcionam de verdade quando o CMM
-roda no mesmo mount namespace do resto do sistema (o jogo, o navegador) — dentro da distrobox, os
-mounts ficam presos no namespace do container e ninguém fora enxerga. Para testar isso de verdade
+**Testando fora da distrobox**: o registro de `nxm://` só funciona de verdade quando o CMM roda no
+mesmo mount namespace do resto do sistema (o jogo, o navegador) — dentro da distrobox, nada disso
+é enxergado de fora. Para testar isso de verdade
 sem instalar nada permanente no host, use `dev-host-install.sh` / `dev-host-uninstall.sh` nesta
 pasta: publicam um build self-contained numa pasta isolada, instalando os pacotes pacman que faltarem
 (dependências normais do sistema, ficam instalados). O uninstall só remove essa pasta — não mexe em
@@ -15,8 +15,7 @@ pacote nenhum.
 
 | Pacote (Ubuntu/Debian) | Para quê | Observação |
 |---|---|---|
-| `libfuse2t64` (ou `libfuse2` em versões mais antigas) | Mount do Safe Swap via FUSE (`FuseDriver` usa `Mono.Fuse.NETStandard`, que linka contra `libfuse.so.2`, API v2 — **não** fuse3) | Sem isso, `Mount()` falha ao carregar o `.so` nativo do Mono.Fuse |
-| `fuse3` (fornece `fusermount`/`fusermount3`) | Unmount do FUSE — o driver desmonta via `fusermount`/`fusermount3`, não pela API gerenciada | Ubuntu 24.04 já traz os dois binários por padrão |
+| ~~`libfuse2t64`~~, ~~`fuse3`~~ | **Não são mais necessários.** O driver FUSE foi aposentado e o Safe Swap usa hardlink em todas as plataformas, o que não exige pacote nenhum — só um filesystem que suporte hardlink (ext4, btrfs, xfs, NTFS) | Podem ser removidos do instalador |
 | `xdg-utils` (`xdg-mime`) | Registro do protocolo `nxm://` (`LinuxNxmProtocolHandler`) | Sem isso o registro falha silenciosamente (best-effort) — botão "nxm" na UI fica sempre "não registrado" |
 | `desktop-file-utils` (`update-desktop-database`) | Atualiza o cache de `.desktop` depois de registrar/desregistrar o `nxm://` | Best-effort; se faltar, o registro ainda funciona mas o cache do desktop environment pode demorar a refletir |
 | ASP.NET Core + .NET runtime (self-contained no publish, então não é dependência externa) | — | Publicar com `--self-contained true` (já é o que `pack.cs` faz) evita depender do `dotnet` do sistema |
@@ -70,4 +69,4 @@ incluir argumentos extras antes do `%u`, é bom lembrar desse quirk antes de rei
 ## Pendências conhecidas (ver tarefas anotadas na sessão)
 
 - Sem scanner de Steam/GOG nativo pro Linux ainda — auto-detecção de jogos instalados não funciona lá (só via registro do Windows hoje).
-- `winfsp.net` (pacote NuGet) continua referenciado no `.csproj` do `CatModManager.VirtualFileSystem` só pro path Windows — não afeta o build/publish Linux, mas vale lembrar que é dead weight na publicação self-contained pra Linux se não for tree-shaken.
+- ~~`winfsp.net` é dead weight na publicação~~ — **resolvido.** Ele e o `Mono.Fuse.NETStandard` saíram do `.csproj` do `CatModManager.VirtualFileSystem` junto com a aposentadoria do driver FUSE. O `winfsp.net`, em particular, era referenciado sem nenhum código no repositório usá-lo: ia no binário à toa.
