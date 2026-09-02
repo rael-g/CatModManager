@@ -85,8 +85,9 @@ CLAUDE.md
 GEMINI.md
 .claude/
 
-# Personal notes
-kanban.md
+# Planning notes — kanban, feature design docs, anything still being decided.
+# Deliberately unversioned: these are working notes, not documentation of the code.
+docs/plans/
 
 # CMM Temporary and Local Data
 *.log
