@@ -4,6 +4,39 @@ Lista de issues conhecidos, anotados durante a validação de suporte a Linux, p
 
 ## To Do
 
+- **[IDEIA — investigar antes de codar] Montar o jogo inteiro numa pasta por perfil, em vez de
+  instalar mods dentro da pasta do jogo.** Hoje, nos dois backends, o destino do deploy é a própria
+  pasta do jogo: o hardlink escreve links no meio dos arquivos originais e o FUSE sobrepõe a pasta
+  real. Os dois mexem em algo que não é nosso, e é daí que vem quase toda a complexidade — o Safe
+  Swap (afastar o original, linkar, restaurar), o rollback quando uma etapa falha, a recuperação pós
+  crash, e o risco de deixar o jogo num estado misto se algo morrer no meio.
+
+  A proposta inverte isso: para cada perfil, criar `<jogo>/cmm/profiles/<perfil>/` e montar ali **o
+  jogo inteiro** — arquivos originais *mais* os mods — em vez de montar só os mods sobre o original.
+  A pasta do jogo vira somente leitura, nunca é tocada, e desfazer um perfil passa a ser apagar uma
+  pasta. Vale igual pros dois backends: no FUSE é um overlay com duas origens em vez de sobreposição
+  in-place; no hardlink é linkar também os arquivos do jogo, o que é barato porque hardlink não
+  duplica conteúdo.
+
+  O que isso mataria, se der certo: o Safe Swap inteiro, o rollback parcial de mount
+  (`FuseWithHardlinkFallbackDriver` / `HardlinkDriver.WalkAndLink`) e boa parte do
+  `VfsStateService` — inclusive o item do mount FUSE órfão logo abaixo, já que um órfão passaria a
+  desconectar uma pasta descartável em vez da pasta do jogo.
+
+  **Bloqueante a investigar primeiro — não começar sem isso resolvido:** iniciar o jogo pela
+  plataforma. A Steam lança por appid a partir do caminho que ela mesma registra; um jogo que "vive"
+  em `cmm/profiles/<perfil>/` não é o que ela vai abrir, e o mesmo vale pra Epic/GOG. O item "Launch
+  via plataforma" mais abaixo resolve *passar argumentos* (`-applaunch <appid>`), mas não resolve
+  *trocar o diretório* que a plataforma usa. Caminhos a investigar, em ordem de preferência:
+  (a) montar a pasta do perfil por cima da pasta do jogo só na hora do launch — traz de volta o
+  problema que a ideia queria evitar, mas por uma janela bem menor e sem instalar nada;
+  (b) ver se dá pra apontar a biblioteca/manifest da Steam pro diretório do perfil sem editar
+  arquivo que ela reescreve (o `localconfig.vdf` já foi descartado por isso);
+  (c) aceitar que fora da Steam funciona e, dentro dela, cair no modo atual.
+
+  Se nenhum caminho fechar, a ideia não se sustenta pra quem joga pela Steam — que é a maioria — e
+  aí não vale o esforço. Por isso: investigar o launch antes de tocar em qualquer código de VFS.
+
 - **Suíte não foi validada depois dos commits de 27/08/2026.** Os 12 commits (de `perf(vfs): resolver
   conflitos...` até `docs(kanban): ...`) foram feitos com a suíte passando 320/322 na última leitura
   boa, mas **não** houve execução completa depois de fatiar os hunks. Três arquivos foram divididos
