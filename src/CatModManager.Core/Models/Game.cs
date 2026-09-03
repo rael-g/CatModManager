@@ -45,4 +45,11 @@ public class Game
     /// arrangement, and it is the half that really does differ between profiles.
     /// </summary>
     public List<MountPointDef> UserMountPoints { get; set; } = new();
+
+    /// <summary>
+    /// SKSE, xEdit, Wrye Bash — the programs that operate on this installation. They were the
+    /// profile's until 006, which meant the Tools tab emptied itself when the user switched mod
+    /// lists, even though nothing about where xEdit lives had changed.
+    /// </summary>
+    public List<ExternalTool> ExternalTools { get; set; } = new();
 }

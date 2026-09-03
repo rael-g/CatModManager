@@ -46,8 +46,7 @@ public class Profile
 
     public string Name { get; set; } = "Default";
 
-    public List<Mod>          Mods          { get; set; } = new();
-    public List<ExternalTool> ExternalTools { get; set; } = new();
+    public List<Mod> Mods { get; set; } = new();
 }
 
 

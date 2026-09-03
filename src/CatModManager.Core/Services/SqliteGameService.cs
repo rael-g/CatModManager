@@ -27,7 +27,7 @@ public class SqliteGameService : IGameService
         using (var reader = cmd.ExecuteReader())
             while (reader.Read()) games.Add(Read(reader));
 
-        foreach (var game in games) LoadMountPoints(conn, game);
+        foreach (var game in games) LoadChildren(conn, game);
         return (IReadOnlyList<Game>)games;
     });
 
@@ -81,6 +81,7 @@ public class SqliteGameService : IGameService
         }
 
         SaveMountPoints(conn, game);
+        SaveTools(conn, game);
         return game.Id;
     });
 
@@ -97,10 +98,7 @@ public class SqliteGameService : IGameService
             DELETE FROM profile_entries
             WHERE profile_id IN (SELECT id FROM profiles WHERE game_id = @g)
             """, ("@g", gameId));
-        Db.Execute(conn, tx, """
-            DELETE FROM profile_tools
-            WHERE profile_id IN (SELECT id FROM profiles WHERE game_id = @g)
-            """, ("@g", gameId));
+        Db.Execute(conn, tx, "DELETE FROM game_tools WHERE game_id = @g", ("@g", gameId));
         Db.Execute(conn, tx, "DELETE FROM profiles  WHERE game_id = @g", ("@g", gameId));
         Db.Execute(conn, tx, "DELETE FROM game_mount_points WHERE game_id = @g", ("@g", gameId));
         Db.Execute(conn, tx, "DELETE FROM game_mods WHERE game_id = @g", ("@g", gameId));
@@ -140,8 +138,59 @@ public class SqliteGameService : IGameService
             game = Read(reader);
         }
 
-        LoadMountPoints(conn, game);
+        LoadChildren(conn, game);
         return game;
+    }
+
+    /// <summary>The lists that hang off the game row: its mount points and its tools.</summary>
+    private static void LoadChildren(SqliteConnection conn, Game game)
+    {
+        LoadMountPoints(conn, game);
+        LoadTools(conn, game);
+    }
+
+    private static void LoadTools(SqliteConnection conn, Game game)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT name, executable_path, arguments, mount_before_launch
+            FROM game_tools WHERE game_id = @g ORDER BY position
+            """;
+        cmd.Parameters.AddWithValue("@g", game.Id);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            game.ExternalTools.Add(new ExternalTool
+            {
+                Name              = reader.GetString(0),
+                ExecutablePath    = reader.GetString(1),
+                Arguments         = reader.GetString(2),
+                MountBeforeLaunch = reader.GetInt32(3) != 0,
+            });
+    }
+
+    /// <summary>Delete-then-insert, for the same reason the mount points are written that way.</summary>
+    private static void SaveTools(SqliteConnection conn, Game game)
+    {
+        using var tx = conn.BeginTransaction();
+
+        Db.Execute(conn, tx, "DELETE FROM game_tools WHERE game_id = @g", ("@g", game.Id));
+
+        var tools = game.ExternalTools ?? new List<ExternalTool>();
+        for (int i = 0; i < tools.Count; i++)
+        {
+            var t = tools[i];
+            Db.Execute(conn, tx, """
+                INSERT INTO game_tools (game_id, position, name, executable_path, arguments,
+                                        mount_before_launch)
+                VALUES (@g, @pos, @name, @exe, @args, @mount)
+                """,
+                ("@g", game.Id), ("@pos", i), ("@name", t.Name ?? ""),
+                ("@exe", t.ExecutablePath ?? ""), ("@args", t.Arguments ?? ""),
+                ("@mount", t.MountBeforeLaunch ? 1 : 0));
+        }
+
+        tx.Commit();
     }
 
     private static void LoadMountPoints(SqliteConnection conn, Game game)

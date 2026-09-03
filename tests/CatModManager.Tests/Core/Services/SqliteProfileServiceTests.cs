@@ -55,8 +55,6 @@ public class SqliteProfileServiceTests : IDisposable
             new Mod("SFSE", "/mods/SFSE", 1) { IsEnabled = false, MountPointId = "root" },
             new Mod { Name = "── UI ──", Priority = 2, IsSeparator = true },
         },
-        ExternalTools = { new ExternalTool { Name = "xEdit", ExecutablePath = "wine",
-                                             Arguments = "xEdit.exe", MountBeforeLaunch = true } },
     };
 
     [Fact]
@@ -76,9 +74,6 @@ public class SqliteProfileServiceTests : IDisposable
         Assert.Null(loaded.Mods[0].MountPointId);
         Assert.True(loaded.Mods[2].IsSeparator);
         Assert.Equal("Gameplay", loaded.Mods[0].Category);
-
-        Assert.Equal("xEdit", Assert.Single(loaded.ExternalTools).Name);
-        Assert.True(loaded.ExternalTools[0].MountBeforeLaunch);
     }
 
     [Fact]
@@ -100,12 +95,10 @@ public class SqliteProfileServiceTests : IDisposable
         var second = Sample();
         second.Id = id;
         second.Mods.RemoveAt(2);
-        second.ExternalTools.Clear();
         await _service.SaveProfileAsync(second);
 
         var loaded = await _service.LoadProfileAsync(id);
         Assert.Equal(2, loaded!.Mods.Count);
-        Assert.Empty(loaded.ExternalTools);
     }
 
     /// <summary>
@@ -180,7 +173,6 @@ public class SqliteProfileServiceTests : IDisposable
         Assert.Null(await _service.LoadProfileAsync(id));
         Assert.Empty(await _service.ListProfilesAsync(_starfield));
         Assert.Equal(0, CountRows("profile_entries"));
-        Assert.Equal(0, CountRows("profile_tools"));
 
         // The game and its inventory outlive the profile on purpose: the mods are still installed on
         // disk, and another profile of the same game may well be using them. Deleting a profile is
@@ -211,7 +203,6 @@ public class SqliteProfileServiceTests : IDisposable
                      (await _service.ListProfilesAsync(_starfield)).Select(p => p.Name));
         var loaded = await _service.LoadProfileAsync(id);
         Assert.Equal(3, loaded!.Mods.Count);
-        Assert.Equal("xEdit", Assert.Single(loaded.ExternalTools).Name);
     }
 
     // ── Game / profile split ──────────────────────────────────────────────────

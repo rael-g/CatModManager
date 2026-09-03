@@ -84,23 +84,27 @@ public class AppDatabaseMigrationTests : IDisposable
             """
             SELECT COUNT(*) FROM sqlite_master
             WHERE type = 'table' AND name IN
-                ('profiles', 'profile_entries', 'profile_tools',
-                 'games', 'game_mods', 'game_mount_points');
+                ('profiles', 'profile_entries',
+                 'games', 'game_mods', 'game_mount_points', 'game_tools');
             """));
 
-        // profile_mount_points went with 005: a mount point is a folder of the installation, so it
-        // belongs to the game. Which mod goes into it stays on profile_entries.
+        // Both went to the game, in 005 and 006. A mount point is a folder of the installation and
+        // a tool is a program that operates on it — neither is an arrangement of mods. What stays
+        // on profile_entries is which mod goes into which mount point.
         Assert.Equal(0, Scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'profile_mount_points';"));
+            """
+            SELECT COUNT(*) FROM sqlite_master
+            WHERE type = 'table' AND name IN ('profile_mount_points', 'profile_tools');
+            """));
 
         Assert.Equal(0, Scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'profile_mods';"));
 
-        Assert.Equal(4, Scalar(
+        Assert.Equal(5, Scalar(
             """
             SELECT COUNT(*) FROM Migrations WHERE Id IN
                 ('002_profiles.sql', '003_games.sql', '004_named_games_and_profile_ids.sql',
-                 '005_game_owns_its_settings.sql');
+                 '005_game_owns_its_settings.sql', '006_game_owns_its_tools.sql');
             """));
 
         // 004's two halves: the game has a name, and the profile has an id its children point at.
@@ -108,13 +112,9 @@ public class AppDatabaseMigrationTests : IDisposable
             "SELECT COUNT(*) FROM pragma_table_info('games') WHERE name = 'display_name';"));
         Assert.Equal(1, Scalar(
             "SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name = 'id';"));
-        // Both children key on that id now, and neither still carries the name.
-        Assert.Equal(2, Scalar(
-            """
-            SELECT
-                (SELECT COUNT(*) FROM pragma_table_info('profile_entries')      WHERE name = 'profile_id')
-              + (SELECT COUNT(*) FROM pragma_table_info('profile_tools')        WHERE name = 'profile_id')
-            """));
+        // The child keys on that id now, and no longer carries the name.
+        Assert.Equal(1, Scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('profile_entries') WHERE name = 'profile_id';"));
     }
 
     /// <summary>

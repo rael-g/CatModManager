@@ -170,7 +170,10 @@ public partial class MainWindowViewModel : ObservableObject
             if (!Vfs.IsVfsMounted) return OperationResult.Success();
             return await Vfs.ToggleMountInternal();
         };
-        Tools.AutoSave = () => ProfileManager.AutoSave();
+        // The game, not the profile: a tool describes the installation. Routed through SaveGame so
+        // that editing one takes the same path as editing a folder, rather than becoming a second
+        // way of writing the game that could disagree with the first.
+        Tools.AutoSave = () => GameConfig.SaveGame?.Invoke();
 
         _sessionState.RequestInstallModAction = (path, _) => 
             Avalonia.Threading.Dispatcher.UIThread.Post(() => Installer.InstallModAtMountPointAsync(path, null));

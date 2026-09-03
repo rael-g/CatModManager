@@ -76,6 +76,15 @@ public class GameSplitMigrationTests : IDisposable
                 VALUES ('Heavy', 0, 0, 'SFSE', '/games/Starfield/cmm/mods/SFSE', 1);
                 INSERT INTO profile_mods (profile_name, position, priority, name, mod_root_path, is_enabled, mount_point_id)
                 VALUES ('Heavy', 1, 1, 'FasterMining', '/games/Starfield/cmm/mods/FasterMining', 0, 'root');
+
+                INSERT INTO profile_tools (profile_name, position, name, executable_path, arguments, mount_before_launch)
+                VALUES ('Vanilla', 0, 'xEdit', 'wine', 'xEdit.exe', 0);
+                INSERT INTO profile_tools (profile_name, position, name, executable_path, arguments, mount_before_launch)
+                VALUES ('Vanilla', 1, 'SKSE', '/games/Starfield/skse.exe', '', 0);
+                INSERT INTO profile_tools (profile_name, position, name, executable_path, arguments, mount_before_launch)
+                VALUES ('Heavy', 0, 'xEdit', 'wine', 'xEdit.exe', 1);
+                INSERT INTO profile_tools (profile_name, position, name, executable_path, arguments, mount_before_launch)
+                VALUES ('Heavy', 1, 'Wrye Bash', 'wine', 'Bash.exe', 0);
                 """;
             setup.ExecuteNonQuery();
         }
@@ -101,6 +110,19 @@ public class GameSplitMigrationTests : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         return Convert.ToInt64(command.ExecuteScalar());
+    }
+
+    private string[] Strings(string sql)
+    {
+        using var connection = new SqliteConnection($"Data Source={DbPath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+
+        var values = new System.Collections.Generic.List<string>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) values.Add(reader.GetString(0));
+        return values.ToArray();
     }
 
     [Fact]
@@ -195,6 +217,47 @@ public class GameSplitMigrationTests : IDisposable
 
         Assert.Null(modded.GameId);
         Assert.Empty(modded.Mods);
+    }
+
+    // ── Migration 006 ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tools became the game's, and the two profiles held overlapping lists. The one they shared
+    /// has to collapse and the ones only one of them had have to survive — dropping a tool the user
+    /// configured is worse than keeping one they stopped using.
+    /// </summary>
+    [Fact]
+    public void TheToolsOfEveryProfileEndUpOnTheGameWithoutDuplicates()
+    {
+        _ = Migrated();
+
+        Assert.Equal(new[] { "SKSE", "Wrye Bash", "xEdit" }, Strings(
+            """
+            SELECT name FROM game_tools
+            WHERE game_id = (SELECT game_id FROM profiles WHERE name = 'Vanilla')
+            ORDER BY name
+            """));
+
+        // Renumbered from zero and contiguous. The old positions came from two separate lists and
+        // both started at zero, so keeping them would have collided on the primary key — and the
+        // shared xEdit, which one profile had first, still leads.
+        Assert.Equal(new[] { "0:xEdit", "1", "2" }, Strings(
+            """
+            SELECT CASE WHEN position = 0 THEN '0:' || name ELSE CAST(position AS TEXT) END
+            FROM game_tools ORDER BY game_id, position
+            """));
+    }
+
+    /// <summary>
+    /// The checkbox is opt-in, so the profile that ticked it decides. Taking the other answer would
+    /// launch a tool over an unmounted game and show it an empty mod folder.
+    /// </summary>
+    [Fact]
+    public void ATickedMountBeforeLaunchSurvivesTheCollapse()
+    {
+        _ = Migrated();
+
+        Assert.Equal(1, Scalar("SELECT mount_before_launch FROM game_tools WHERE name = 'xEdit'"));
     }
 
     // ── Migration 004 ─────────────────────────────────────────────────────────

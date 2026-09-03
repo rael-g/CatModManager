@@ -59,6 +59,7 @@ public partial class ProfileCoordinator : ObservableObject
         game.GameSupportId       = config.ActiveGameSupport?.GameId ?? "generic";
         game.LaunchArguments     = config.LaunchArguments     ?? "";
         game.UserMountPoints     = config.UserMountPoints.ToList();
+        game.ExternalTools       = _toolsProvider().GetTools();
     }
 
     /// <summary>Fills the configuration panel from the game the user just opened.</summary>
@@ -86,6 +87,8 @@ public partial class ProfileCoordinator : ObservableObject
             foreach (var mp in game?.UserMountPoints ?? []) config.UserMountPoints.Add(mp);
         }
 
+        _toolsProvider().LoadTools(game?.ExternalTools ?? []);
+
         // A previous run killed mid-install leaves its extraction workspace behind — potentially
         // hundreds of megabytes, and invisible in a file manager because the name starts with a dot.
         // Only folders predating this process are removed, so an install in flight is never hit.
@@ -105,13 +108,6 @@ public partial class ProfileCoordinator : ObservableObject
             // it means that after closing or crashing mid-install it comes back looking installed
             // while pointing at the downloaded archive — and removing it then deletes that archive.
             Mods = modList.AllMods.Where(m => !m.IsInstalling).ToList(),
-
-            // Profile.ExternalTools existed and was serialised from the day the Tools tab was
-            // written, but nothing ever filled it in or read it back — so a tool lived in memory
-            // only and was gone on the next start. Tools belong to the game rather than the
-            // profile, and will move there once the two are separated; until then this is where
-            // they can be kept without inventing a second store for them.
-            ExternalTools = _toolsProvider().GetTools()
         };
     }
 
@@ -124,10 +120,9 @@ public partial class ProfileCoordinator : ObservableObject
         using (modList.SuppressUpdates())
         using (config.SuppressDetection())
         {
-            // Only what a profile owns. The folders, the game mode, the launch line and the mount
-            // points all come from the game, and are applied by ApplyLoadedGame before this runs.
-            _toolsProvider().LoadTools(profile.ExternalTools);
-
+            // Only what a profile owns. The folders, the game mode, the launch line, the mount
+            // points and the tools all come from the game, and are applied by ApplyLoadedGame
+            // before this runs.
             modList.AllMods.Clear();
             foreach (var m in profile.Mods) modList.AllMods.Add(m);
 

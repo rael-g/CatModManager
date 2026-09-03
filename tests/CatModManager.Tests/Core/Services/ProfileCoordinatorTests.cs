@@ -52,12 +52,13 @@ public class ProfileCoordinatorTests
     }
 
     /// <summary>
-    /// Profile.ExternalTools existed and was serialised from the day the Tools tab was written, but
-    /// neither side of this coordinator touched it — so a tool the user added lived in memory only
-    /// and was gone on the next start, with no error anywhere to say why.
+    /// A tool the user added lived in memory only and was gone on the next start, with no error
+    /// anywhere to say why — nothing on either side of this coordinator ever carried it. It rides
+    /// with the game now rather than the profile, because where xEdit lives does not change when
+    /// the user switches mod lists.
     /// </summary>
     [Fact]
-    public void ExternalTools_SurviveASaveAndLoadRoundTrip()
+    public void ExternalTools_SurviveASaveAndLoadRoundTripOnTheGame()
     {
         _tools.LoadTools(
         [
@@ -70,9 +71,10 @@ public class ProfileCoordinatorTests
             }
         ]);
 
-        var saved = _coordinator.BuildCurrentProfile("Fallout");
+        var game = new Game { Id = 1, DisplayName = "Fallout" };
+        _coordinator.ApplyConfigToGame(game);
 
-        var tool = Assert.Single(saved.ExternalTools);
+        var tool = Assert.Single(game.ExternalTools);
         Assert.Equal("BodySlide", tool.Name);
         Assert.Equal("wine", tool.ExecutablePath);
         Assert.True(tool.MountBeforeLaunch);
@@ -80,7 +82,7 @@ public class ProfileCoordinatorTests
         // And it comes back — the arguments especially, since a command like "wine" is useless
         // without them.
         _tools.LoadTools([]);
-        _coordinator.ApplyLoadedProfile(saved);
+        _coordinator.ApplyLoadedGame(game);
 
         var restored = Assert.Single(_tools.Tools);
         Assert.Equal("BodySlide", restored.Name);

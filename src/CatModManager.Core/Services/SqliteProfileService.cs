@@ -22,8 +22,6 @@ public class SqliteProfileService : IProfileService
 
     public SqliteProfileService(AppDatabase db) => _db = db;
 
-    private static readonly string[] ChildTables = { "profile_entries", "profile_tools" };
-
     public Task<long> SaveProfileAsync(Profile profile) => Task.Run(() => Save(profile));
 
     public Task<Profile?> LoadProfileAsync(long profileId) => Task.Run(() => Load(profileId));
@@ -43,8 +41,7 @@ public class SqliteProfileService : IProfileService
         // The declared ON DELETE CASCADE would cover this, but only because Microsoft.Data.Sqlite
         // happens to enable foreign keys — they are off in SQLite itself, and per-connection.
         // Deleting the children outright does not depend on which connection this runs on.
-        foreach (var table in ChildTables)
-            Db.Execute(conn, tx, $"DELETE FROM {table} WHERE profile_id = @p", ("@p", profileId));
+        Db.Execute(conn, tx, "DELETE FROM profile_entries WHERE profile_id = @p", ("@p", profileId));
         Db.Execute(conn, tx, "DELETE FROM profiles WHERE id = @p", ("@p", profileId));
 
         tx.Commit();
@@ -83,26 +80,10 @@ public class SqliteProfileService : IProfileService
                 ("@name", profile.Name));
         }
 
-        foreach (var table in ChildTables)
-            Db.Execute(conn, tx, $"DELETE FROM {table} WHERE profile_id = @p", ("@p", profile.Id));
+        Db.Execute(conn, tx, "DELETE FROM profile_entries WHERE profile_id = @p", ("@p", profile.Id));
 
         SaveInventory(conn, tx, profile);
         SaveEntries(conn, tx, profile);
-
-        var tools = profile.ExternalTools ?? new List<ExternalTool>();
-        for (int i = 0; i < tools.Count; i++)
-        {
-            var t = tools[i];
-            Db.Execute(conn, tx, """
-                INSERT INTO profile_tools (profile_id, position, name, executable_path, arguments,
-                                           mount_before_launch)
-                VALUES (@p, @pos, @name, @exe, @args, @mount)
-                """,
-                ("@p", profile.Id), ("@pos", i), ("@name", t.Name ?? ""),
-                ("@exe", t.ExecutablePath ?? ""), ("@args", t.Arguments ?? ""),
-                ("@mount", t.MountBeforeLaunch ? 1 : 0));
-        }
-
 
         tx.Commit();
         return profile.Id;
@@ -246,25 +227,6 @@ public class SqliteProfileService : IProfileService
         }
 
         LoadMods(conn, profile);
-
-        using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText = """
-                SELECT name, executable_path, arguments, mount_before_launch
-                FROM profile_tools WHERE profile_id = @p ORDER BY position
-                """;
-            cmd.Parameters.AddWithValue("@p", profileId);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-                profile.ExternalTools.Add(new ExternalTool
-                {
-                    Name              = reader.GetString(0),
-                    ExecutablePath    = reader.GetString(1),
-                    Arguments         = reader.GetString(2),
-                    MountBeforeLaunch = reader.GetInt32(3) != 0,
-                });
-        }
-
 
         return profile;
     }

@@ -65,7 +65,6 @@ public class ProfileImporter
                     Name          = name,
                     GameId        = await GameIdFor(legacy),
                     Mods          = legacy.Mods,
-                    ExternalTools = legacy.ExternalTools,
                 });
                 imported++;
             }
