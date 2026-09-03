@@ -6,9 +6,9 @@ SteamAppId  = 952060
 
 RequiredFiles = ["re3.exe"]
 
+SaveFolderPattern = "%APPDATA%\\RE3"
+
 [[MountPoints]]
 Id   = "default"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%APPDATA%\\RE3"

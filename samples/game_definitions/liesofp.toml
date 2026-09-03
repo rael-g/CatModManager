@@ -7,6 +7,8 @@ SteamAppId  = 1627720
 RequiredFiles = ["LOP.exe"]
 
 # PAK mods go into the ~mods folder.
+SaveFolderPattern = "%LOCALAPPDATA%\\LiesofP\\Saved\\SaveGames"
+
 [[MountPoints]]
 Id   = "paks"
 Name = "PAK Mods"
@@ -17,5 +19,3 @@ Path = "LiesofP\\Content\\Paks\\~mods"
 Id   = "root"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%LOCALAPPDATA%\\LiesofP\\Saved\\SaveGames"

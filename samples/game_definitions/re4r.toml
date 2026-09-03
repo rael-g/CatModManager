@@ -6,9 +6,9 @@ SteamAppId  = 2050650
 
 RequiredFiles = ["re4.exe"]
 
+SaveFolderPattern = "%APPDATA%\\RE4"
+
 [[MountPoints]]
 Id   = "default"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%APPDATA%\\RE4"

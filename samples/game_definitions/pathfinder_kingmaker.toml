@@ -7,6 +7,8 @@ SteamAppId  = 640820
 RequiredFiles = ["Kingmaker.exe"]
 
 # Unity Mod Manager mods go into the Mods subfolder.
+SaveFolderPattern = "%APPDATA%\\unity3d\\Owlcat Games\\Pathfinder Kingmaker"
+
 [[MountPoints]]
 Id   = "mods"
 Name = "Mods"
@@ -17,5 +19,3 @@ Path = "Mods"
 Id   = "root"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%APPDATA%\\unity3d\\Owlcat Games\\Pathfinder Kingmaker"

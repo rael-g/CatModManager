@@ -6,9 +6,9 @@ SteamAppId  = 3764200
 
 RequiredFiles = ["re9.exe"]
 
+SaveFolderPattern = "%APPDATA%\\RE9"
+
 [[MountPoints]]
 Id   = "default"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%APPDATA%\\RE9"

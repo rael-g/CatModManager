@@ -7,6 +7,8 @@ SteamAppId  = 1091500
 RequiredFiles = ["bin\\x64\\Cyberpunk2077.exe"]
 
 # REDmod/archive mods go here.
+SaveFolderPattern = "%USERPROFILE%\\Saved Games\\CD Projekt Red\\Cyberpunk 2077"
+
 [[MountPoints]]
 Id   = "archive"
 Name = "Archive Mods"
@@ -17,5 +19,3 @@ Path = "archive\\pc\\mod"
 Id   = "root"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%USERPROFILE%\\Saved Games\\CD Projekt Red\\Cyberpunk 2077"

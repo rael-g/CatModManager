@@ -7,6 +7,8 @@ SteamAppId  = 489830
 RequiredFiles = ["SkyrimSE.exe", "Data"]
 
 # Loose mods (textures, meshes, plugins) go into the Data folder.
+SaveFolderPattern = "%USERPROFILE%\\Documents\\My Games\\Skyrim Special Edition\\Saves"
+
 [[MountPoints]]
 Id   = "data"
 Name = "Data"
@@ -17,5 +19,3 @@ Path = "Data"
 Id   = "root"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%USERPROFILE%\\Documents\\My Games\\Skyrim Special Edition\\Saves"

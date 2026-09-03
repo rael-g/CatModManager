@@ -6,9 +6,9 @@ SteamAppId  = 570940
 
 RequiredFiles = ["DarkSoulsRemastered.exe"]
 
+SaveFolderPattern = "%APPDATA%\\DarkSoulsRemastered\\*"
+
 [[MountPoints]]
 Id   = "default"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%APPDATA%\\DarkSoulsRemastered\\*"

@@ -6,9 +6,9 @@ SteamAppId  = 814380
 
 RequiredFiles = ["sekiro.exe"]
 
+SaveFolderPattern = "%APPDATA%\\Sekiro\\*"
+
 [[MountPoints]]
 Id   = "default"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%APPDATA%\\Sekiro\\*"

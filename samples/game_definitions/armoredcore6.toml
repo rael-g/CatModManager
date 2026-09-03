@@ -6,9 +6,9 @@ SteamAppId  = 1888160
 
 RequiredFiles = ["armoredcore6.exe"]
 
+SaveFolderPattern = "%APPDATA%\\ArmoredCore6\\*"
+
 [[MountPoints]]
 Id   = "default"
 Name = "Game Root"
 Path = ""
-
-SaveFolderPattern = "%APPDATA%\\ArmoredCore6\\*"

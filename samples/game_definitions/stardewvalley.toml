@@ -7,6 +7,8 @@ SteamAppId  = 413150
 RequiredFiles = ["Stardew Valley.exe"]
 
 # SMAPI itself and other root-relative installs (e.g. loader replacements).
+SaveFolderPattern = "%APPDATA%\\StardewValley\\Saves"
+
 [[MountPoints]]
 Id   = "root"
 Name = "Game Root"
@@ -17,5 +19,3 @@ Path = ""
 Id   = "mods"
 Name = "Mods"
 Path = "Mods"
-
-SaveFolderPattern = "%APPDATA%\\StardewValley\\Saves"
