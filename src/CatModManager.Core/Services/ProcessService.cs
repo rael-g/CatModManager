@@ -13,11 +13,17 @@ public class ProcessService : IProcessService
 {
     private readonly ILogService _logService;
     private readonly IProcessRunner _runner;
+    private readonly TimeSpan _gameWatchWindow;
 
-    public ProcessService(ILogService logService, IProcessRunner? runner = null)
+    /// <param name="gameWatchWindow">
+    /// How long to keep looking for the game after the launcher is started. Overridable so tests
+    /// that exercise the window expiring do not have to spend the real 30 seconds doing it.
+    /// </param>
+    public ProcessService(ILogService logService, IProcessRunner? runner = null, TimeSpan? gameWatchWindow = null)
     {
         _logService = logService;
         _runner = runner ?? new DefaultProcessRunner();
+        _gameWatchWindow = gameWatchWindow ?? TimeSpan.FromSeconds(30);
     }
 
     public async Task<ProcessRunResult> StartProcessAsync(string filePath, string arguments, bool runAsAdmin, bool waitForChildren = true, string? watchFolder = null)
@@ -28,15 +34,29 @@ public class ProcessService : IProcessService
             {
                 FileName = filePath,
                 Arguments = arguments,
-                UseShellExecute = true,
+
+                // Only when elevating, which needs the shell verb and is Windows-only. Otherwise
+                // false, so that a command which does not exist fails here with an exception we can
+                // report. With it true on Linux, .NET hands the name to the desktop's default
+                // handler instead: launching "wine" without wine installed produced a process, a
+                // success, and no log line at all.
+                UseShellExecute = runAsAdmin,
                 Verb = runAsAdmin ? "runas" : ""
             };
 
-            var success = await _runner.StartAsync(info);
-            if (!success) return new ProcessRunResult(false, false);
+            var started = _runner.Start(info);
+            if (started == null) return new ProcessRunResult(false, false);
 
-            bool observed = waitForChildren
-                && await WaitForGameDirectoryProcesses(watchFolder ?? DirectoryOf(filePath));
+            // An external tool is handed over and left alone. Waiting for it held the caller for as
+            // long as the user kept the tool open, which is why "Launching BodySlide…" stayed on
+            // screen for the entire session.
+            if (!waitForChildren) return new ProcessRunResult(true, false, _runner.WaitForExitAsync(started));
+
+            // A game launcher is different: it is a means, not the thing being run. `steam
+            // -applaunch` hands off and exits in a moment, while `distrobox-enter -n steam -- steam
+            // -applaunch` *is* the Steam session and lives as long as it does — so the game is
+            // searched for independently of whether the launcher is still around.
+            bool observed = await WaitForGameDirectoryProcesses(watchFolder ?? DirectoryOf(filePath));
 
             return new ProcessRunResult(true, observed);
         }
@@ -75,8 +95,7 @@ public class ProcessService : IProcessService
         var prefix = gameDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var userSession = Process.GetCurrentProcess().SessionId;
 
-        // Poll for up to 30 seconds after the launcher exits.
-        var deadline = DateTime.UtcNow.AddSeconds(30);
+        var deadline = DateTime.UtcNow + _gameWatchWindow;
         while (DateTime.UtcNow < deadline)
         {
             await Task.Delay(100); // Faster polling for tests
@@ -135,7 +154,7 @@ public class ProcessService : IProcessService
                     info.FileName = ContainerEnvironment.HostExecCommand;
                 }
             }
-            _runner.StartAsync(info);
+            _runner.Start(info);
         }
         catch (Exception ex)
         {

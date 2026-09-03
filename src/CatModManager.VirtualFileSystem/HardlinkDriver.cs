@@ -127,6 +127,7 @@ public class HardlinkDriver : IFileSystemDriver
         }
 
         var dirsToCheck = new SortedSet<string>(PathComparer);
+        var failed      = new List<HardlinkStateEntry>();
 
         foreach (var e in entries)
         {
@@ -141,7 +142,14 @@ public class HardlinkDriver : IFileSystemDriver
                     TryClearHidden(e.DestPath);
                 }
             }
-            catch { /* best-effort */ }
+            catch
+            {
+                // Remembered, not swallowed. This used to be a bare `catch {}` followed by an
+                // unconditional Clear() below, so a file the game still had open left a hard link
+                // in the game folder *and* erased the only record that the link was ours.
+                failed.Add(e);
+                continue;
+            }
 
             // Collect parent directories for empty-dir cleanup
             var dir = Path.GetDirectoryName(e.DestPath);
@@ -163,10 +171,30 @@ public class HardlinkDriver : IFileSystemDriver
             catch { /* best-effort */ }
         }
 
-        _store.Clear(_mountPoint); // null → clears all
+        if (failed.Count == 0)
+        {
+            _store.Clear(_mountPoint); // null → clears all
+            _isMounted  = false;
+            _mountPoint = null;
+            return;
+        }
 
-        _isMounted  = false;
-        _mountPoint = null;
+        // Something is still deployed. Narrow the stored state down to just those entries so a
+        // retry — or the crash recovery on the next launch — knows exactly what is left to undo.
+        // In crash-recovery mode (_mountPoint == null) the entries span every mount point and
+        // carry no mount point of their own, so the whole set stays: re-reverting an entry that
+        // already succeeded is a no-op, losing one is not.
+        if (_mountPoint != null)
+        {
+            _store.Clear(_mountPoint);
+            _store.Save(_mountPoint, failed);
+        }
+
+        // Thrown, not logged. The caller's retry loop only reacts to IOException, and it never
+        // fired before because every failure was absorbed here.
+        throw new IOException(
+            $"{failed.Count} of {entries.Count} file(s) could not be reverted; " +
+            $"first: '{failed[0].DestPath}'");
     }
 
     public void Dispose() => Unmount();
@@ -233,6 +261,24 @@ public class HardlinkDriver : IFileSystemDriver
                         Diagnose(destPath, backupPath), ex);
                 }
 
+                // POSIX rename(2) is a documented no-op — reporting success — when both names are
+                // links to the same inode. So "the move did not throw" does not mean the
+                // destination is free. When two mount points deploy over the same physical path,
+                // the file the second one sets aside is the link the first one just made, and both
+                // names survive: link() then fails EEXIST, and the recorded backup would restore a
+                // *mod* file into the game folder on unmount as though it were the original.
+                if (File.Exists(destPath))
+                    throw new IOException(
+                        $"Two mount points are deploying to the same file, and the backup of the " +
+                        $"original has already been overwritten.\n" +
+                        $"  entry:      '{rel}'\n" +
+                        $"  mount point:'{mountPoint}'\n" +
+                        $"  dest:       '{destPath}'\n" +
+                        $"  mod source: '{physPath}'\n" +
+                        $"Refusing to continue: carrying on would record '{backupPath}' as the " +
+                        $"game's original file when it is a mod file.\n" +
+                        Diagnose(destPath, backupPath));
+
                 TryHide(backupPath);
             }
 
@@ -271,10 +317,26 @@ public class HardlinkDriver : IFileSystemDriver
 
         int errno = Marshal.GetLastWin32Error();
         const int EXDEV = 18;  // cross-device link — mods on a different filesystem
+        const int EEXIST = 17;
+
         if (errno == EXDEV)
+        {
             File.Copy(sourcePath, destPath, overwrite: true);
-        else
-            throw new IOException($"link() failed for '{relPath}': errno {errno}");
+            return;
+        }
+
+        if (errno == EEXIST)
+            // The caller only reaches here after File.Exists(destPath) came back false, so something
+            // is at that name that File.Exists does not count: a directory, a dangling symlink, or
+            // an entry created since the check. "errno 17" alone cannot tell those apart, and every
+            // occurrence so far has cost an archaeology session to guess at. Say what is there.
+            throw new IOException(
+                $"link() failed for '{relPath}': errno 17 (EEXIST) — the destination name is already taken.\n" +
+                $"  source: '{sourcePath}'\n" +
+                $"  dest:   '{destPath}'\n" +
+                Describe(destPath));
+
+        throw new IOException($"link() failed for '{relPath}': errno {errno}");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -300,6 +362,33 @@ public class HardlinkDriver : IFileSystemDriver
     /// non-UTF8 characters do not survive a log line), does the destination directory exist and
     /// hold something under that name already, and what does the source actually look like.
     /// </summary>
+    /// <summary>
+    /// What is actually sitting at <paramref name="path"/>, in the terms that matter when link(2)
+    /// says EEXIST but File.Exists says no: entry kind, and for a regular file the inode and link
+    /// count, which is what distinguishes "someone else's file" from "another name for the very
+    /// file we are trying to link".
+    /// </summary>
+    private static string Describe(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                return $"  what is there: a DIRECTORY, not a file.\n{Diagnose(path, path)}";
+
+            var info = new FileInfo(path);
+            if (!info.Exists)
+                // Neither a file nor a directory, yet the name is taken: a dangling symlink, or an
+                // entry that appeared between the check and the call.
+                return $"  what is there: name taken but neither file nor directory " +
+                       $"(dangling symlink, or created since the check).\n" +
+                       $"  link target: '{info.LinkTarget ?? "<none>"}'\n{Diagnose(path, path)}";
+
+            return $"  what is there: a regular file, {info.Length} bytes, " +
+                   $"last written {info.LastWriteTimeUtc:O}.\n{Diagnose(path, path)}";
+        }
+        catch (Exception ex) { return $"  (could not inspect the destination: {ex.Message})"; }
+    }
+
     private static string Diagnose(string source, string dest)
     {
         var sb = new System.Text.StringBuilder();

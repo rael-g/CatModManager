@@ -7,6 +7,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CatModManager.Ui;
+using CatModManager.Core.Services;
 using CatModManager.Ui.ViewModels;
 using CatModManager.Ui.Views;
 using Xunit;
@@ -93,15 +94,17 @@ public class HeadlessUiTests
 
         // Populate profiles and let ItemsSource binding settle
         vm.ProfileManager.AvailableProfiles.Clear();
-        vm.ProfileManager.AvailableProfiles.Add("Profile 1");
-        vm.ProfileManager.AvailableProfiles.Add("Profile 2");
+        var first  = new ProfileSummary(1, "Profile 1");
+        var second = new ProfileSummary(2, "Profile 2");
+        vm.ProfileManager.AvailableProfiles.Add(first);
+        vm.ProfileManager.AvailableProfiles.Add(second);
         Dispatcher.UIThread.RunJobs();
 
         // Test VM → UI direction (reliable in headless without full render pass)
-        vm.ProfileManager.CurrentProfileName = "Profile 2";
+        vm.ProfileManager.CurrentProfile = second;
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal("Profile 2", selector.SelectedItem);
+        Assert.Equal(second, selector.SelectedItem);
     }
 
     [AvaloniaFact]

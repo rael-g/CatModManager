@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CatModManager.Ui.Views.TextInputDialog"
+        Width="360"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SidebarBg}"
+        Foreground="{DynamicResource TextPrimary}">
+
+    <StackPanel Margin="16" Spacing="4">
+        <TextBlock Name="HeaderText" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+        <TextBox Name="ValueBox" Margin="0,0,0,12"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Name="CancelBtn" Content="Cancel" Padding="16,7"
+                    Background="Transparent" BorderThickness="0"
+                    Foreground="{DynamicResource TextSubtle}"/>
+            <Button Name="OkBtn" Content="OK" Padding="16,7" FontWeight="SemiBold"
+                    BorderThickness="0" Background="{DynamicResource AccentColor}"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

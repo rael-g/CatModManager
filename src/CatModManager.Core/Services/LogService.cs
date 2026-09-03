@@ -54,8 +54,10 @@ public class LogService : ILogService
     {
         try
         {
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            return Path.Combine(localAppData, "catmodmanager", "logs", "cmm.log");
+            // Through CatPathService, not by spelling the location out again: this used to compute
+            // <LocalAppData>/catmodmanager itself, so it kept writing to the real log no matter
+            // where the rest of the application had been pointed.
+            return Path.Combine(CatPathService.ResolveDataHome(), "logs", "cmm.log");
         }
         catch { return ""; }
     }

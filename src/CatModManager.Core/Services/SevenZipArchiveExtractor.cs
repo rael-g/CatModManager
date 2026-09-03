@@ -100,4 +100,41 @@ public class SevenZipArchiveExtractor : IArchiveExtractor
         ms.Position = 0;
         return ms;
     }
+
+    /// <summary>
+    /// One forward pass for all of them, for the same reason <see cref="ExtractAsync"/> makes one:
+    /// a solid archive decodes from the start of the block for every random access, so the loop
+    /// this replaces cost O(entries × archive size).
+    /// </summary>
+    public IReadOnlyDictionary<string, Stream> OpenFileStreams(string archivePath, IEnumerable<string> entryPaths)
+    {
+        // Map normalized key → the caller's spelling, so results come back under the paths asked for.
+        var wanted = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in entryPaths)
+            wanted.TryAdd(p.Replace('/', '\\'), p);
+
+        var result = new Dictionary<string, Stream>(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Count == 0) return result;
+
+        using var archive = ArchiveFactory.Open(archivePath);
+        using var reader  = archive.ExtractAllEntries();
+
+        while (reader.MoveToNextEntry())
+        {
+            if (reader.Entry.IsDirectory) continue;
+            if (!wanted.TryGetValue(reader.Entry.Key?.Replace('/', '\\') ?? "", out var asked)) continue;
+
+            var ms = new MemoryStream();
+            using (var es = reader.OpenEntryStream()) es.CopyTo(ms);
+            ms.Position = 0;
+            result[asked] = ms;
+
+            // Nothing left to find: stop decoding the rest of the archive. For a wizard whose
+            // images sit near the front, this is the difference between reading a few megabytes
+            // and reading the whole gigabyte.
+            if (result.Count == wanted.Count) break;
+        }
+
+        return result;
+    }
 }

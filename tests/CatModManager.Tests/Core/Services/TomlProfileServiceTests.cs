@@ -24,7 +24,7 @@ public class TomlProfileServiceTests
     [Fact]
     public async Task SaveProfileAsync_WritesCorrectToml()
     {
-        var profile = new Profile { Name = "TestProfile" };
+        var profile = new LegacyTomlProfile { Name = "TestProfile" };
         string path = "profile.toml";
 
         await _service.SaveProfileAsync(profile, path);

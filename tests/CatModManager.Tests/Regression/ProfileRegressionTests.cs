@@ -13,7 +13,11 @@ public class ProfileRegressionTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly MockModScanner _mockScanner = new();
-    private readonly MockProfileService _mockProfileService = new();
+    private readonly IProfileService _profileService;
+
+    // A real one, on the same database as the profiles: profiles.game_id is a foreign key, so a
+    // game that exists only in a fake is a game the insert refuses.
+    private readonly IGameService _gameService;
     private readonly MockModManagementService _mockModManagementService = new();
     private readonly MockProcessService _mockProcessService = new();
     private readonly MockLogService _mockLog = new();
@@ -30,6 +34,11 @@ public class ProfileRegressionTests : IDisposable
         
         // Embora sejam reais, o pathService isola o cmm.db nesta tempDir única por teste
         var db = new AppDatabase(_pathService);
+        // O serviço real, não um dublê: estes testes são sobre criar, renomear e apagar perfis, e
+        // um dublê de perfil só provaria que o dublê concorda consigo mesmo. Foi assim que o bug do
+        // CopyDirectory passou despercebido.
+        _profileService = new SqliteProfileService(db);
+        _gameService    = new SqliteGameService(db);
         _configService = new ConfigService(db);
         _gameSupportService = new GameSupportService(_pathService, _mockLog);
         _stateService = new VfsStateService(db, _mockLog);
@@ -48,7 +57,8 @@ public class ProfileRegressionTests : IDisposable
     {
         return new MainWindowViewModel(
             _mockScanner,
-            _mockProfileService,
+            _profileService,
+            _gameService,
             _mockModManagementService,
             _mockProcessService,
             new VfsOrchestrationService(
@@ -68,6 +78,9 @@ public class ProfileRegressionTests : IDisposable
         );
     }
 
+    private async Task<string[]> StoredNames()
+        => (await _profileService.ListAllProfilesAsync()).Select(p => p.Name).ToArray();
+
     [Fact]
     public async Task NewProfile_Should_Be_Saved_Immediately()
     {
@@ -80,8 +93,9 @@ public class ProfileRegressionTests : IDisposable
 
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
 
-        Assert.True(_mockProfileService.SaveCount >= 1, "Profile should be saved immediately after creation.");
-        Assert.Contains(vm.ProfileManager.CurrentProfileName!, vm.ProfileManager.AvailableProfiles);
+        Assert.Contains(vm.ProfileManager.CurrentProfileName, await StoredNames());
+        Assert.Contains(vm.ProfileManager.AvailableProfiles,
+                        p => p.Name == vm.ProfileManager.CurrentProfileName);
     }
 
     [Fact]
@@ -90,21 +104,33 @@ public class ProfileRegressionTests : IDisposable
         var vm = CreateVm();
         await vm.InitialLoadTask;
 
-        // Setup initial profiles
+        // A game first: a profile with none is parked, and a parked profile has no inventory to
+        // hang mods on — by design, since the folder they would belong to has not been chosen.
+        long gameId = await _gameService.SaveGameAsync(new Game
+        {
+            DisplayName  = "Test game",
+            BaseDataPath = "/games/Test",
+        });
+        await vm.GameManager.RefreshListAsync(gameId);
+
+        // Two profiles, each with its own mod list — which is what a profile is, now that the
+        // folders and the launch line belong to the game.
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
-        string profileA = vm.ProfileManager.CurrentProfileName!;
-        vm.GameConfig.ModsFolderPath = "PathA";
-        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(profileA);
+        long profileA = vm.ProfileManager.CurrentProfile!.Id;
+        vm.ModList.AllMods.Add(new Mod("OnlyInA", "/mods/OnlyInA", 0));
+        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(null);
 
+        // The second profile of the same game sees that mod too — it is installed for the game —
+        // but unticked, because nobody asked for it here.
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
-        string profileB = vm.ProfileManager.CurrentProfileName!;
-        vm.GameConfig.ModsFolderPath = "PathB";
-        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(profileB);
+        Assert.False(Assert.Single(vm.ModList.AllMods).IsEnabled);
 
-        // Switch USING THE COMMAND to avoid race condition of the property setter
-        await vm.ProfileManager.LoadProfileCommand.ExecuteAsync(profileA);
+        // Switch through the method rather than the property setter, whose load is fire-and-forget.
+        await vm.ProfileManager.LoadProfileAsync(profileA);
 
-        Assert.Equal("PathA", vm.GameConfig.ModsFolderPath);
+        var carried = Assert.Single(vm.ModList.AllMods);
+        Assert.Equal("OnlyInA", carried.Name);
+        Assert.True(carried.IsEnabled, "Profile A's own mod came back unticked.");
     }
 
     [Fact]
@@ -124,14 +150,14 @@ public class ProfileRegressionTests : IDisposable
 
         // CurrentProfileName must be updated
         Assert.Equal(newName, vm.ProfileManager.CurrentProfileName);
-        Assert.Contains(newName, vm.ProfileManager.AvailableProfiles);
-        Assert.DoesNotContain(originalName, vm.ProfileManager.AvailableProfiles);
+        Assert.Contains(vm.ProfileManager.AvailableProfiles,     p => p.Name == newName);
+        Assert.DoesNotContain(vm.ProfileManager.AvailableProfiles, p => p.Name == originalName);
 
-        // Old file must not exist; new file must exist
-        string oldPath = _pathService.GetProfilePath(originalName);
-        string newPath = _pathService.GetProfilePath(newName);
-        Assert.False(File.Exists(oldPath), $"Old profile file should be deleted: {oldPath}");
-        Assert.True(File.Exists(newPath), $"New profile file should exist: {newPath}");
+        // And in storage, not just in the list: the rename used to be "save under the new name,
+        // then delete the old", which left both behind whenever the delete failed.
+        var stored = await StoredNames();
+        Assert.Contains(newName, stored);
+        Assert.DoesNotContain(originalName, stored);
     }
 
     [Fact]
@@ -140,7 +166,7 @@ public class ProfileRegressionTests : IDisposable
         var vm = CreateVm();
         await vm.InitialLoadTask;
 
-        vm.ProfileManager.AvailableProfiles.Add("NewProfile");
+        vm.ProfileManager.AvailableProfiles.Add(new ProfileSummary(999, "NewProfile"));
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
         Assert.NotEqual("NewProfile", vm.ProfileManager.CurrentProfileName);
         Assert.Contains("NewProfile", vm.ProfileManager.CurrentProfileName);
@@ -158,9 +184,8 @@ public class ProfileRegressionTests : IDisposable
         await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
         string doomed = vm.ProfileManager.CurrentProfileName!;
 
-        string doomedPath = _pathService.GetProfilePath(doomed);
-        Assert.Contains(doomed, vm.ProfileManager.AvailableProfiles);
-        Assert.True(File.Exists(doomedPath));
+        Assert.Contains(vm.ProfileManager.AvailableProfiles, p => p.Name == doomed);
+        Assert.Contains(doomed, await StoredNames());
 
         vm.ProfileManager.ConfirmDelete = _ => Task.FromResult(true);
 
@@ -172,9 +197,14 @@ public class ProfileRegressionTests : IDisposable
         Assert.True(finished == delete, "DeleteProfile deadlocked.");
         await delete;
 
-        Assert.DoesNotContain(doomed, vm.ProfileManager.AvailableProfiles);
-        Assert.False(File.Exists(doomedPath));
-        Assert.Equal(survivor, vm.ProfileManager.CurrentProfileName);
+        Assert.DoesNotContain(vm.ProfileManager.AvailableProfiles, p => p.Name == doomed);
+        Assert.DoesNotContain(doomed, await StoredNames());
+
+        // Something else is open — which one does not matter, only that the window is not left
+        // pointing at a profile that no longer exists.
+        Assert.NotNull(vm.ProfileManager.CurrentProfile);
+        Assert.NotEqual(doomed, vm.ProfileManager.CurrentProfileName);
+        Assert.Contains(survivor, await StoredNames());
     }
 
     // MOCKS
@@ -192,33 +222,6 @@ public class ProfileRegressionTests : IDisposable
         public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) => Task.FromResult(Enumerable.Empty<Mod>());
     }
 
-    private class MockProfileService : IProfileService {
-        public int SaveCount { get; private set; }
-        private Dictionary<string, Profile> _storage = new();
-
-        public Task SaveProfileAsync(Profile p, string path) 
-        { 
-            SaveCount++; 
-            // Use path as key but normalize it for the dictionary
-            string key = Path.GetFullPath(path);
-            _storage[key] = p;
-            if (!Directory.Exists(Path.GetDirectoryName(path)!)) Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, ""); 
-            return Task.CompletedTask; 
-        }
-
-        public Task<Profile?> LoadProfileAsync(string p) 
-        {
-            string key = Path.GetFullPath(p);
-            if (_storage.TryGetValue(key, out var profile)) return Task.FromResult<Profile?>(profile);
-            return Task.FromResult<Profile?>(null);
-        }
-
-        public Task<IEnumerable<string>> ListProfilesAsync(string d) =>
-            Task.FromResult(Directory.Exists(d)
-                ? Directory.GetFiles(d, "*.toml").AsEnumerable()
-                : Enumerable.Empty<string>());
-    }
 
     private class MockModManagementService : IModManagementService {
         public Task<string> InstallModAsync(string s, string d, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult("");

@@ -16,26 +16,67 @@ public class FomodWizardViewModel
     private int _currentStepIndex;
 
     public string ModuleName => _config.ModuleName;
-    public int TotalSteps => _config.InstallSteps.Count;
-    public int CurrentStepNumber => _currentStepIndex + 1;
+
+    /// <summary>
+    /// Steps the current choices actually lead through, in order.
+    ///
+    /// A step's <c>visible</c> condition tests flags that earlier steps set, so this is evaluated
+    /// forwards: a step is reachable only if the flags accumulated from the reachable steps before
+    /// it satisfy its condition — and only a reachable step contributes its own flags. That is what
+    /// makes one option skip the thirty steps after it, and what makes un-choosing it bring them
+    /// back. Every step was previously shown unconditionally.
+    /// </summary>
+    public IReadOnlyList<int> VisibleStepIndices
+    {
+        get
+        {
+            var visible = new List<int>();
+            var flags   = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < _config.InstallSteps.Count; i++)
+            {
+                var step = _config.InstallSteps[i];
+                if (step.VisibleWhen != null && !step.VisibleWhen.IsSatisfiedBy(flags)) continue;
+
+                visible.Add(i);
+
+                foreach (var group in step.Groups)
+                {
+                    var selected = GetSelection(step, group);
+                    foreach (var plugin in group.Plugins.Where(p => selected.Contains(p.Name)))
+                        foreach (var flag in plugin.ConditionalFlags)
+                            flags[flag.Flag] = flag.Value;
+                }
+            }
+
+            return visible;
+        }
+    }
+
+    public int TotalSteps => VisibleStepIndices.Count;
+
+    /// <summary>Position among the visible steps, which is the only numbering the user can see.</summary>
+    public int CurrentStepNumber => VisibleStepIndices.ToList().IndexOf(_currentStepIndex) + 1;
 
     public FomodInstallStep? CurrentStep =>
-        _currentStepIndex >= 0 && _currentStepIndex < TotalSteps
+        _currentStepIndex >= 0 && _currentStepIndex < _config.InstallSteps.Count
             ? _config.InstallSteps[_currentStepIndex]
             : null;
 
     /// <summary>Selection state per group: groupName -> set of selected plugin names.</summary>
     public Dictionary<string, HashSet<string>> Selections { get; } = new();
 
-    public bool CanGoBack => _currentStepIndex > 0;
-    public bool CanGoNext => _currentStepIndex < TotalSteps - 1;
-    public bool IsLastStep => _currentStepIndex == TotalSteps - 1;
+    public bool CanGoBack => VisibleStepIndices.Any(i => i < _currentStepIndex);
+    public bool CanGoNext => VisibleStepIndices.Any(i => i > _currentStepIndex);
+    public bool IsLastStep => !CanGoNext;
 
     public FomodWizardViewModel(FomodModuleConfig config)
     {
         _config = config;
-        _currentStepIndex = 0;
         ApplyDefaults();
+
+        // The first step is not necessarily step 0: a config may gate even that one behind a flag.
+        _currentStepIndex = VisibleStepIndices.FirstOrDefault();
     }
 
     private void ApplyDefaults()
@@ -59,8 +100,24 @@ public class FomodWizardViewModel
         }
     }
 
-    public void GoNext() { if (CanGoNext) _currentStepIndex++; }
-    public void GoBack() { if (CanGoBack) _currentStepIndex--; }
+    // Move to the next/previous *reachable* step, not the next index: the skipped ones are exactly
+    // what the flags just ruled out.
+    public void GoNext()
+    {
+        foreach (var i in VisibleStepIndices)
+            if (i > _currentStepIndex) { _currentStepIndex = i; return; }
+    }
+
+    public void GoBack()
+    {
+        int? previous = null;
+        foreach (var i in VisibleStepIndices)
+        {
+            if (i >= _currentStepIndex) break;
+            previous = i;
+        }
+        if (previous.HasValue) _currentStepIndex = previous.Value;
+    }
 
     /// <summary>
     /// Overrides default selections with choices from a collection preset.
@@ -140,16 +197,32 @@ public class FomodWizardViewModel
         foreach (var f in _config.RequiredInstallFiles)
             AddFilesToMapping(mapping, f);
 
-        // Selected options
-        foreach (var step in _config.InstallSteps)
+        // Selected options — from the steps the user actually walked through. A selection left
+        // behind in a step that later became unreachable is not a choice the user stands by.
+        var flags = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+
+        foreach (var i in VisibleStepIndices)
         {
+            var step = _config.InstallSteps[i];
             foreach (var group in step.Groups)
             {
                 var selected = GetSelection(step, group);
                 foreach (var plugin in group.Plugins.Where(p => selected.Contains(p.Name)))
+                {
                     foreach (var f in plugin.Files)
                         AddFilesToMapping(mapping, f);
+                    foreach (var flag in plugin.ConditionalFlags)
+                        flags[flag.Flag] = flag.Value;
+                }
             }
+        }
+
+        // Conditional installs, now that the final flag state is known.
+        foreach (var conditional in _config.ConditionalInstalls)
+        {
+            if (conditional.When != null && !conditional.When.IsSatisfiedBy(flags)) continue;
+            foreach (var f in conditional.Files)
+                AddFilesToMapping(mapping, f);
         }
 
         return mapping;

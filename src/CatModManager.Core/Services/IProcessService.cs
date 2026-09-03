@@ -15,7 +15,13 @@ namespace CatModManager.Core.Services;
 /// A process was seen running under the watched folder, and waited on until it exited. False when
 /// nothing was watched for, and also when the watch gave up without ever seeing one.
 /// </param>
-public readonly record struct ProcessRunResult(bool Started, bool GameObserved)
+/// <param name="Exited">
+/// Completes when the started process does, or null when there is nothing to wait on. The call
+/// itself no longer waits — a tool is handed over and the caller freed — so this is how a caller
+/// that does care about the tool closing, in order to undo a mount it made for it, finds out
+/// without blocking on it.
+/// </param>
+public readonly record struct ProcessRunResult(bool Started, bool GameObserved, Task? Exited = null)
 {
     public static implicit operator bool(ProcessRunResult r) => r.Started;
 }

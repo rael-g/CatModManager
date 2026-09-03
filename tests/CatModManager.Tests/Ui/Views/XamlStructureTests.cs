@@ -56,17 +56,6 @@ public class XamlStructureTests
     }
 
     [Fact]
-    public void RequiredControl_RenameTextBox_ExistsWithCorrectName()
-    {
-        var doc = LoadMainWindow();
-        
-        var textBox = doc.Descendants(av + "TextBox")
-            .FirstOrDefault(t => t.Attribute("Name")?.Value == "RenameTextBox");
-            
-        Assert.NotNull(textBox);
-    }
-
-    [Fact]
     public void RequiredControl_ProfileSelector_ExistsWithCorrectName()
     {
         var doc = LoadMainWindow();
@@ -75,6 +64,32 @@ public class XamlStructureTests
             .FirstOrDefault(c => c.Attribute("Name")?.Value == "ProfileSelector");
             
         Assert.NotNull(selector);
+    }
+
+    /// <summary>
+    /// The split the window is built on: configuring a game or a profile lives in the menus, the
+    /// sidebar picks what is open and acts on it, and the command bar only touches the mod list.
+    /// Regressions here are how the command bar grew to hold search, profile, category, reorder,
+    /// add, mount and launch all at once.
+    /// </summary>
+    [Fact]
+    public void TheCommandBarHoldsOnlyTheModListsOwnControls()
+    {
+        var doc = LoadMainWindow();
+
+        var reorder = doc.Descendants(av + "ToggleButton")
+            .FirstOrDefault(t => t.Attribute("Name")?.Value == "ReorderToggle");
+        Assert.NotNull(reorder);
+
+        // The command bar is the Border that holds the reorder toggle. Nothing about a game or a
+        // profile belongs inside it.
+        var commandBar = reorder!.Ancestors(av + "Border").First();
+        var inside = commandBar.ToString();
+
+        Assert.DoesNotContain("GameManager.", inside);
+        Assert.DoesNotContain("ProfileManager.", inside);
+        Assert.DoesNotContain("LaunchGameCommand", inside);
+        Assert.DoesNotContain("ToggleMountCommand", inside);
     }
 
     [Fact]
@@ -87,7 +102,7 @@ public class XamlStructureTests
             
         Assert.NotNull(selector);
         Assert.Contains("AvailableProfiles", selector.Attribute("ItemsSource")?.Value);
-        Assert.Contains("CurrentProfileName", selector.Attribute("SelectedItem")?.Value);
+        Assert.Contains("CurrentProfile", selector.Attribute("SelectedItem")?.Value);
     }
 
     [Fact]
@@ -108,18 +123,9 @@ public class XamlStructureTests
         Assert.NotNull(searchTextBox);
         Assert.True(HasEnterBinding(searchTextBox), "Search TextBox should have Enter key binding.");
 
-        // Rename Profile TextBox
-        var renameTextBox = doc.Descendants(av + "TextBox")
-            .FirstOrDefault(t => t.Attribute("Name")?.Value == "RenameTextBox");
-        Assert.NotNull(renameTextBox);
-        Assert.True(HasEnterBinding(renameTextBox), "Rename TextBox should have Enter key binding.");
-
-        // Launch Args TextBox. Found by what it is bound to, not by its watermark — the watermark is
-        // display text and rewording it should not fail a test about key bindings.
-        var argsTextBox = doc.Descendants(av + "TextBox")
-            .FirstOrDefault(t => t.Attribute("Text")?.Value.Contains("LaunchArguments") == true);
-        Assert.NotNull(argsTextBox);
-        Assert.True(HasEnterBinding(argsTextBox), "Launch Args TextBox should have Enter key binding.");
+        // The rename box and the launch arguments box used to be checked here too. Renaming a
+        // profile is a dialog now, and the launch line moved into the game settings window — this
+        // file only reads MainWindow.axaml.
     }
 
     [Fact]
@@ -142,10 +148,14 @@ public class XamlStructureTests
     {
         var doc = LoadMainWindow();
         
-        // Let's find the Border that has a Grid with StatusMessage binding inside it
+        // Identified by the mount indicator, not by "StatusMessage" alone: several panels have a
+        // status line of their own — the Tools editor binds Tools.StatusMessage — and matching on
+        // the first Border containing that word found whichever one happened to come first in the
+        // file. MountButtonColor belongs to the real status bar and nothing else.
         var statusBar = doc.Descendants(av + "Border")
-            .FirstOrDefault(b => b.Descendants(av + "TextBlock")
-                .Any(tb => tb.Attribute("Text")?.Value.Contains("StatusMessage") == true));
+            .FirstOrDefault(b =>
+                b.Descendants(av + "TextBlock").Any(tb => tb.Attribute("Text")?.Value.Contains("StatusMessage") == true) &&
+                b.Descendants().Attributes().Any(a => a.Value.Contains("MountButtonColor")));
             
         Assert.NotNull(statusBar);
         

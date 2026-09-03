@@ -1,0 +1,161 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CatModManager.Ui.ViewModels"
+        xmlns:models="using:CatModManager.Core.Models"
+        xmlns:services="using:CatModManager.Core.Services"
+        x:Class="CatModManager.Ui.Views.GameSettingsDialog"
+        x:DataType="vm:MainWindowViewModel"
+        Width="560" Height="640"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        Title="Game settings"
+        Background="{DynamicResource SidebarBg}"
+        Foreground="{DynamicResource TextPrimary}">
+
+    <Grid RowDefinitions="Auto, *, Auto" Margin="16">
+
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,12">
+            <TextBlock Text="GAME NAME" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+            <TextBox Name="GameNameBox" Watermark="e.g. Skyrim (modded)"
+                     Text="{Binding GameManager.CurrentGame.DisplayName, Mode=OneWay}"
+                     ToolTip.Tip="Only a label — nothing else refers to it"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="14">
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="GAME MODE" FontSize="9" Foreground="{DynamicResource TextSubtle}"
+                               ToolTip.Tip="Optional. Adds the mount points a particular game wants."/>
+                    <Grid ColumnDefinitions="*, Auto">
+                        <ComboBox Grid.Column="0"
+                                  ItemsSource="{Binding GameConfig.AvailableGameSupports}"
+                                  SelectedItem="{Binding GameConfig.ActiveGameSupport}"
+                                  HorizontalAlignment="Stretch" Padding="6,4" FontSize="12">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="services:IGameSupport">
+                                    <TextBlock Text="{Binding DisplayName}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Grid.Column="1" Command="{Binding GameConfig.DetectGameSupportCommand}"
+                                Content="⟳" Classes="small-icon"
+                                ToolTip.Tip="Auto-detect from the executable"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="GAME EXECUTABLE" FontSize="9" Foreground="{DynamicResource TextSubtle}"
+                               ToolTip.Tip="Choosing this fills in the three folders below"/>
+                    <Grid ColumnDefinitions="*, Auto">
+                        <TextBox Grid.Column="0" Text="{Binding GameConfig.GameExecutablePath}"
+                                 Classes="path-field" Watermark="…/game.exe"/>
+                        <Button Grid.Column="1" Click="SelectGame_Click" Content="..." Classes="small-icon"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="GAME FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                    <Grid ColumnDefinitions="*, Auto, Auto">
+                        <TextBox Grid.Column="0" Text="{Binding GameConfig.BaseFolderPath}"
+                                 IsReadOnly="True" Classes="path-field"/>
+                        <Button Grid.Column="1" Click="SelectBaseFolder_Click" Content="..." Classes="small-icon"/>
+                        <Button Grid.Column="2" Command="{Binding OpenGameFolderCommand}" Content="↗"
+                                Classes="small-icon" ToolTip.Tip="Open folder"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="MOD INSTALLATION FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                    <Grid ColumnDefinitions="*, Auto, Auto">
+                        <TextBox Grid.Column="0" Text="{Binding GameConfig.ModsFolderPath}"
+                                 IsReadOnly="True" Classes="path-field"/>
+                        <Button Grid.Column="1" Click="SelectFolder_Click" Content="..." Classes="small-icon"/>
+                        <Button Grid.Column="2" Command="{Binding OpenModsFolderCommand}" Content="↗"
+                                Classes="small-icon" ToolTip.Tip="Open folder"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="DOWNLOADS FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
+                    <Grid ColumnDefinitions="*, Auto, Auto">
+                        <TextBox Grid.Column="0" Text="{Binding GameConfig.DownloadsFolderPath}"
+                                 IsReadOnly="True" Classes="path-field"/>
+                        <Button Grid.Column="1" Click="SelectDownloadsFolder_Click" Content="..." Classes="small-icon"/>
+                        <Button Grid.Column="2" Command="{Binding OpenDownloadsFolderCommand}" Content="↗"
+                                Classes="small-icon" ToolTip.Tip="Open folder"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="LAUNCH ARGUMENTS" FontSize="9" Foreground="{DynamicResource TextSubtle}"
+                               ToolTip.Tip="Added to the launch line. How this installation is started."/>
+                    <TextBox Text="{Binding GameConfig.LaunchArguments}" Watermark="-windowed…"
+                             Classes="path-field"/>
+                </StackPanel>
+
+                <!-- MOUNT POINTS -->
+                <Grid ColumnDefinitions="*, Auto" Margin="0,6,0,0">
+                    <TextBlock Grid.Column="0" Text="MOUNT POINTS" FontSize="9" FontWeight="Bold"
+                               Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Click="AddMountPoint_Click" Content="+"
+                            FontSize="11" FontWeight="Bold" Padding="6,2"
+                            Background="Transparent" BorderBrush="{DynamicResource BorderColor}"
+                            BorderThickness="1" ToolTip.Tip="Add a custom mount point"/>
+                </Grid>
+
+                <StackPanel Spacing="4">
+                    <!-- Game-defined (read-only path, overridable) -->
+                    <ItemsControl ItemsSource="{Binding GameConfig.ResolvedGameDefinedMountPoints}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:MountPointDef">
+                                <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6" Margin="0,4,0,0">
+                                    <Grid ColumnDefinitions="*, Auto, Auto, Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="{Binding Name}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMuted}"/>
+                                            <TextBlock Text="{Binding Path}" FontSize="10" FontFamily="Cascadia Code, Consolas, monospace" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                        <Button Grid.Column="2" Tag="{Binding}" Click="EditMountPoint_Click" Content="..." Classes="small-icon" ToolTip.Tip="Override this path"/>
+                                        <Button Grid.Column="3" Content="⊘" Classes="small-icon" IsHitTestVisible="False" Opacity="0.4" ToolTip.Tip="Predefined by the game — cannot be removed"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- User-defined -->
+                    <ItemsControl ItemsSource="{Binding GameConfig.UserMountPoints}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:MountPointDef">
+                                <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6" Margin="0,4,0,0">
+                                    <Grid ColumnDefinitions="*, Auto, Auto, Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="{Binding Name}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMuted}"/>
+                                            <TextBlock Text="{Binding Path}" FontSize="10" FontFamily="Cascadia Code, Consolas, monospace" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
+                                        <Button Grid.Column="2" Tag="{Binding}" Click="EditMountPoint_Click" Content="..." Classes="small-icon" ToolTip.Tip="Edit mount point"/>
+                                        <Button Grid.Column="3"
+                                                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).DeleteMountPointCommand}"
+                                                CommandParameter="{Binding}"
+                                                Content="✕" Classes="small-icon"
+                                                Foreground="{DynamicResource StatusDanger}"
+                                                ToolTip.Tip="Remove mount point"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- No Cancel: every field here saves as it is edited, the same way the sidebar panel did.
+             Offering a Cancel that cannot undo anything would be a lie. -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Name="CloseBtn" Content="Done" Padding="16,7" FontWeight="SemiBold"
+                    BorderThickness="0" Background="{DynamicResource AccentColor}"/>
+        </StackPanel>
+    </Grid>
+</Window>

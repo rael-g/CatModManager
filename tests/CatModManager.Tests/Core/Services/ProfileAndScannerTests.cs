@@ -41,7 +41,7 @@ public class ProfileAndScannerTests : IDisposable
     {
         var service = new TomlProfileService(_fileService);
         string path = Path.Combine(_tempDir, "test.toml");
-        var profile = new Profile { Name = "Test", Mods = new List<Mod>() };
+        var profile = new LegacyTomlProfile { Name = "Test", Mods = new List<Mod>() };
 
         await service.SaveProfileAsync(profile, path);
         var loaded = await service.LoadProfileAsync(path);

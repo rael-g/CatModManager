@@ -11,14 +11,33 @@ public class PhysicalFileService : IFileService
     public void CreateDirectory(string path) => Directory.CreateDirectory(path);
     public void CopyFile(string source, string destination, bool overwrite) => File.Copy(source, destination, overwrite);
     
+    /// <summary>
+    /// Copies a directory tree, rebasing each entry with path arithmetic rather than string
+    /// arithmetic.
+    ///
+    /// This used to be <c>path.Replace(source, destination)</c>, which silently drops the separator
+    /// whenever <c>source</c> carries a trailing one — and a folder picker always hands one over.
+    /// Copying "/home/u/Downloads/FasterMining/" into ".../cmm/mods (4)" then wrote
+    /// ".../cmm/mods (4)SFSE" as a *sibling* of the destination instead of a child, scattering the
+    /// whole source tree across the mods root as prefixed junk.
+    ///
+    /// Substring replacement was wrong for a second reason too: a source name that reappears deeper
+    /// in the tree ("Data/Data/x") would be rewritten there as well.
+    /// </summary>
     public void CopyDirectory(string source, string destination)
     {
-        Directory.CreateDirectory(destination);
-        foreach (string dirPath in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
-            Directory.CreateDirectory(dirPath.Replace(source, destination));
+        string root = Path.GetFullPath(source);
+        string target = Path.GetFullPath(destination);
 
-        foreach (string newPath in Directory.GetFiles(source, "*.*", SearchOption.AllDirectories))
-            File.Copy(newPath, newPath.Replace(source, destination), true);
+        string Rebase(string path) => Path.Combine(target, Path.GetRelativePath(root, path));
+
+        Directory.CreateDirectory(target);
+
+        foreach (string dirPath in Directory.GetDirectories(root, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Rebase(dirPath));
+
+        foreach (string filePath in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+            File.Copy(filePath, Rebase(filePath), true);
     }
 
     public void DeleteFile(string path) { if (File.Exists(path)) File.Delete(path); }

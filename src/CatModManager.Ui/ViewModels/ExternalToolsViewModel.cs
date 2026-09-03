@@ -18,6 +18,7 @@ public partial class ExternalToolsViewModel : ViewModelBase
     // Callbacks wired by MainWindowViewModel
     public Func<bool>?                  IsVfsMounted     { get; set; }
     public Func<Task<OperationResult>>? EnsureMounted    { get; set; }
+    public Func<Task<OperationResult>>? RequestUnmount   { get; set; }
     public Action?                      AutoSave         { get; set; }
     public Func<string, Task>?          PickExecutable   { get; set; }
 
@@ -50,14 +51,23 @@ public partial class ExternalToolsViewModel : ViewModelBase
     {
         if (tool == null || string.IsNullOrEmpty(tool.ExecutablePath)) return;
 
+        // Only a mount this launch made gets undone afterwards. A mount you made yourself is a
+        // decision of yours, and outliving the tool is the point of having made it — the same rule
+        // the game's launch already follows.
+        bool mountedForThisLaunch = false;
+
         if (tool.MountBeforeLaunch && EnsureMounted != null)
         {
+            bool wasMounted = IsVfsMounted?.Invoke() ?? false;
+
             var result = await EnsureMounted();
             if (!result.IsSuccess)
             {
                 StatusMessage = $"Mount failed: {result.ErrorMessage}";
                 return;
             }
+
+            mountedForThisLaunch = !wasMounted;
         }
 
         StatusMessage = $"Launching {tool.Name}…";
@@ -72,11 +82,56 @@ public partial class ExternalToolsViewModel : ViewModelBase
         if (launch.Started)
         {
             StatusMessage = "";
+
+            // Not awaited: the tool is the user's now, and the wizard-style "Launching…" message
+            // hanging around until they closed it was the whole complaint. The unmount rides along
+            // in the background instead.
+            if (mountedForThisLaunch && launch.Exited != null)
+                _ = UnmountWhenClosed(tool, launch.Exited);
+
             return;
         }
 
-        StatusMessage = $"Could not launch {tool.Name} — check that '{tool.ExecutablePath}' still exists.";
-        _logService.LogError($"[Tools] Launch failed for '{tool.Name}': {tool.ExecutablePath}");
+        // Which of the two it is matters: "wine" not being installed and "/path/tool.exe" having
+        // been moved are different problems, and the old wording only described the second.
+        bool isCommand = !tool.ExecutablePath.Contains(Path.DirectorySeparatorChar)
+                      && !tool.ExecutablePath.Contains(Path.AltDirectorySeparatorChar);
+
+        StatusMessage = isCommand
+            ? $"Could not launch {tool.Name}: the command '{tool.ExecutablePath}' was not found. Is it installed?"
+            : $"Could not launch {tool.Name}: '{tool.ExecutablePath}' could not be started. Check that it still exists.";
+
+        _logService.LogError($"[Tools] Launch failed for '{tool.Name}': {tool.ExecutablePath} {tool.Arguments}");
+    }
+
+    /// <summary>
+    /// Undoes the mount this launch made, once the tool is gone.
+    ///
+    /// Deliberately tolerant: the user may have unmounted by hand, or launched the game in the
+    /// meantime and still be playing. Undoing a mount that is no longer ours to undo would pull the
+    /// files out from under whatever is using them, so the state is re-checked at the moment it
+    /// matters rather than assumed from when the tool started.
+    /// </summary>
+    private async Task UnmountWhenClosed(ExternalTool tool, Task exited)
+    {
+        try
+        {
+            await exited;
+
+            if (IsVfsMounted?.Invoke() != true) return;
+            if (RequestUnmount == null) return;
+
+            var result = await RequestUnmount();
+            StatusMessage = result.IsSuccess
+                ? ""
+                : $"{tool.Name} closed, but unmounting failed: {result.ErrorMessage}";
+
+            _logService.Log($"[Tools] '{tool.Name}' closed — unmounted.");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"[Tools] Failed to unmount after '{tool.Name}' closed", ex);
+        }
     }
 
     [RelayCommand]
@@ -97,6 +152,35 @@ public partial class ExternalToolsViewModel : ViewModelBase
         };
         Tools.Add(tool);
         SelectedTool = tool;
+        AutoSave?.Invoke();
+    }
+
+    /// <summary>A new, empty entry for the editor to fill in — the path to a file is only one of the ways a tool is named.</summary>
+    public void AddBlankTool()
+    {
+        var tool = new ExternalTool { Name = "New tool" };
+        Tools.Add(tool);
+        SelectedTool = tool;
+        AutoSave?.Invoke();
+    }
+
+    /// <summary>Fills the command of the selected tool from the file dialog, naming it if it has no name yet.</summary>
+    public void SetExecutable(string exePath)
+    {
+        if (SelectedTool == null || string.IsNullOrEmpty(exePath)) return;
+
+        SelectedTool.ExecutablePath = exePath;
+        if (string.IsNullOrWhiteSpace(SelectedTool.Name) || SelectedTool.Name == "New tool")
+            SelectedTool.Name = Path.GetFileNameWithoutExtension(exePath);
+
+        StatusMessage = "";
+        AutoSave?.Invoke();
+    }
+
+    /// <summary>The editor changed something. Clears any stale launch error along with saving.</summary>
+    public void NotifyEdited()
+    {
+        StatusMessage = "";
         AutoSave?.Invoke();
     }
 

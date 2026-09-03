@@ -42,7 +42,8 @@ public class UnmountAfterPlayingTests : IDisposable
         Directory.CreateDirectory(paths.ProfilesPath);
 
         return new MainWindowViewModel(
-            new StubScanner(), new StubProfiles(), new StubManagement(), new StubProcesses(),
+            new StubScanner(), new Support.FakeProfileService(), new Support.FakeGameService(),
+            new StubManagement(), new StubProcesses(),
             _vfs, _launcher, new StubFiles(), paths, new MockLogService(),
             new StubConfig(), new StubSupports(),
             new GameDiscoveryService(new StubSupports(), Enumerable.Empty<IGameScanner>()),
@@ -196,13 +197,6 @@ public class UnmountAfterPlayingTests : IDisposable
     private sealed class StubScanner : IModScanner
     {
         public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) => Task.FromResult(Enumerable.Empty<Mod>());
-    }
-
-    private sealed class StubProfiles : IProfileService
-    {
-        public Task SaveProfileAsync(Profile p, string f) => Task.CompletedTask;
-        public Task<Profile?> LoadProfileAsync(string f) => Task.FromResult<Profile?>(null);
-        public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
     }
 
     private sealed class StubProcesses : IProcessService

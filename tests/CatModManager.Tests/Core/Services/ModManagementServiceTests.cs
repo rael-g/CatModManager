@@ -118,6 +118,46 @@ public class ModManagementServiceTests : IDisposable
         Assert.True(Directory.Exists(targetBase));
     }
 
+    /// <summary>
+    /// A folder picker hands back a path with a trailing separator, and GetFileName returns "" for
+    /// one of those. The empty name reached Path.Combine, which resolved to the mods root itself —
+    /// so the install went "on top of" the root, the dedupe suffix fired because the root obviously
+    /// already existed, and the mod landed in a second folder called "mods (4)" beside the real one.
+    /// </summary>
+    [Fact]
+    public async Task InstallModAsync_InstallsUnderTheModsRoot_WhenTheSourceEndsWithASeparator()
+    {
+        string targetBase = Path.Combine(_tempDir, "mods");
+        string source     = Path.Combine(_tempDir, "FasterMining");
+        Directory.CreateDirectory(Path.Combine(source, "SFSE"));
+        File.WriteAllText(Path.Combine(source, "SFSE", "plugin.dll"), "x");
+
+        string result = await _service.InstallModAsync(source + Path.DirectorySeparatorChar, targetBase);
+
+        Assert.Equal(Path.Combine(targetBase, "FasterMining"), result);
+        Assert.True(File.Exists(Path.Combine(result, "SFSE", "plugin.dll")));
+
+        // Nothing beside the mods root: the whole symptom was siblings, not wrong contents.
+        Assert.Equal(new[] { "mods" }, Directory.GetDirectories(_tempDir)
+            .Select(Path.GetFileName).Where(n => n != "FasterMining").ToArray());
+    }
+
+    /// <summary>A blank name must never resolve to the base directory itself.</summary>
+    [Fact]
+    public async Task InstallModAsync_DoesNotInstallOnTopOfTheModsRoot_WhenTheNameComesOutBlank()
+    {
+        string targetBase = Path.Combine(_tempDir, "mods");
+        Directory.CreateDirectory(targetBase);
+        string source = Path.Combine(_tempDir, "src");
+        Directory.CreateDirectory(source);
+
+        string result = await _service.InstallModAsync(source, targetBase);
+
+        Assert.NotEqual(Path.TrimEndingDirectorySeparator(targetBase),
+                        Path.TrimEndingDirectorySeparator(result));
+        Assert.StartsWith(targetBase + Path.DirectorySeparatorChar, result);
+    }
+
     // --- HELPER MOCKS ---
 
     private class MockFileService : StubFileService

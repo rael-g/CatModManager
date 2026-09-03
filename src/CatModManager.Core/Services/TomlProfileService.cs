@@ -9,7 +9,17 @@ using Nett;
 
 namespace CatModManager.Core.Services;
 
-public class TomlProfileService : IProfileService
+/// <summary>
+/// Reads and writes the old per-profile TOML files.
+///
+/// It no longer implements <see cref="IProfileService"/>: profiles live in cmm.db now, and this is
+/// kept for one job only — <see cref="ProfileImporter"/> reading the files an existing installation
+/// already has. It goes when the import does, along with <c>ICatPathService.GetProfilePath</c>.
+///
+/// The save path survives purely so the round-trip tests can still write a file to read back.
+/// Nothing in the application calls it.
+/// </summary>
+public class TomlProfileService
 {
     private readonly IFileService _fileService;
 
@@ -18,7 +28,7 @@ public class TomlProfileService : IProfileService
         _fileService = fileService;
     }
 
-    public async Task SaveProfileAsync(Profile profile, string filePath)
+    public async Task SaveProfileAsync(LegacyTomlProfile profile, string filePath)
     {
         var toml = Toml.WriteString(profile);
         // Using Task.Run for FileService interaction as IFileService isn't fully async yet
@@ -37,7 +47,7 @@ public class TomlProfileService : IProfileService
         });
     }
 
-    public async Task<Profile?> LoadProfileAsync(string filePath)
+    public async Task<LegacyTomlProfile?> LoadProfileAsync(string filePath)
     {
         try
         {
@@ -51,7 +61,7 @@ public class TomlProfileService : IProfileService
                 toml = string.Join(Environment.NewLine, lines.Where(l => !l.Trim().StartsWith("CancelInstallCommand")));
             }
 
-            var profile = Toml.ReadString<Profile>(toml);
+            var profile = Toml.ReadString<LegacyTomlProfile>(toml);
             
             if (profile != null && profile.Mods == null)
                 profile.Mods = new List<Mod>();
@@ -61,7 +71,7 @@ public class TomlProfileService : IProfileService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[TomlProfileService] LoadProfileAsync failed for '{filePath}': {ex.Message}");
-            return new Profile { Name = Path.GetFileNameWithoutExtension(filePath) };
+            return new LegacyTomlProfile { Name = Path.GetFileNameWithoutExtension(filePath) };
         }
     }
 

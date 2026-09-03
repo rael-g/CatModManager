@@ -47,9 +47,7 @@ public class SaveDetector
             {
                 var table = Toml.ReadFile(file);
 
-                string pattern = table.TryGetValue("SaveFolderPattern", out var v)
-                    ? v.Get<string>()
-                    : "";
+                string pattern = FindSaveFolderPattern(table);
 
                 if (string.IsNullOrWhiteSpace(pattern)) continue;  // not a save-managed game
 
@@ -84,6 +82,46 @@ public class SaveDetector
                 _log.LogError($"[SaveManager] Failed to read save definition from {Path.GetFileName(file)}", ex);
             }
         }
+    }
+
+    /// <summary>
+    /// The game's save pattern, wherever the author happened to put it.
+    ///
+    /// It belongs at the root of the document, but TOML assigns every bare key following an
+    /// array-of-tables header to that table — so writing it at the end of the file, after
+    /// <c>[[MountPoints]]</c>, quietly makes it a property of the last mount point. A root-only
+    /// lookup found nothing in any shipped definition, and the plugin reported "0 save-managed
+    /// game(s)" on every start since it was written. Sub-tables are searched too rather than
+    /// treating a misplaced key as an absent one, because the file is legible to a human either way
+    /// and the failure it produces is completely silent.
+    /// </summary>
+    private static string FindSaveFolderPattern(TomlTable table)
+    {
+        const string Key = "SaveFolderPattern";
+
+        if (table.TryGetValue(Key, out var direct) && direct is TomlString s)
+            return s.Value;
+
+        foreach (var row in table.Rows)
+        {
+            switch (row.Value)
+            {
+                case TomlTable child:
+                    var found = FindSaveFolderPattern(child);
+                    if (!string.IsNullOrWhiteSpace(found)) return found;
+                    break;
+
+                case TomlTableArray array:
+                    foreach (var item in array.Items)
+                    {
+                        var inArray = FindSaveFolderPattern(item);
+                        if (!string.IsNullOrWhiteSpace(inArray)) return inArray;
+                    }
+                    break;
+            }
+        }
+
+        return "";
     }
 
     public int Count => _defs.Count;

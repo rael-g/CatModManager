@@ -36,7 +36,9 @@ public class ModManagementService : IModManagementService
 
         if (_fileService.DirectoryExists(sourcePath))
         {
-            string folderName = Path.GetFileName(sourcePath);
+            // Trimmed first: the folder picker hands back a trailing separator, and GetFileName then
+            // returns "" instead of the folder's name.
+            string folderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(sourcePath));
             string finalPath = overrideTargetPath ?? GetUniquePath(targetBaseDir, folderName);
             _fileService.CopyDirectory(sourcePath, finalPath);
             _logService.Log($"Mod installed from folder: {folderName} → {finalPath}");
@@ -140,6 +142,12 @@ public class ModManagementService : IModManagementService
 
     private string GetUniquePath(string baseDir, string name)
     {
+        // Path.Combine(baseDir, "") is baseDir. A blank name therefore used to mean "install on top
+        // of the mods root itself", which no caller ever wants: the root always exists, so the
+        // dedupe suffix kicked in and produced sibling folders named "mods (1)", "mods (2)"… next
+        // to the real one. Better a mod called "Mod" than a second mods root.
+        if (string.IsNullOrWhiteSpace(name)) name = "Mod";
+
         string path = Path.Combine(baseDir, name);
         if (!Directory.Exists(path)) return path;
 

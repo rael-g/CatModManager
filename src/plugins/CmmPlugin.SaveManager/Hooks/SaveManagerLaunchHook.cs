@@ -31,7 +31,10 @@ public class SaveManagerLaunchHook : IGameLaunchHook
         }
 
         _log.Log($"[SaveManager] Backing up saves for {def.DisplayName}...");
-        await _backupService.CreateBackupAsync(def, saveFolder, label: "auto");
+
+        // Auto, so it lands in the five-slot ring buffer rather than the user's own list. This runs
+        // without anyone asking for it, so it must not crowd out slots someone made on purpose.
+        await _backupService.CreateAsync(def.GameId, saveFolder, "before launch", SaveSlotKind.Auto);
     }
 
     public Task OnAfterExitAsync(LaunchContext ctx) => Task.CompletedTask;

@@ -30,6 +30,8 @@ public class ConfigService : IConfigService
                 switch (reader.GetString(0))
                 {
                     case "LastProfileName": config.LastProfileName = reader.GetString(1); break;
+                    case "LastGameId":      config.LastGameId      = ReadLong(reader); break;
+                    case "LastProfileId":   config.LastProfileId   = ReadLong(reader); break;
                     case "Theme":           config.Theme           = reader.GetString(1); break;
                 }
             }
@@ -41,6 +43,13 @@ public class ConfigService : IConfigService
             System.Console.WriteLine($"[Config] Load failed, using defaults: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// The value stored under this key, or zero. Values are held as text, so a key written by an
+    /// older version — or by hand — is a reason to fall back, not to fail to start.
+    /// </summary>
+    private static long ReadLong(Microsoft.Data.Sqlite.SqliteDataReader reader)
+        => long.TryParse(reader.GetString(1), out var value) ? value : 0;
 
     public void Save()
     {
@@ -58,6 +67,8 @@ public class ConfigService : IConfigService
             }
 
             Upsert("LastProfileName", _current.LastProfileName ?? string.Empty);
+            Upsert("LastGameId",      _current.LastGameId.ToString());
+            Upsert("LastProfileId",   _current.LastProfileId.ToString());
             Upsert("Theme",           _current.Theme           ?? "Dark");
         }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ConfigService.Save error: {ex}"); }

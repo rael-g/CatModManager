@@ -24,21 +24,38 @@ public class FomodWizardWindow : Window
     /// <summary>
     /// Image paths in ModuleConfig.xml are relative to the module root, which is the wrapper folder
     /// when the archive has one — "My Little Nanako 3" asks for "01-00.png" and ships it as
-    /// "nana311/01-00.png". Without the prefix no image resolved, and TryLoadImageFromArchive
-    /// reports a miss by returning null, so every preview silently vanished.
+    /// "nana311/01-00.png". Without the prefix no image resolves and every preview silently
+    /// vanishes, since a missing picture is not treated as an error.
     /// </summary>
     private readonly string _wrapperPrefix;
+
+    /// <summary>
+    /// Preview images, already in memory by the time the window is built, and decoded to Bitmaps
+    /// only when a row asks for one.
+    ///
+    /// Each row used to read its own image straight from the archive, inside the synchronous
+    /// Render(). In a solid .7z every such read decodes the whole stream from the start, so Cridow's
+    /// skin set — 335 MB compressed, 1 GB unpacked, 16 previews — spent about ten seconds per
+    /// picture, all of it on the UI thread. FomodParser.Read now collects them in the same pass that
+    /// reads the config, which costs no more than reading the config alone.
+    /// </summary>
+    private readonly System.Collections.Generic.IReadOnlyDictionary<string, byte[]> _previewBytes;
+    private readonly System.Collections.Generic.Dictionary<string, Bitmap?> _decoded = new(StringComparer.OrdinalIgnoreCase);
     private readonly ContentControl _stepContent;
     private readonly TextBlock _stepIndicator;
     private readonly Button _btnBack;
     private readonly Button _btnNext;
     private readonly Button _btnInstall;
 
-    public FomodWizardWindow(FomodModuleConfig config, IPluginLogger log, IArchiveExtractor extractor, string archivePath = "")
+    public FomodWizardWindow(
+        FomodModuleConfig config, IPluginLogger log, IArchiveExtractor extractor,
+        string archivePath = "",
+        System.Collections.Generic.IReadOnlyDictionary<string, byte[]>? previews = null)
     {
         _log = log;
         _extractor = extractor;
         _archivePath = archivePath;
+        _previewBytes = previews ?? new System.Collections.Generic.Dictionary<string, byte[]>();
         _wrapperPrefix = config.WrapperPrefix ?? string.Empty;
         _vm = new FomodWizardViewModel(config);
 
@@ -123,6 +140,27 @@ public class FomodWizardWindow : Window
         Render();
     }
 
+    /// <summary>
+    /// The preview for an image path from the config, decoded on first use and kept. Returns null
+    /// when the archive had no such entry, which is not an error — a FOMOD may reference a picture
+    /// it does not ship, and a missing one simply does not appear.
+    /// </summary>
+    private Bitmap? Preview(string imagePath)
+    {
+        var key = Parser.FomodParser.NormalizeKey(imagePath);
+        if (_decoded.TryGetValue(key, out var cached)) return cached;
+
+        Bitmap? bmp = null;
+        if (_previewBytes.TryGetValue(key, out var bytes))
+        {
+            try { bmp = new Bitmap(new MemoryStream(bytes)); }
+            catch { /* a preview that will not decode is not worth failing the wizard for */ }
+        }
+
+        _decoded[key] = bmp;
+        return bmp;
+    }
+
     private void Render()
     {
         // The step's own name is preferred, but it is optional in the format and often blank — 43
@@ -132,17 +170,33 @@ public class FomodWizardWindow : Window
             ? n
             : _vm.CurrentStep?.Groups.FirstOrDefault()?.Name ?? string.Empty;
 
+        _stepLabel = label;
+        UpdateNavigation();
+
+        _stepContent.Content = _vm.CurrentStep != null ? BuildStepPanel(_vm.CurrentStep) : null;
+    }
+
+    /// <summary>
+    /// Refreshes the step counter and the footer buttons without rebuilding the step's controls.
+    ///
+    /// Needed on every selection change, because a choice can set a flag that makes the remaining
+    /// steps disappear — so the same click that ticks a radio button can turn "Next" into "Install".
+    /// Deliberately not a full Render(): rebuilding the panel would recreate the very control whose
+    /// change handler is running and re-enter through its IsCheckedChanged.
+    /// </summary>
+    private string _stepLabel = string.Empty;
+
+    private void UpdateNavigation()
+    {
         _stepIndicator.Text = _vm.TotalSteps > 0
-            ? (label.Length > 0
-                ? $"Step {_vm.CurrentStepNumber} of {_vm.TotalSteps} — {label}"
+            ? (_stepLabel.Length > 0
+                ? $"Step {_vm.CurrentStepNumber} of {_vm.TotalSteps} — {_stepLabel}"
                 : $"Step {_vm.CurrentStepNumber} of {_vm.TotalSteps}")
             : "No steps — click Install to proceed.";
 
         _btnBack.IsEnabled = _vm.CanGoBack;
         _btnNext.IsVisible = !_vm.IsLastStep && _vm.TotalSteps > 0;
         _btnInstall.IsVisible = _vm.IsLastStep || _vm.TotalSteps == 0;
-
-        _stepContent.Content = _vm.CurrentStep != null ? BuildStepPanel(_vm.CurrentStep) : null;
     }
 
     private Panel BuildStepPanel(FomodInstallStep step)
@@ -205,8 +259,9 @@ public class FomodWizardWindow : Window
             };
             radio.IsCheckedChanged += (_, _) =>
             {
-                if (radio.IsChecked == true)
-                    _vm.TogglePlugin(step, group, plugin);
+                if (radio.IsChecked != true) return;
+                _vm.TogglePlugin(step, group, plugin);
+                UpdateNavigation();
             };
             selector = radio;
         }
@@ -218,7 +273,7 @@ public class FomodWizardWindow : Window
                 IsChecked = selected.Contains(plugin.Name),
                 IsEnabled = group.Type != GroupType.SelectAll
             };
-            cb.IsCheckedChanged += (_, _) => _vm.TogglePlugin(step, group, plugin);
+            cb.IsCheckedChanged += (_, _) => { _vm.TogglePlugin(step, group, plugin); UpdateNavigation(); };
             selector = cb;
         }
 
@@ -238,8 +293,7 @@ public class FomodWizardWindow : Window
 
         if (!string.IsNullOrEmpty(plugin.ImagePath))
         {
-            var bmp = TryLoadImageFromArchive(
-                _extractor, _archivePath, _wrapperPrefix + plugin.ImagePath);
+            var bmp = Preview(_wrapperPrefix + plugin.ImagePath);
             if (bmp != null)
                 row.Children.Add(new Image
                 {
@@ -252,31 +306,6 @@ public class FomodWizardWindow : Window
         }
 
         return row;
-    }
-
-    /// <summary>
-    /// Attempts to extract an image entry from an archive and return it as a Bitmap.
-    /// Returns null on any failure so the wizard degrades gracefully.
-    /// </summary>
-    private static Bitmap? TryLoadImageFromArchive(IArchiveExtractor extractor, string archivePath, string imagePath)
-    {
-        if (string.IsNullOrEmpty(archivePath) || !File.Exists(archivePath)) return null;
-        try
-        {
-            // Normalize path for lookup
-            var normalizedImage = imagePath.Replace('\\', '/').TrimStart('/');
-            var files = extractor.GetFileList(archivePath);
-            
-            var entryKey = files.FirstOrDefault(f => 
-                string.Equals(f.Replace('\\', '/').TrimStart('/'), normalizedImage, StringComparison.OrdinalIgnoreCase));
-
-            if (entryKey == null) return null;
-
-            using var stream = extractor.OpenFileStream(archivePath, entryKey);
-            return stream != null ? new Bitmap(stream) : null;
-        }
-        catch { /* Degrade gracefully — image simply won't appear */ }
-        return null;
     }
 
     private void Finish()

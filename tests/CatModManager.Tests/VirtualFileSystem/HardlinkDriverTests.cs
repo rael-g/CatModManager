@@ -218,6 +218,51 @@ public class HardlinkDriverTests : IDisposable
         Assert.Equal("original", File.ReadAllText(gameFile));
     }
 
+    /// <summary>
+    /// Unmount used to swallow every per-file failure and then clear the state store regardless, so
+    /// a file it could not remove stayed in the game folder while the only record that it belonged
+    /// to CMM was deleted — an orphan hard link nothing would ever clean up. This is how a dozen of
+    /// them ended up in a real Fallout 4 install.
+    /// </summary>
+    [WindowsFact]
+    public void Unmount_WhenAFileCannotBeReverted_Throws_AndKeepsItInState()
+    {
+        // Not applicable on Windows: read-only directory permissions do not stop a delete there.
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+        var subDir = Path.Combine(_gameDir, "locked");
+        Directory.CreateDirectory(subDir);
+
+        var sourceFile = Path.Combine(_modDir, "pak.pak");
+        File.WriteAllText(sourceFile, "mod content");
+
+        var driver = NewDriver();
+        driver.Mount(_gameDir, SingleFileFs(Path.Combine("locked", "pak.pak"), sourceFile));
+
+        var destFile = Path.Combine(subDir, "pak.pak");
+        Assert.True(File.Exists(destFile));
+
+        // Dropping write permission on the parent is what makes the unlink fail; the file itself
+        // stays perfectly readable.
+        File.SetUnixFileMode(subDir, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            Assert.Throws<IOException>(() => driver.Unmount());
+            Assert.True(File.Exists(destFile), "The link is still deployed...");
+            Assert.Single(_store.Load(_gameDir));  // ...so the state must still say so.
+        }
+        finally
+        {
+            File.SetUnixFileMode(subDir,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        // And once the obstacle is gone, a retry finishes the job and forgets it.
+        driver.Unmount();
+        Assert.False(File.Exists(destFile));
+        Assert.Empty(_store.Load(_gameDir));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, true); } catch { }

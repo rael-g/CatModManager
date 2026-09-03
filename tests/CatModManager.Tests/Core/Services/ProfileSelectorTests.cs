@@ -52,7 +52,7 @@ public class ProfileSelectorTests
 
         // Refresh available profiles
         vm.ProfileManager.AvailableProfiles.Clear();
-        vm.ProfileManager.AvailableProfiles.Add("Modded");
+        vm.ProfileManager.AvailableProfiles.Add(new CatModManager.Core.Services.ProfileSummary(1, "Modded"));
 
         // Simulate UI selection
         selector.SelectedIndex = 0; // "Modded"

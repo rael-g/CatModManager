@@ -30,26 +30,38 @@ public class CatVirtualFileSystem : IVirtualFileSystem, IFileSystem
     }
 
     public void Mount(string gameFolderPath, List<Mod> activeMods)
+        => MountPrepared(gameFolderPath, BuildFileMap(gameFolderPath, activeMods));
+
+    /// <summary>
+    /// Resolves the mods into the map of what this mount point would deploy, without touching the
+    /// filesystem. Split out from <see cref="Mount"/> so the orchestrator can hold every mount
+    /// point's map at once and settle the overlaps between them before anything is linked: two
+    /// mount points resolving to the same file used to deploy over each other, each keeping its own
+    /// backup, which overwrote the game's original with the other one's mod file.
+    /// </summary>
+    public Dictionary<string, IFileSource> BuildFileMap(string gameFolderPath, List<Mod> activeMods)
+    {
+        // MountPoint is now implicitly gameFolderPath (already resolved by orchestrator)
+        var rawMap = _resolver.ResolveConflicts(activeMods, gameFolderPath, null, gameFolderPath);
+
+        var fileMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in rawMap)
+        {
+            string cleanKey = kvp.Key.Replace('/', '\\').Trim('\\');
+            if (!string.IsNullOrEmpty(cleanKey))
+                fileMap[cleanKey] = kvp.Value;
+        }
+        return fileMap;
+    }
+
+    public void MountPrepared(string gameFolderPath, Dictionary<string, IFileSource> fileMap)
     {
         if (IsMounted) return;
 
         try
         {
-            // MountPoint is now implicitly gameFolderPath (already resolved by orchestrator)
-            string mountPoint = gameFolderPath;
-
-            var rawMap = _resolver.ResolveConflicts(activeMods, gameFolderPath, null, mountPoint);
-
-            var fileMap = new Dictionary<string, IFileSource>(StringComparer.OrdinalIgnoreCase);
-            foreach (var kvp in rawMap)
-            {
-                string cleanKey = kvp.Key.Replace('/', '\\').Trim('\\');
-                if (!string.IsNullOrEmpty(cleanKey))
-                    fileMap[cleanKey] = kvp.Value;
-            }
-
             _backend = new ModFileSystemBackend(fileMap);
-            _driver.Mount(mountPoint, this);
+            _driver.Mount(gameFolderPath, this);
         }
         catch (Exception ex)
         {

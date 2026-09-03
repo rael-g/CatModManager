@@ -39,15 +39,21 @@ public class FomodModInstaller : IModInstaller
 
     public async Task<InstallResult> InstallAsync(string archivePath, IInstallContext ctx)
     {
-        FomodModuleConfig config;
+        FomodPackage package;
         try
         {
-            config = FomodParser.Parse(archivePath, _extractor);
+            // Off the calling thread on purpose. Reading anything out of a solid archive decodes
+            // the whole stream, which for a 335 MB skin set is 25 seconds; this used to run inline,
+            // and since an async method runs synchronously up to its first await, those 25 seconds
+            // were spent frozen on the UI thread before the wizard could even appear.
+            package = await Task.Run(() => FomodParser.Read(archivePath, _extractor));
         }
         catch (Exception ex)
         {
             return InstallResult.Failure($"Failed to parse FOMOD config: {ex.Message}");
         }
+
+        var config = package.Config;
 
         // If a preset was supplied (e.g. from a Nexus Collection), auto-apply without showing the wizard.
         if (ctx.FomodPreset != null)
@@ -67,7 +73,7 @@ public class FomodModInstaller : IModInstaller
             var mainWindow = (Application.Current?.ApplicationLifetime
                 as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 
-            var wizard = new FomodWizardWindow(config, _log, _extractor, archivePath);
+            var wizard = new FomodWizardWindow(config, _log, _extractor, archivePath, package.Previews);
             result = await wizard.ShowDialog<InstallResult?>(mainWindow!)
                      ?? InstallResult.Failure("Installation cancelled by user.");
         });

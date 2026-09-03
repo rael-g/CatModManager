@@ -29,9 +29,10 @@ public class NexusModsPlugin : ICmmPlugin
     {
         _context = ctx;
 
-        _settingsDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "catmodmanager", "plugins", "nexusmods");
+        // ctx.AppDataPath, not a second copy of the same path expression: the context has carried
+        // CMM's data directory all along, and recomputing it here meant nexus.db ignored wherever
+        // the host had actually been pointed. SaveManager already does this correctly.
+        _settingsDir = Path.Combine(ctx.AppDataPath, "plugins", "nexusmods");
         Directory.CreateDirectory(_settingsDir);
 
         _nexusDb         = new NexusDatabase(_settingsDir);

@@ -66,6 +66,8 @@ public class PluginTests
         public Task ExtractAsync(string a, string d, IProgress<double>? p, System.Threading.CancellationToken ct) => Task.CompletedTask;
         public IEnumerable<string> GetFileList(string a) => FileList;
         public System.IO.Stream? OpenFileStream(string a, string e) => null;
+        public IReadOnlyDictionary<string, System.IO.Stream> OpenFileStreams(string a, IEnumerable<string> e)
+            => new Dictionary<string, System.IO.Stream>();
     }
 
     private class MockInstallContext : IInstallContext {

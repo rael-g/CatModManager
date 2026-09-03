@@ -40,7 +40,7 @@ public class BugReproductionTests : IDisposable
     {
         // SETUP
         var mockScanner = new MockModScanner();
-        var mockProfileService = new MockProfileService();
+        var mockProfileService = new Support.FakeProfileService();
         var mockModManagementService = new MockModManagementService();
         var mockProcessService = new MockProcessService();
         var mockFileService = new MockFileService();
@@ -52,6 +52,7 @@ public class BugReproductionTests : IDisposable
         var vm = new MainWindowViewModel(
             mockScanner, 
             mockProfileService, 
+            new Support.FakeGameService(),
             mockModManagementService, 
             mockProcessService,
             new VfsOrchestrationService(
@@ -165,7 +166,7 @@ public class BugReproductionTests : IDisposable
     public async Task Shutdown_Should_Complete_Without_Deadlock_Simulation()
     {
         var mockScanner = new MockModScanner();
-        var mockProfileService = new MockProfileService();
+        var mockProfileService = new Support.FakeProfileService();
         var mockModManagementService = new MockModManagementService();
         var mockProcessService = new MockProcessService();
         var mockFileService = new MockFileService();
@@ -177,6 +178,7 @@ public class BugReproductionTests : IDisposable
         var vm = new MainWindowViewModel(
             mockScanner, 
             mockProfileService, 
+            new Support.FakeGameService(),
             mockModManagementService, 
             mockProcessService,
             new VfsOrchestrationService(
@@ -219,11 +221,6 @@ public class BugReproductionTests : IDisposable
             }
             return Task.FromResult(Enumerable.Empty<Mod>());
         }
-    }
-    private class MockProfileService : IProfileService {
-        public Task SaveProfileAsync(Profile p, string f) => Task.CompletedTask;
-        public Task<Profile?> LoadProfileAsync(string f) => Task.FromResult<Profile?>(null);
-        public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
     }
     private class MockProcessService : IProcessService {
         public Task<ProcessRunResult> StartProcessAsync(string f, string a, bool admin = false, bool waitForChildren = true, string? watch = null) => Task.FromResult(new ProcessRunResult(true, false));

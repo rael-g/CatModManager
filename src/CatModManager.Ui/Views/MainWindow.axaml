@@ -63,21 +63,46 @@
                         <MenuItem Header="_Remove Mod" Command="{Binding RemoveModCommand}"/>
                     </MenuItem>
 
+                    <MenuItem Header="_Game">
+                        <MenuItem Header="_Add Game…"      Command="{Binding GameManager.AddGameCommand}"/>
+                        <MenuItem Header="_Edit Game…"     Click="GameSettings_Click"/>
+                        <MenuItem Header="Re_move Game"    Command="{Binding GameManager.DeleteGameCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="_Switch To" ItemsSource="{Binding GameManager.AvailableGames}">
+                            <MenuItem.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                                              x:DataType="models:Game">
+                                    <Setter Property="Header"           Value="{Binding DisplayName}"/>
+                                    <Setter Property="Command"          Value="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).GameManager.SelectGameCommand}"/>
+                                    <Setter Property="CommandParameter" Value="{Binding}"/>
+                                </ControlTheme>
+                            </MenuItem.ItemContainerTheme>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="_Auto Detect Game…"      Command="{Binding GameConfig.AutoDetectGameCommand}"/>
+                        <MenuItem Header="Detect Game _Mode"       Command="{Binding GameConfig.DetectGameSupportCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="{Binding Vfs.MountButtonText}" Command="{Binding Vfs.ToggleMountCommand}"/>
+                        <MenuItem Header="_Launch Game"            Command="{Binding LaunchGameCommand}"/>
+                    </MenuItem>
+
                     <MenuItem Header="_Profile">
                         <MenuItem Header="_New Profile"    Command="{Binding ProfileManager.NewProfileCommand}"/>
                         <MenuItem Header="_Rename Profile" Command="{Binding ProfileManager.RenameProfileCommand}"/>
                         <Separator/>
                         <MenuItem Header="_Delete Profile" Command="{Binding ProfileManager.DeleteProfileCommand}"/>
-                    </MenuItem>
-
-                    <MenuItem Header="_Game">
-                        <MenuItem Header="_Auto Detect Game…"      Command="{Binding GameConfig.AutoDetectGameCommand}"/>
-                        <MenuItem Header="Detect Game _Mode"       Command="{Binding GameConfig.DetectGameSupportCommand}"/>
                         <Separator/>
-                        <MenuItem Header="Add Mount _Point…"       Click="AddMountPoint_Click"/>
-                        <Separator/>
-                        <MenuItem Header="{Binding Vfs.MountButtonText}" Command="{Binding Vfs.ToggleMountCommand}"/>
-                        <MenuItem Header="_Launch Game"            Command="{Binding LaunchGameCommand}"/>
+                        <!-- The profiles of the game that is open, and only those. -->
+                        <MenuItem Header="_Switch To" ItemsSource="{Binding ProfileManager.AvailableProfiles}">
+                            <MenuItem.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                                              x:DataType="services:ProfileSummary">
+                                    <Setter Property="Header"           Value="{Binding Name}"/>
+                                    <Setter Property="Command"          Value="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ProfileManager.SelectProfileCommand}"/>
+                                    <Setter Property="CommandParameter" Value="{Binding}"/>
+                                </ControlTheme>
+                            </MenuItem.ItemContainerTheme>
+                        </MenuItem>
                     </MenuItem>
 
                     <MenuItem Header="_Tools">
@@ -110,197 +135,132 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Navigation Content -->
+                    <!-- Navigation Content
+                         Only what gets used while working: which game, which profile, and the three
+                         actions. Everything that configures a game or a profile lives in the Game
+                         and Profile menus now — it is filled in once and revisited rarely, and it
+                         was taking up the whole panel. -->
                     <ScrollViewer Grid.Row="1">
                         <StackPanel>
-                            <!-- Profile Section -->
-                            <TextBlock Text="PROFILE" Classes="sidebar-section-header"/>
+
+                            <TextBlock Text="GAME" Classes="sidebar-section-header"/>
                             <Border Padding="12,4">
-                                <Grid ColumnDefinitions="*, Auto">
-                                    <TextBox Grid.Column="0"
-                                             Name="RenameTextBox"
-                                             Text="{Binding ProfileManager.ProfileDisplayName, UpdateSourceTrigger=PropertyChanged}"
-                                             Watermark="Profile name…"
-                                             Classes="path-field"
-                                             ToolTip.Tip="Click to rename profile">
-                                        <TextBox.KeyBindings>
-                                            <KeyBinding Gesture="Enter" Command="{Binding ProfileManager.RenameProfileCommand}"/>
-                                        </TextBox.KeyBindings>
-                                    </TextBox>
-                                    <Button Grid.Column="1"
-                                            Command="{Binding ProfileManager.DeleteProfileCommand}"
-                                            Content="✕"
-                                            Classes="small-icon"
-                                            Foreground="{DynamicResource StatusDanger}"
-                                            ToolTip.Tip="Delete profile"/>
-                                </Grid>
+                                <ComboBox Name="GameSelector"
+                                          ItemsSource="{Binding GameManager.AvailableGames}"
+                                          SelectedItem="{Binding GameManager.CurrentGame}"
+                                          PlaceholderText="No game — add one from the Game menu"
+                                          HorizontalAlignment="Stretch" Padding="6,4" FontSize="12">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="models:Game">
+                                            <TextBlock Text="{Binding DisplayName}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </Border>
 
-                            <!-- Configuration Section -->
-                            <Grid ColumnDefinitions="*, Auto" Margin="12,4,12,0">
-                                <TextBlock Grid.Column="0" Text="CONFIGURATION" Classes="sidebar-section-header" Margin="0"/>
-                                <Button Grid.Column="1"
-                                        Command="{Binding GameConfig.AutoDetectGameCommand}"
-                                        Content="⊕ AUTO DETECT"
-                                        FontSize="9" FontWeight="Bold"
-                                        Padding="6,2"
-                                        Background="Transparent"
-                                        BorderBrush="{DynamicResource BorderColor}"
-                                        BorderThickness="1"
-                                        VerticalAlignment="Center"
-                                        ToolTip.Tip="Scan Steam, GOG and Epic for installed games"/>
-                            </Grid>
-                            <Border Padding="12,8">
-                                <StackPanel Spacing="12">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="GAME MODE" FontSize="9" Foreground="{DynamicResource TextSubtle}"
-                                                   ToolTip.Tip="Select the game support profile (auto-detected from the executable)"/>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <ComboBox Grid.Column="0"
-                                                      ItemsSource="{Binding GameConfig.AvailableGameSupports}"
-                                                      SelectedItem="{Binding GameConfig.ActiveGameSupport}"
-                                                      HorizontalAlignment="Stretch"
-                                                      Padding="6,4"
-                                                      FontSize="12">
-                                                <ComboBox.ItemTemplate>
-                                                    <DataTemplate x:DataType="services:IGameSupport">
-                                                        <TextBlock Text="{Binding DisplayName}"/>
-                                                    </DataTemplate>
-                                                </ComboBox.ItemTemplate>
-                                            </ComboBox>
-                                            <Button Grid.Column="1"
-                                                    Command="{Binding GameConfig.DetectGameSupportCommand}"
-                                                    Content="⟳"
-                                                    Classes="small-icon"
-                                                    ToolTip.Tip="Auto-detect from executable"/>
-                                        </Grid>
-                                    </StackPanel>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="MOD INSTALLATION FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.ModsFolderPath}" IsReadOnly="True" Classes="path-field">
-                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                            </TextBox>
-                                            <Button Grid.Column="1" Command="{Binding OpenModsFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                            <Button Grid.Column="2" Click="SelectFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
-                                        </Grid>
-                                    </StackPanel>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="DOWNLOADS FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.DownloadsFolderPath}" IsReadOnly="True" Classes="path-field">
-                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                            </TextBox>
-                                            <Button Grid.Column="1" Command="{Binding OpenDownloadsFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                            <Button Grid.Column="2" Click="SelectDownloadsFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
-                                        </Grid>
-                                    </StackPanel>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="EXECUTABLE" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <!-- Editable, unlike the folder fields: this may be a command name rather
-                                                 than a path. Launching a game through Steam means running Steam
-                                                 ("steam" on Linux, where PATH resolves it) with -applaunch, and a file
-                                                 picker cannot express that. -->
-                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.GameExecutablePath}" Classes="path-field"
-                                                     Watermark="path to the game, or a command like &quot;steam&quot;">
-                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                            </TextBox>
-                                            <Button Grid.Column="1" Command="{Binding OpenGameExecutableFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open containing folder"/>
-                                            <Button Grid.Column="2" Click="SelectGame_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose executable"/>
-                                        </Grid>
-                                    </StackPanel>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="GAME FOLDER" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding GameConfig.BaseFolderPath}" IsReadOnly="True" Classes="path-field">
-                                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                            </TextBox>
-                                            <Button Grid.Column="1" Command="{Binding OpenGameFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                            <Button Grid.Column="2" Click="SelectBaseFolder_Click" Content="..." Classes="small-icon" ToolTip.Tip="Choose folder"/>
-                                        </Grid>
-                                    </StackPanel>
-                                    <!-- Set once per profile, so it belongs with the other per-profile
-                                         fields rather than taking 200px of the command bar forever. -->
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="LAUNCH ARGUMENTS" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <TextBox Text="{Binding GameConfig.LaunchArguments}" Watermark="-windowed…" Classes="path-field">
-                                            <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                        </TextBox>
-                                    </StackPanel>
+                            <TextBlock Text="PROFILE" Classes="sidebar-section-header"/>
+                            <Border Padding="12,4">
+                                <ComboBox Name="ProfileSelector"
+                                          ItemsSource="{Binding ProfileManager.AvailableProfiles}"
+                                          SelectedItem="{Binding ProfileManager.CurrentProfile}"
+                                          PlaceholderText="No profile"
+                                          HorizontalAlignment="Stretch" Padding="6,4" FontSize="12">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="services:ProfileSummary">
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Border>
 
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="APP DATA" FontSize="9" Foreground="{DynamicResource TextSubtle}"/>
-                                        <Grid ColumnDefinitions="*, Auto, Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding AppDataPath}" IsReadOnly="True" Classes="path-field"/>
-                                            <Button Grid.Column="1" Command="{Binding OpenAppDataFolderCommand}" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                            <!-- App data has no folder to choose, but the column still has to line
-                                                 up with the rows above. A spacer, not an invisible button. -->
-                                            <Border Grid.Column="2" Width="24"/>
-                                        </Grid>
-                                    </StackPanel>
+                            <TextBlock Text="ACTIONS" Classes="sidebar-section-header"/>
+                            <Border Padding="12,4">
+                                <StackPanel Spacing="6">
+                                    <Button HorizontalAlignment="Stretch" Padding="8,6"
+                                            Classes="outline-btn"
+                                            ToolTip.Tip="Install a mod from an archive or a folder">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+                                            <TextBlock Text="+" Foreground="{DynamicResource AccentColor}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="ADD MOD" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                                <MenuItem Header="From Archive…" Click="AddModFromArchive_Click"/>
+                                                <MenuItem Header="From Folder…"  Click="AddModFromFolder_Click"/>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
+
+                                    <Button Command="{Binding Vfs.ToggleMountCommand}"
+                                            HorizontalAlignment="Stretch" Padding="8,6"
+                                            Classes="outline-btn mount-btn">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                            <TextBlock Text="{Binding Vfs.MountButtonIcon}" Foreground="{Binding Vfs.MountButtonColor}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Vfs.MountButtonText}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button Command="{Binding LaunchGameCommand}"
+                                            HorizontalAlignment="Stretch" Padding="8,6"
+                                            Classes="launch-btn">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                            <TextBlock Text="▶"/>
+                                            <TextBlock Text="LAUNCH" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </Border>
 
-                            <!-- MOUNT POINTS section -->
-                            <Grid ColumnDefinitions="*, Auto" Margin="12,8,12,0">
-                                <TextBlock Grid.Column="0" Text="MOUNT POINTS" Classes="sidebar-section-header" Margin="0"/>
-                                <Button Grid.Column="1" Click="AddMountPoint_Click"
-                                        Content="+"
-                                        FontSize="11" FontWeight="Bold"
-                                        Padding="6,2"
-                                        Background="Transparent"
-                                        BorderBrush="{DynamicResource BorderColor}"
-                                        BorderThickness="1"
-                                        VerticalAlignment="Center"
-                                        ToolTip.Tip="Add a custom mount point"/>
-                            </Grid>
-                            <Border Padding="12,6,12,8">
+                            <!-- Shortcuts, not settings: where the folders are is configured in the
+                                 Game menu, but opening them is something done all the time. -->
+                            <TextBlock Text="OPEN FOLDER" Classes="sidebar-section-header"/>
+                            <Border Padding="12,4,12,10">
                                 <StackPanel Spacing="4">
-                                    <!-- Game-defined mount points (read-only, resolved absolute paths) -->
+                                    <Button Command="{Binding OpenGameFolderCommand}" Classes="folder-link"
+                                            HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="{Binding GameConfig.BaseFolderPath}">
+                                        <TextBlock Text="↗  Game folder" FontSize="11"/>
+                                    </Button>
+                                    <Button Command="{Binding OpenModsFolderCommand}" Classes="folder-link"
+                                            HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="{Binding GameConfig.ModsFolderPath}">
+                                        <TextBlock Text="↗  Mods" FontSize="11"/>
+                                    </Button>
+                                    <Button Command="{Binding OpenDownloadsFolderCommand}" Classes="folder-link"
+                                            HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="{Binding GameConfig.DownloadsFolderPath}">
+                                        <TextBlock Text="↗  Downloads" FontSize="11"/>
+                                    </Button>
+
+                                    <!-- Every mount point the game has, resolved to a real path. -->
                                     <ItemsControl ItemsSource="{Binding GameConfig.ResolvedGameDefinedMountPoints}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="models:MountPointDef">
-                                                <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6" Margin="0,4,0,0">
-                                                    <Grid ColumnDefinitions="*, Auto, Auto, Auto">
-                                                        <StackPanel Grid.Column="0" Spacing="1">
-                                                            <TextBlock Text="{Binding Name}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMuted}"/>
-                                                            <TextBlock Text="{Binding Path}" FontSize="10" FontFamily="Cascadia Code, Consolas, monospace" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
-                                                        </StackPanel>
-                                                        <Button Grid.Column="1" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                                        <!-- Editable despite being predefined: the handler stores a path override
-                                                             and keeps the name from the game's TOML. This used to open the folder,
-                                                             duplicating the button to its left. -->
-                                                        <Button Grid.Column="2" Tag="{Binding}" Click="EditMountPoint_Click" Content="..." Classes="small-icon" ToolTip.Tip="Override this path"/>
-                                                        <Button Grid.Column="3" Content="⊘" Classes="small-icon" IsHitTestVisible="False" Opacity="0.4" ToolTip.Tip="Predefined by the game — cannot be removed"/>
-                                                    </Grid>
-                                                </Border>
+                                                <Button Tag="{Binding}" Click="OpenMountPointFolder_Click"
+                                                        Classes="folder-link" HorizontalAlignment="Stretch"
+                                                        Margin="0,4,0,0" ToolTip.Tip="{Binding Path}">
+                                                    <TextBlock Text="{Binding Name, StringFormat='↗  {0}'}" FontSize="11"/>
+                                                </Button>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <!-- User-defined mount points (editable + deletable) -->
                                     <ItemsControl ItemsSource="{Binding GameConfig.UserMountPoints}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="models:MountPointDef">
-                                                <Border Background="{DynamicResource SurfaceBg}" CornerRadius="4" Padding="8,6" Margin="0,4,0,0">
-                                                    <Grid ColumnDefinitions="*, Auto, Auto, Auto">
-                                                        <StackPanel Grid.Column="0" Spacing="1">
-                                                            <TextBlock Text="{Binding Name}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextMuted}"/>
-                                                            <TextBlock Text="{Binding Path}" FontSize="10" FontFamily="Cascadia Code, Consolas, monospace" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
-                                                        </StackPanel>
-                                                        <Button Grid.Column="1" Tag="{Binding}" Click="OpenMountPointFolder_Click" Content="↗" Classes="small-icon" ToolTip.Tip="Open folder"/>
-                                                        <Button Grid.Column="2" Tag="{Binding}" Click="EditMountPoint_Click" Content="..." Classes="small-icon" ToolTip.Tip="Edit mount point"/>
-                                                        <Button Grid.Column="3"
-                                                                Command="{Binding $parent[Window].DataContext.DeleteMountPointCommand}"
-                                                                CommandParameter="{Binding}"
-                                                                Content="✕" Classes="small-icon"
-                                                                Foreground="{DynamicResource StatusDanger}"
-                                                                ToolTip.Tip="Remove mount point"/>
-                                                    </Grid>
-                                                </Border>
+                                                <Button Tag="{Binding}" Click="OpenMountPointFolder_Click"
+                                                        Classes="folder-link" HorizontalAlignment="Stretch"
+                                                        Margin="0,4,0,0" ToolTip.Tip="{Binding Path}">
+                                                    <TextBlock Text="{Binding Name, StringFormat='↗  {0}'}" FontSize="11"/>
+                                                </Button>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+
+                                    <Button Command="{Binding OpenAppDataFolderCommand}" Classes="folder-link"
+                                            HorizontalAlignment="Stretch" Margin="0,4,0,0"
+                                            ToolTip.Tip="{Binding AppDataPath}">
+                                        <TextBlock Text="↗  CMM data" FontSize="11"/>
+                                    </Button>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -348,91 +308,41 @@
             <!-- Main Content Area -->
             <Grid Grid.Column="1" Background="{DynamicResource ContentBg}" RowDefinitions="42, *">
                 
-                <!-- Command Bar -->
+                <!-- Command Bar
+                     Only the three things that act on the list in front of it: find a row, narrow
+                     the rows, rearrange the rows. What game and profile are open, and the actions
+                     on them, are the sidebar's — this bar used to hold all of it at once. -->
                 <Border Grid.Row="0" Background="{DynamicResource SidebarBg}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="*, Auto">
-                        <!-- Left controls: clip when window is too narrow instead of overflowing -->
-                        <Border Grid.Column="0" ClipToBounds="True">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- Search -->
-                                <TextBlock Text="⌕" VerticalAlignment="Center" Foreground="{DynamicResource AccentColor}" FontSize="16" Margin="16,0,0,0"/>
-                                <TextBox Width="200" Watermark="Search mods..." Text="{Binding ModList.SearchText}" Classes="command-bar-input">
-                                    <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
-                                </TextBox>
+                    <Border ClipToBounds="True">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- Search -->
+                            <TextBlock Text="⌕" VerticalAlignment="Center" Foreground="{DynamicResource AccentColor}" FontSize="16" Margin="16,0,0,0"/>
+                            <TextBox Width="200" Watermark="Search mods..." Text="{Binding ModList.SearchText}" Classes="command-bar-input">
+                                <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding ClearFocusCommand}"/></TextBox.KeyBindings>
+                            </TextBox>
 
-                                <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
+                            <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
 
-                                <!-- Profile Selector -->
-                                <ComboBox Name="ProfileSelector"
-                                          ItemsSource="{Binding ProfileManager.AvailableProfiles}"
-                                          SelectedItem="{Binding ProfileManager.CurrentProfileName}"
-                                          PlaceholderText="Select Profile"
-                                          Width="150"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          VerticalAlignment="Center"
-                                          FontWeight="SemiBold"
-                                          FontSize="12"
-                                          Margin="8,0,8,0"/>
+                            <!-- Category Filter -->
+                            <ComboBox ItemsSource="{Binding ModList.Categories}" SelectedItem="{Binding ModList.SelectedCategory}"
+                                      Width="120" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" FontSize="11"/>
 
-                                <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
+                            <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
 
-                                <!-- Category Filter -->
-                                <ComboBox ItemsSource="{Binding ModList.Categories}" SelectedItem="{Binding ModList.SelectedCategory}"
-                                          Width="120" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" FontSize="11"/>
-
-                                <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="8,8"/>
-
-                                <!-- Arms drag-to-reorder. Dragging edits the load order, so it stays
-                                     behind a deliberate toggle rather than being always live. -->
-                                <ToggleButton Name="ReorderToggle" IsChecked="{Binding ModList.IsReorderEnabled}"
-                                              Classes="reorder-toggle" VerticalAlignment="Center"
-                                              ToolTip.Tip="Drag rows to change load order. Sorts by priority (winner last) while on.">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="⇅" FontSize="12" VerticalAlignment="Center"/>
-                                        <TextBlock Text="REORDER" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </ToggleButton>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Right controls: always fully visible -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,12,0">
-                            <!-- Adding a mod has nothing to do with the selected one, so it lives
-                                 here rather than in the inspector, which hides itself when nothing
-                                 is selected. Outlined, not accent: LAUNCH stays the only accent. -->
-                            <Button Classes="outline-btn" VerticalAlignment="Center"
-                                    ToolTip.Tip="Install a mod from an archive or a folder">
+                            <!-- Arms drag-to-reorder. Dragging edits the load order, so it stays
+                                 behind a deliberate toggle rather than being always live. -->
+                            <ToggleButton Name="ReorderToggle" IsChecked="{Binding ModList.IsReorderEnabled}"
+                                          Classes="reorder-toggle" VerticalAlignment="Center"
+                                          ToolTip.Tip="Drag rows to change load order. Sorts by priority (winner last) while on.">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <TextBlock Text="+" Foreground="{DynamicResource AccentColor}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="ADD MOD" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <TextBlock Text="⇅" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Text="REORDER" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
                                 </StackPanel>
-                                <Button.Flyout>
-                                    <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                        <MenuItem Header="From Archive…" Click="AddModFromArchive_Click"/>
-                                        <MenuItem Header="From Folder…"  Click="AddModFromFolder_Click"/>
-                                    </MenuFlyout>
-                                </Button.Flyout>
-                            </Button>
-
-                            <Separator Width="1" Background="{DynamicResource BorderColor}" Margin="4,8"/>
-
-                            <Button Command="{Binding Vfs.ToggleMountCommand}" Classes="outline-btn mount-btn">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Vfs.MountButtonIcon}" Foreground="{Binding Vfs.MountButtonColor}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Vfs.MountButtonText}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-
-                            <Button Command="{Binding LaunchGameCommand}" Classes="launch-btn">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="▶"/>
-                                    <TextBlock Text="LAUNCH" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
+                            </ToggleButton>
                         </StackPanel>
-                    </Grid>
+                    </Border>
                 </Border>
+
 
                 <!-- Mod List Area -->
                 <Grid Grid.Row="1" RowDefinitions="32, *">
@@ -750,7 +660,10 @@
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="models:ExternalTool">
                                         <Border Padding="12,8" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
-                                            <Grid ColumnDefinitions="*, Auto, Auto">
+                                            <!-- Launch only. Remove lives down in the editor panel:
+                                                 sitting here it was one slip away from the button
+                                                 the user actually meant to press. -->
+                                            <Grid ColumnDefinitions="*, Auto">
                                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
                                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"/>
                                                     <TextBlock Text="{Binding ExecutablePath}" FontSize="9" Foreground="{DynamicResource TextSubtle}" TextTrimming="CharacterEllipsis" FontFamily="Consolas"/>
@@ -763,14 +676,6 @@
                                                         Padding="8,4" Margin="4,0"
                                                         Background="{DynamicResource AccentColor}"
                                                         Foreground="White"/>
-                                                <Button Grid.Column="2"
-                                                        Command="{Binding $parent[Window].DataContext.Tools.RemoveToolCommand}"
-                                                        CommandParameter="{Binding}"
-                                                        Content="✕"
-                                                        ToolTip.Tip="Remove"
-                                                        Padding="6,4"
-                                                        Background="Transparent"
-                                                        Foreground="{DynamicResource StatusDanger}"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -778,16 +683,73 @@
                             </ListBox>
 
                             <Border Grid.Row="1" Padding="12" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0">
-                                <Button Click="AddTool_Click"
-                                        HorizontalAlignment="Stretch" Padding="8"
-                                        Background="Transparent"
-                                        BorderBrush="{DynamicResource BorderColor}"
-                                        BorderThickness="1">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                                        <TextBlock Text="+" Foreground="{DynamicResource AccentColor}"/>
-                                        <TextBlock Text="ADD TOOL" FontSize="11" FontWeight="Bold"/>
+                                <StackPanel Spacing="8">
+
+                                    <!-- Editor for the selected tool. Everything the game's own launch
+                                         line has: a command, arguments, and whether to mount first.
+                                         Until now a tool could only be created from a file dialog,
+                                         so Arguments and MountBeforeLaunch were reachable only by
+                                         hand-editing the profile TOML. -->
+                                    <StackPanel Spacing="6"
+                                                IsVisible="{Binding Tools.SelectedTool, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Text="NAME" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextSubtle}"/>
+                                        <TextBox Text="{Binding Tools.SelectedTool.Name, Mode=TwoWay}"
+                                                 LostFocus="ToolField_Changed" FontSize="11"/>
+
+                                        <TextBlock Text="COMMAND OR EXECUTABLE" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextSubtle}"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <TextBox Grid.Column="0"
+                                                     Text="{Binding Tools.SelectedTool.ExecutablePath, Mode=TwoWay}"
+                                                     LostFocus="ToolField_Changed"
+                                                     FontFamily="Consolas" FontSize="11"
+                                                     Watermark="/path/to/tool.exe   —   or a bare command, e.g.  steam"/>
+                                            <Button Grid.Column="1" Click="BrowseTool_Click" Content="…"
+                                                    Padding="8,4" Margin="4,0,0,0"
+                                                    ToolTip.Tip="Browse for an executable"
+                                                    Background="Transparent"
+                                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"/>
+                                        </Grid>
+
+                                        <TextBlock Text="ARGUMENTS" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource TextSubtle}"/>
+                                        <TextBox Text="{Binding Tools.SelectedTool.Arguments, Mode=TwoWay}"
+                                                 LostFocus="ToolField_Changed"
+                                                 FontFamily="Consolas" FontSize="11"
+                                                 Watermark="steam://rungameid/…   to reach a non-Steam shortcut's Proton prefix"/>
+
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding Tools.SelectedTool.MountBeforeLaunch, Mode=TwoWay}"
+                                                      Click="ToolField_Changed"
+                                                      Content="Mount mods before launching" FontSize="11"/>
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding Tools.RemoveToolCommand}"
+                                                    CommandParameter="{Binding Tools.SelectedTool}"
+                                                    Content="✕  REMOVE"
+                                                    ToolTip.Tip="Remove this tool"
+                                                    FontSize="10" Padding="8,4"
+                                                    Background="Transparent"
+                                                    BorderBrush="{DynamicResource StatusDanger}" BorderThickness="1"
+                                                    Foreground="{DynamicResource StatusDanger}"/>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding Tools.StatusMessage}" FontSize="10"
+                                                   Foreground="{DynamicResource StatusDanger}" TextWrapping="Wrap"
+                                                   IsVisible="{Binding Tools.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                                        <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,4"/>
                                     </StackPanel>
-                                </Button>
+
+                                    <Button Click="AddTool_Click"
+                                            HorizontalAlignment="Stretch" Padding="8"
+                                            Background="Transparent"
+                                            BorderBrush="{DynamicResource BorderColor}"
+                                            BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                            <TextBlock Text="+" Foreground="{DynamicResource AccentColor}"/>
+                                            <TextBlock Text="ADD TOOL" FontSize="11" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
                             </Border>
                         </Grid>
                     </TabItem>

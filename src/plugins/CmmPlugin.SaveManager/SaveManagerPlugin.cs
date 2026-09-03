@@ -18,7 +18,9 @@ public class SaveManagerPlugin : ICmmPlugin
         detector.Load(context.AppDataPath);
 
         var backupService = new SaveBackupService(context.AppDataPath, context.Log);
-        var vm            = new SaveManagerTabViewModel(detector, backupService, context.State, context.Log);
+        var settings      = new SaveManagerSettings(context.AppDataPath, context.Log);
+        var autoSaver     = new AutoSaver(backupService, context.Log);
+        var vm            = new SaveManagerTabViewModel(detector, backupService, settings, autoSaver, context.State, context.Log);
         var tab           = new SaveManagerInspectorTab(vm);
         var hook          = new SaveManagerLaunchHook(detector, backupService, context.State, context.Log);
 

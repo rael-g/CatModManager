@@ -22,7 +22,15 @@ public class GameDefinition
 
     public string[] RequiredFiles { get; set; } = Array.Empty<string>();
 
-    /// <summary>Optional glob pattern for locating save files (used by SaveManager plugin).</summary>
+    /// <summary>
+    /// Optional glob pattern for locating save files (used by SaveManager plugin).
+    ///
+    /// Must appear <em>before</em> the first <c>[[MountPoints]]</c> header in the TOML. Every bare
+    /// key after an array-of-tables header belongs to that table, so a definition ending with this
+    /// key silently makes it a field of the last mount point instead of the game — which is exactly
+    /// what every shipped definition did, leaving the Save Manager with zero games to manage.
+    /// <see cref="FindSaveFolderPattern"/> recovers the misplaced case for hand-written files.
+    /// </summary>
     public string SaveFolderPattern { get; set; } = "";
 
     /// <summary>

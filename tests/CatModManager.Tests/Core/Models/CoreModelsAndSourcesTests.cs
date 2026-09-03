@@ -30,11 +30,17 @@ public class CoreModelsAndSourcesTests : IDisposable
     [Fact]
     public void ConfigService_Load_Save_Basic()
     {
-        var configService = new ConfigService(new AppDatabase(_pathService));
+        // A temp directory, not _pathService: that one resolves to the real ~/.local/share/
+        // catmodmanager, so this test used to open the user's own cmm.db and overwrite their
+        // LastProfileName with "Test". Harmless-looking while it only wrote config rows, and not at
+        // all harmless once AppDatabase started migrating the schema of whatever it is pointed at.
+        var paths = new Support.MockCatPathService(_tempDir);
+
+        var configService = new ConfigService(new AppDatabase(paths));
         configService.Current.LastProfileName = "Test";
         configService.Save();
-        
-        var config2 = new ConfigService(new AppDatabase(_pathService));
+
+        var config2 = new ConfigService(new AppDatabase(paths));
         Assert.Equal("Test", config2.Current.LastProfileName);
     }
 

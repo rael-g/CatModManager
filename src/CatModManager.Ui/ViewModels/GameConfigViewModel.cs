@@ -18,8 +18,19 @@ public partial class GameConfigViewModel : ViewModelBase
     private readonly IGameDiscoveryService _gameDiscoveryService;
     private readonly ILogService           _logService;
 
-    // Callback wired by MainWindowViewModel so config changes trigger a profile save.
-    public Action? AutoSave { get; set; }
+    /// <summary>
+    /// Wired by MainWindowViewModel. Everything on this panel describes the installation — the
+    /// folders, the executable, the game mode, the launch line, the mount points — so every edit
+    /// saves into the game, and none of it into whichever profile happens to be open.
+    /// </summary>
+    public Action? SaveGame { get; set; }
+
+    /// <summary>
+    /// Wired by MainWindowViewModel. Called once the folders have just been filled in, so that the
+    /// mods already installed for the game show up instead of an empty list. Saving is not enough
+    /// on its own — the inventory belongs to the game, and has to be read back.
+    /// </summary>
+    public Func<Task>? GameFoldersAdopted { get; set; }
 
     [ObservableProperty] private string? _modsFolderPath;
     [ObservableProperty] private string? _baseFolderPath;
@@ -29,8 +40,9 @@ public partial class GameConfigViewModel : ViewModelBase
     [ObservableProperty] private IGameSupport _activeGameSupport;
 
     private int _detectionSuppressCount;
+    private int _savingSuppressCount;
 
-    /// <summary>User-defined mount points (editable; persisted in profile).</summary>
+    /// <summary>User-defined mount points (editable; stored on the game).</summary>
     public ObservableCollection<MountPointDef> UserMountPoints { get; } = new();
 
     /// <summary>
@@ -91,6 +103,15 @@ public partial class GameConfigViewModel : ViewModelBase
 
     public ObservableCollection<IGameSupport> AvailableGameSupports { get; } = new();
 
+    /// <summary>Exposed so the window can run the same store scan when adding a game.</summary>
+    public IGameDiscoveryService GameDiscoveryService => _gameDiscoveryService;
+
+    /// <summary>The game mode an executable points at, or "generic" — which is a fine answer.</summary>
+    public string DetectSupportId(string? executablePath)
+        => string.IsNullOrEmpty(executablePath)
+            ? "generic"
+            : _gameSupportService.DetectSupport(executablePath).GameId;
+
     public GameConfigViewModel(
         IGameSupportService   gameSupportService,
         IGameDiscoveryService gameDiscoveryService,
@@ -122,14 +143,35 @@ public partial class GameConfigViewModel : ViewModelBase
         return new DetectionSuppressor(this);
     }
 
-    private void EndSuppress() => _detectionSuppressCount = Math.Max(0, _detectionSuppressCount - 1);
+    /// <summary>
+    /// Stops the field setters from saving while the panel is being filled in from a game.
+    ///
+    /// Filling it in is a dozen assignments, and each one used to write the whole panel back to the
+    /// game — including the fields that had not been assigned yet. Loading a game with a launch line
+    /// therefore saved an empty launch line over it before ever reaching that field. Caught on the
+    /// developer's own Skyrim, whose "-applaunch 489830" was gone after one start.
+    /// </summary>
+    public IDisposable SuppressSaving()
+    {
+        _savingSuppressCount++;
+        return new SavingSuppressor(this);
+    }
 
-    partial void OnGameExecutablePathChanged(string? value) { AutoSave?.Invoke(); DetectSupport(value); }
-    partial void OnModsFolderPathChanged(string? value)     => AutoSave?.Invoke();
-    partial void OnDownloadsFolderPathChanged(string? value) => AutoSave?.Invoke();
-    partial void OnBaseFolderPathChanged(string? value)     { AutoSave?.Invoke(); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
-    partial void OnLaunchArgumentsChanged(string? value)    => AutoSave?.Invoke();
-    partial void OnActiveGameSupportChanged(IGameSupport value) { AutoSave?.Invoke(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(GameDefinedMountPoints)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
+    private void Save()
+    {
+        if (_savingSuppressCount > 0) return;
+        SaveGame?.Invoke();
+    }
+
+    private void EndSuppress()     => _detectionSuppressCount = Math.Max(0, _detectionSuppressCount - 1);
+    private void EndSaveSuppress() => _savingSuppressCount    = Math.Max(0, _savingSuppressCount - 1);
+
+    partial void OnGameExecutablePathChanged(string? value) { Save(); DetectSupport(value); }
+    partial void OnModsFolderPathChanged(string? value)     => Save();
+    partial void OnDownloadsFolderPathChanged(string? value) => Save();
+    partial void OnBaseFolderPathChanged(string? value)     { Save(); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
+    partial void OnLaunchArgumentsChanged(string? value)    => Save();
+    partial void OnActiveGameSupportChanged(IGameSupport value) { Save(); OnPropertyChanged(nameof(EffectiveMountPoints)); OnPropertyChanged(nameof(GameDefinedMountPoints)); OnPropertyChanged(nameof(ResolvedGameDefinedMountPoints)); }
 
     [RelayCommand]
     private void DetectGameSupport() => DetectSupport(GameExecutablePath);
@@ -154,18 +196,22 @@ public partial class GameConfigViewModel : ViewModelBase
             ? resultMode
             : AvailableGameSupports.FirstOrDefault(s => s.GameId == resultMode.GameId) ?? resultMode;
 
-        // Temporarily disable AutoSave during batch updates to avoid redundant IO.
-        var savedAutoSave = AutoSave;
-        AutoSave = null;
+        // Temporarily disable saving during batch updates to avoid redundant IO.
+        var savedSaveGame = SaveGame;
+        SaveGame = null;
         GameExecutablePath  = result.ExecutablePath;
         BaseFolderPath      = result.GameFolder;
         ModsFolderPath      = Path.Combine(result.GameFolder, "cmm", "mods");
         DownloadsFolderPath = Path.Combine(result.GameFolder, "cmm", "downloads");
         ActiveGameSupport   = mode;
-        AutoSave = savedAutoSave;
-        AutoSave?.Invoke();
+        SaveGame = savedSaveGame;
 
         _logService.Log($"Game auto-detected: {result.DisplayName} [{result.StoreName}]");
+
+        // Adoption saves as its first step, so no SaveGame call here — two saves in a row would race
+        // over the same row.
+        if (GameFoldersAdopted != null) await GameFoldersAdopted.Invoke();
+        else SaveGame?.Invoke();
     }
 
     public void DetectSupport(string? value)
@@ -177,22 +223,27 @@ public partial class GameConfigViewModel : ViewModelBase
             var detected = _gameSupportService.DetectSupport(value);
             if (detected.GameId != "generic")
             {
-                var saved = AutoSave;
-                AutoSave = null;
+                var saved = SaveGame;
+                SaveGame = null;
                 ActiveGameSupport = detected;
-                AutoSave = saved;
+                SaveGame = saved;
                 _logService.Log($"Auto-detected Game Support: {detected.DisplayName}");
             }
         }
-        if (string.IsNullOrEmpty(BaseFolderPath) && !string.IsNullOrEmpty(value))
-            BaseFolderPath = Path.GetDirectoryName(value);
-        if (!string.IsNullOrEmpty(BaseFolderPath))
+        // Through the shared rule rather than spelled out here, so that the panel and "Add Game…"
+        // cannot end up laying the folders out differently.
+        var defaults = new Game
         {
-            if (string.IsNullOrEmpty(ModsFolderPath))
-                ModsFolderPath = Path.Combine(BaseFolderPath, "cmm", "mods");
-            if (string.IsNullOrEmpty(DownloadsFolderPath))
-                DownloadsFolderPath = Path.Combine(BaseFolderPath, "cmm", "downloads");
-        }
+            GameExecutablePath  = value               ?? "",
+            BaseDataPath        = BaseFolderPath      ?? "",
+            ModsFolderPath      = ModsFolderPath      ?? "",
+            DownloadsFolderPath = DownloadsFolderPath ?? "",
+        };
+        GameFolderDefaults.Fill(defaults);
+
+        BaseFolderPath      = defaults.BaseDataPath;
+        ModsFolderPath      = defaults.ModsFolderPath;
+        DownloadsFolderPath = defaults.DownloadsFolderPath;
     }
 
     /// <summary>Notifies bindings that EffectiveMountPoints has changed. Called from code-behind after editing a mount point in-place.</summary>
@@ -214,7 +265,7 @@ public partial class GameConfigViewModel : ViewModelBase
             existing.Path = newPath;
         else
             UserMountPoints.Add(new MountPointDef(id, name, newPath) { IsGameDefined = true });
-        AutoSave?.Invoke();
+        Save();
         NotifyMountPointsChanged();
     }
 
@@ -225,12 +276,17 @@ public partial class GameConfigViewModel : ViewModelBase
         if (UserMountPoints.Any(m => m.Id == id) || (ActiveGameSupport?.GameDefinedMountPoints?.Any(m => m.Id == id) ?? false))
             id += "_" + UserMountPoints.Count;
         UserMountPoints.Add(new MountPointDef(id, name, path));
-        AutoSave?.Invoke();
+        Save();
         OnPropertyChanged(nameof(EffectiveMountPoints));
     }
 
     private class DetectionSuppressor(GameConfigViewModel vm) : IDisposable
     {
         public void Dispose() => vm.EndSuppress();
+    }
+
+    private class SavingSuppressor(GameConfigViewModel vm) : IDisposable
+    {
+        public void Dispose() => vm.EndSaveSuppress();
     }
 }

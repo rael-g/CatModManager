@@ -78,6 +78,42 @@ public class FileServiceTests : IDisposable
         Assert.True(File.Exists(Path.Combine(dst, "test.txt")));
     }
 
+    /// <summary>
+    /// The copy used to rebase paths with string.Replace, which loses the separator when the source
+    /// carries a trailing one — every entry landed as a sibling of the destination, named
+    /// "dst_trailingSFSE", instead of inside it. A folder picker always supplies that trailing
+    /// separator, so this was the normal case, not an edge one.
+    /// </summary>
+    [Fact]
+    public void CopyDirectory_CopiesIntoTheDestination_WhenTheSourceEndsWithASeparator()
+    {
+        string src = Path.Combine(_tempDir, "src_trailing");
+        string dst = Path.Combine(_tempDir, "dst_trailing");
+        Directory.CreateDirectory(Path.Combine(src, "SFSE"));
+        File.WriteAllText(Path.Combine(src, "SFSE", "plugin.dll"), "x");
+
+        _service.CopyDirectory(src + Path.DirectorySeparatorChar, dst);
+
+        Assert.True(File.Exists(Path.Combine(dst, "SFSE", "plugin.dll")));
+        Assert.False(Directory.Exists(dst + "SFSE"));
+    }
+
+    /// <summary>
+    /// Substring replacement also rewrote the source name where it recurred deeper in the tree.
+    /// </summary>
+    [Fact]
+    public void CopyDirectory_DoesNotRewriteTheSourceNameWhereItRecursDeeper()
+    {
+        string src = Path.Combine(_tempDir, "Data");
+        string dst = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(Path.Combine(src, "Data"));
+        File.WriteAllText(Path.Combine(src, "Data", "inner.txt"), "x");
+
+        _service.CopyDirectory(src, dst);
+
+        Assert.True(File.Exists(Path.Combine(dst, "Data", "inner.txt")));
+    }
+
     [Fact]
     public void MoveDirectory_MovesAndReplacesTarget()
     {

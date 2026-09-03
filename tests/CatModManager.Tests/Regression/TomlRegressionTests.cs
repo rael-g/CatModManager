@@ -49,14 +49,14 @@ public class TomlRegressionTests : IDisposable
             IsSeparator = false
             """;
 
-        var exception = Record.Exception(() => Toml.ReadString<Profile>(toml));
+        var exception = Record.Exception(() => Toml.ReadString<LegacyTomlProfile>(toml));
         Assert.Null(exception);
     }
 
     [Fact]
     public void Mod_TomlRoundTrip_PreservesAllFields()
     {
-        var original = new Profile
+        var original = new LegacyTomlProfile
         {
             Name           = "RegressionProfile",
             ModsFolderPath = @"C:\game\mods",
@@ -69,7 +69,7 @@ public class TomlRegressionTests : IDisposable
         };
 
         var toml    = Toml.WriteString(original);
-        var loaded  = Toml.ReadString<Profile>(toml);
+        var loaded  = Toml.ReadString<LegacyTomlProfile>(toml);
 
         Assert.NotNull(loaded);
         Assert.Equal("RegressionProfile", loaded.Name);
@@ -86,7 +86,7 @@ public class TomlRegressionTests : IDisposable
     [Fact]
     public async Task TomlProfileService_SaveAndLoad_ReturnsNonNull_WithMods()
     {
-        var profile = new Profile
+        var profile = new LegacyTomlProfile
         {
             Name           = "Lies of P",
             ModsFolderPath = @"C:\game\mods",

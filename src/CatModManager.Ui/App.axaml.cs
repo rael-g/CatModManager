@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace CatModManager.Ui;
 
@@ -31,6 +32,17 @@ public partial class App : Application
         var serviceCollection = new ServiceCollection();
         ConfigureServices(serviceCollection);
         Services = serviceCollection.BuildServiceProvider();
+
+        // Before anything reads a profile, and synchronously: the first thing the main window does
+        // is load LastProfileName, and an import still running at that point looks to the user like
+        // every profile is gone.
+        //
+        // Task.Run around it, not just GetResult(): this runs on the UI thread, which has a
+        // SynchronizationContext, and the import awaits code that does not use ConfigureAwait(false)
+        // — so its continuation would be posted back to the thread already blocked in GetResult().
+        // Starting off the context means there is nothing to post back to.
+        Task.Run(() => Services.GetRequiredService<ProfileImporter>().ImportIfEmptyAsync())
+            .GetAwaiter().GetResult();
 
         LoadPlugins(Services);
 
@@ -93,7 +105,10 @@ public partial class App : Application
         services.AddSingleton<IProcessService, ProcessService>();
         services.AddSingleton<IModParser, TomlModParser>();
         services.AddSingleton<IModScanner, LocalModScanner>();
-        services.AddSingleton<IProfileService, TomlProfileService>();
+        services.AddSingleton<IProfileService, SqliteProfileService>();
+        services.AddSingleton<IGameService, SqliteGameService>();
+        services.AddSingleton<TomlProfileService>();
+        services.AddSingleton<ProfileImporter>();
         services.AddSingleton<IModManagementService, ModManagementService>();
         services.AddSingleton<IVfsStateService, VfsStateService>();
 

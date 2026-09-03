@@ -20,7 +20,7 @@ public class MainWindowViewModelTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly MockModScanner _mockScanner;
-    private readonly MockProfileService _mockProfileService;
+    private readonly Support.FakeProfileService _mockProfileService;
     private readonly MockFileService _mockFileService;
     private readonly MockProcessService _mockProcessService;
     private readonly MockModManagementService _mockModManagementService;
@@ -48,7 +48,7 @@ public class MainWindowViewModelTests : IDisposable
         _mockStateService = new MockVfsStateService();
 
         _mockScanner = new MockModScanner();
-        _mockProfileService = new MockProfileService();
+        _mockProfileService = new Support.FakeProfileService();
         _mockFileService = new MockFileService();
         _mockProcessService = new MockProcessService();
         _mockModManagementService = new MockModManagementService();
@@ -60,6 +60,7 @@ public class MainWindowViewModelTests : IDisposable
         return new MainWindowViewModel(
             _mockScanner, 
             _mockProfileService, 
+            new Support.FakeGameService(),
             _mockModManagementService, 
             _mockProcessService,
             _mockVfsService,
@@ -100,19 +101,22 @@ public class MainWindowViewModelTests : IDisposable
     public async Task Profile_Error_Handling_Coverage()
     {
         var vm = CreateViewModel();
-        
-        await Task.Delay(200);
+        await vm.InitialLoadTask;
+
+        // Something has to be open for saving and loading to be attempted at all. Startup no longer
+        // conjures a profile when there is no game — a fresh install is meant to be empty.
+        await vm.ProfileManager.NewProfileCommand.ExecuteAsync(null);
         vm.Logs.Clear();
 
         _mockFileService.ForceExists = true;
         _mockProfileService.ShouldFail = true;
 
         // ACT: Save fail
-        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync("any");
+        await vm.ProfileManager.SaveProfileCommand.ExecuteAsync(null);
         Assert.True(await WaitForLog(vm, "SAVE ERROR"), "Log should contain SAVE ERROR");
 
         // ACT: Load fail
-        await vm.ProfileManager.LoadProfileCommand.ExecuteAsync("any");
+        await vm.ProfileManager.LoadProfileAsync(vm.ProfileManager.CurrentProfile!.Id);
         Assert.True(await WaitForLog(vm, "LOAD ERROR"), "Log should contain LOAD ERROR");
     }
 
@@ -231,13 +235,6 @@ public class MainWindowViewModelTests : IDisposable
         public void Save(string mountPoint, IReadOnlyList<HardlinkStateEntry> entries) { }
         public IReadOnlyList<HardlinkStateEntry> Load(string? mountPoint) => Array.Empty<HardlinkStateEntry>();
         public void Clear(string? mountPoint) { }
-    }
-
-    private class MockProfileService : IProfileService {
-        public bool ShouldFail { get; set; }
-        public Task SaveProfileAsync(Profile p, string f) => ShouldFail ? Task.FromException(new Exception("forced")) : Task.CompletedTask;
-        public Task<Profile?> LoadProfileAsync(string f) => ShouldFail ? Task.FromException<Profile?>(new Exception("forced")) : Task.FromResult<Profile?>(null);
-        public Task<IEnumerable<string>> ListProfilesAsync(string d) => Task.FromResult(Enumerable.Empty<string>());
     }
 
     private class MockProcessService : IProcessService {

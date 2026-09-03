@@ -29,7 +29,7 @@ public class LaunchThroughACommandTests
     public async Task ABareCommandNameDoesNotSendTheWaitToTheWorkingDirectory()
     {
         var runner = Substitute.For<IProcessRunner>();
-        runner.StartAsync(Arg.Any<ProcessStartInfo>()).Returns(true);
+        runner.Start(Arg.Any<ProcessStartInfo>()).Returns(new Process());
         runner.GetProcesses().Returns(_ => throw new InvalidOperationException(
             "The watch ran for a bare command name — there is no folder to watch."));
 
@@ -46,14 +46,14 @@ public class LaunchThroughACommandTests
     public async Task TheCommandAndItsArgumentsReachTheProcessUnchanged()
     {
         var runner = Substitute.For<IProcessRunner>();
-        runner.StartAsync(Arg.Any<ProcessStartInfo>()).Returns(true);
+        runner.Start(Arg.Any<ProcessStartInfo>()).Returns(new Process());
 
         var launcher = new GameLaunchService(new ProcessService(new MockLogService(), runner), new MockLogService());
 
         var result = await launcher.LaunchGameAsync("steam", "-applaunch 1716740", Support(), new List<Mod>());
 
         Assert.True(result.IsSuccess);
-        await runner.Received(1).StartAsync(Arg.Is<ProcessStartInfo>(
+        runner.Received(1).Start(Arg.Is<ProcessStartInfo>(
             i => i.FileName == "steam" && i.Arguments == "-applaunch 1716740"));
     }
 
@@ -70,7 +70,7 @@ public class LaunchThroughACommandTests
         try
         {
             var runner = Substitute.For<IProcessRunner>();
-            runner.StartAsync(Arg.Any<ProcessStartInfo>()).Returns(true);
+            runner.Start(Arg.Any<ProcessStartInfo>()).Returns(new Process());
 
             var watched = new List<string>();
             runner.GetProcesses().Returns(_ =>

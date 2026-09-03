@@ -15,9 +15,16 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Lilmihe.Lib" Version="1.1.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
-<PackageReference Include="Nett" Version="0.15.0" />
+    <PackageReference Include="Nett" Version="0.15.0" />
     <PackageReference Include="SharpCompress" Version="0.39.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embedded rather than copied next to the binary: a migration on disk is a migration the user
+         can edit or delete, and the checksum ledger would then refuse to start. -->
+    <EmbeddedResource Include="Migrations\*.sql" />
   </ItemGroup>
 
   <ItemGroup>

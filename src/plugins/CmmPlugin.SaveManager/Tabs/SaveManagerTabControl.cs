@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using CmmPlugin.SaveManager.Services;
 
 namespace CmmPlugin.SaveManager.Tabs;
@@ -11,6 +12,7 @@ public class SaveManagerTabControl : UserControl
 {
     private readonly SaveManagerTabViewModel _vm;
     private readonly TextBlock               _statusText;
+    private readonly TextBox                 _labelBox;
 
     public SaveManagerTabControl(SaveManagerTabViewModel vm)
     {
@@ -18,21 +20,35 @@ public class SaveManagerTabControl : UserControl
 
         _statusText = new TextBlock
         {
-            Margin      = new Thickness(8, 6),
-            Foreground  = Brushes.Gray,
-            FontSize    = 11,
+            Margin       = new Thickness(8, 6),
+            Foreground   = Brushes.Gray,
+            FontSize     = 11,
             TextWrapping = TextWrapping.Wrap
         };
 
-        var listBox = BuildListBox();
-        var btnBar  = BuildButtonBar();
+        _labelBox = new TextBox
+        {
+            Watermark = "Name this save (e.g. before the ending)",
+            FontSize  = 12
+        };
 
         var root = new DockPanel();
         DockPanel.SetDock(_statusText, Dock.Top);
-        DockPanel.SetDock(btnBar, Dock.Bottom);
+
+        var saveBar = BuildSaveBar();
+        DockPanel.SetDock(saveBar, Dock.Top);
+
+        var footer = BuildFooter();
+        DockPanel.SetDock(footer, Dock.Bottom);
+
+        var autoBar = BuildAutoSaveBar();
+        DockPanel.SetDock(autoBar, Dock.Bottom);
+
         root.Children.Add(_statusText);
-        root.Children.Add(btnBar);
-        root.Children.Add(listBox);
+        root.Children.Add(saveBar);
+        root.Children.Add(autoBar);
+        root.Children.Add(footer);
+        root.Children.Add(BuildListBox());
 
         Content = root;
 
@@ -41,96 +57,261 @@ public class SaveManagerTabControl : UserControl
 
         _vm.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(SaveManagerTabViewModel.Status))
-                SyncStatus();
+            if (e.PropertyName == nameof(SaveManagerTabViewModel.Status))       SyncStatus();
+            if (e.PropertyName == nameof(SaveManagerTabViewModel.NewSlotLabel)) _labelBox.Text = _vm.NewSlotLabel;
         };
+    }
+
+    /// <summary>The name box and the Save button — the primary action, so it sits at the top.</summary>
+    private Panel BuildSaveBar()
+    {
+        var save = new Button
+        {
+            Content = "💾  SAVE",
+            Padding = new Thickness(10, 4),
+            Margin  = new Thickness(4, 0, 0, 0)
+        };
+        save.Click += async (_, _) =>
+        {
+            _vm.NewSlotLabel = _labelBox.Text ?? "";
+            await _vm.SaveCommand.ExecuteAsync(null);
+        };
+
+        var grid = new Grid { Margin = new Thickness(8, 2, 8, 6) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        Grid.SetColumn(_labelBox, 0);
+        Grid.SetColumn(save,      1);
+        grid.Children.Add(_labelBox);
+        grid.Children.Add(save);
+
+        return grid;
     }
 
     private ListBox BuildListBox() =>
         new()
         {
-            ItemsSource  = _vm.Backups,
-            ItemTemplate = new FuncDataTemplate<SaveBackup>((backup, _) =>
+            ItemsSource  = _vm.Slots,
+            ItemTemplate = new FuncDataTemplate<SaveSlot>((slot, _) =>
             {
                 var grid = new Grid { Margin = new Thickness(2) };
-                grid.ColumnDefinitions.Add(new ColumnDefinition(1,  GridUnitType.Star));
+                grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
                 grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
                 grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
                 grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
                 var name = new TextBlock
                 {
-                    Text                = backup.Label,
-                    VerticalAlignment   = VerticalAlignment.Center,
-                    TextTrimming        = TextTrimming.CharacterEllipsis
+                    Text              = slot.Display,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming      = TextTrimming.CharacterEllipsis,
+                    Foreground        = slot.Kind == SaveSlotKind.Manual ? Brushes.White : Brushes.Gray
                 };
-                ToolTip.SetTip(name, backup.FilePath);
+                ToolTip.SetTip(name, $"{slot.CreatedAt:g}\n{slot.FilePath}");
 
-                var size = new TextBlock
+                var when = new TextBlock
                 {
-                    Text              = FormatSize(backup.SizeBytes),
+                    Text              = slot.CreatedAt.ToString("MMM d, HH:mm"),
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground        = Brushes.Gray,
                     FontSize          = 11,
                     Margin            = new Thickness(8, 0)
                 };
 
-                var btnRestore = new Button
+                var size = new TextBlock
                 {
-                    Content = "Restore",
-                    Padding = new Thickness(6, 2),
-                    Margin  = new Thickness(2, 0)
+                    Text              = FormatSize(slot.SizeBytes),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground        = Brushes.Gray,
+                    FontSize          = 11,
+                    Margin            = new Thickness(0, 0, 8, 0)
                 };
-                btnRestore.Click += async (_, _) => await _vm.Restore(backup);
 
-                var btnDelete = new Button
-                {
-                    Content    = "✕",
-                    Padding    = new Thickness(6, 2),
-                    Foreground = Brushes.OrangeRed
-                };
-                btnDelete.Click += (_, _) => _vm.Delete(backup);
+                var actions = BuildSlotActions(slot);
 
-                Grid.SetColumn(name,       0);
-                Grid.SetColumn(size,       1);
-                Grid.SetColumn(btnRestore, 2);
-                Grid.SetColumn(btnDelete,  3);
+                Grid.SetColumn(name,    0);
+                Grid.SetColumn(when,    1);
+                Grid.SetColumn(size,    2);
+                Grid.SetColumn(actions, 3);
 
                 grid.Children.Add(name);
+                grid.Children.Add(when);
                 grid.Children.Add(size);
-                grid.Children.Add(btnRestore);
-                grid.Children.Add(btnDelete);
+                grid.Children.Add(actions);
 
                 return grid;
             })
         };
 
-    private Panel BuildButtonBar()
+    /// <summary>
+    /// Load and Delete, both behind a click-to-confirm.
+    ///
+    /// Both overwrite or destroy saves, and they live in a scrolling list where a misplaced click is
+    /// easy. Rather than a modal — which a plugin control has no window to parent — the button
+    /// changes to "Sure?" and only acts on the second click, reverting if the user moves away.
+    /// </summary>
+    private Panel BuildSlotActions(SaveSlot slot)
     {
-        var btnRefresh = MakeButton("↺ Refresh", () => _vm.Refresh());
-        var btnBackup  = MakeButton("💾 Backup Now", async () => await _vm.BackupNowCommand.ExecuteAsync(null));
+        var load   = MakeConfirmingButton("Load", "Load — sure?",   async () => await _vm.Load(slot));
+        var delete = MakeConfirmingButton("✕",    "Delete — sure?", () => _vm.Delete(slot));
+        delete.Foreground = Brushes.OrangeRed;
+
+        var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        stack.Children.Add(load);
+        stack.Children.Add(delete);
+        return stack;
+    }
+
+    private static Button MakeConfirmingButton(string label, string confirmLabel, Func<Task> action)
+    {
+        var button = new Button { Content = label, Padding = new Thickness(6, 2) };
+        bool armed = false;
+
+        void Disarm()
+        {
+            armed = false;
+            button.Content = label;
+        }
+
+        button.Click += async (_, _) =>
+        {
+            if (!armed)
+            {
+                armed = true;
+                button.Content = confirmLabel;
+                return;
+            }
+            Disarm();
+            await action();
+        };
+
+        button.PointerExited += (_, _) => { if (armed) Disarm(); };
+        return button;
+    }
+
+    private static Button MakeConfirmingButton(string label, string confirmLabel, Action action) =>
+        MakeConfirmingButton(label, confirmLabel, () => { action(); return Task.CompletedTask; });
+
+    /// <summary>The auto-save switch and its interval, plus a line saying what it is doing.</summary>
+    private Panel BuildAutoSaveBar()
+    {
+        var toggle = new CheckBox
+        {
+            Content           = "Auto-save every",
+            IsChecked         = _vm.AutoSaveEnabled,
+            FontSize          = 11,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var minutes = new NumericUpDown
+        {
+            Value             = _vm.AutoSaveMinutes,
+            Minimum           = GameSaveSettings.MinAutoSaveMinutes,
+            Maximum           = 240,
+            Increment         = 1,
+            FormatString      = "0",
+            Width             = 90,
+            FontSize          = 11,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var unit = new TextBlock
+        {
+            Text              = "min",
+            FontSize          = 11,
+            Foreground        = Brushes.Gray,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        toggle.IsCheckedChanged += (_, _) => _vm.AutoSaveEnabled = toggle.IsChecked == true;
+        minutes.ValueChanged   += (_, _) =>
+        {
+            if (minutes.Value is { } v) _vm.AutoSaveMinutes = (int)v;
+        };
+
+        var note = new TextBlock
+        {
+            Text         = _vm.AutoSaveStatus,
+            FontSize     = 10,
+            Foreground   = Brushes.Gray,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 2, 0, 0)
+        };
+        // Switching profile reloads another game's settings, so the controls follow the view model
+        // rather than only driving it.
+        _vm.PropertyChanged += (_, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(SaveManagerTabViewModel.AutoSaveStatus):  note.Text        = _vm.AutoSaveStatus;  break;
+                case nameof(SaveManagerTabViewModel.AutoSaveEnabled): toggle.IsChecked = _vm.AutoSaveEnabled; break;
+                case nameof(SaveManagerTabViewModel.AutoSaveMinutes): minutes.Value    = _vm.AutoSaveMinutes; break;
+            }
+        };
+
+        ToolTip.SetTip(toggle,
+            "Takes a snapshot on a timer, but only when the saves have actually changed — so " +
+            "nothing is written while you are idle or the game is closed. Keeps the last five, " +
+            "separately from the saves you make yourself.");
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        row.Children.Add(toggle);
+        row.Children.Add(minutes);
+        row.Children.Add(unit);
+
+        var stack = new StackPanel { Margin = new Thickness(8, 4) };
+        stack.Children.Add(row);
+        stack.Children.Add(note);
+        return stack;
+    }
+
+    private Panel BuildFooter()
+    {
+        var refresh = MakeButton("↺ Refresh", () => _vm.Refresh());
+
+        var choose = MakeButton("📁 Save folder…", async () =>
+        {
+            var top = TopLevel.GetTopLevel(this);
+            if (top == null) return;
+
+            var picked = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Where does this game keep its saves?",
+                AllowMultiple = false
+            });
+
+            var path = picked.FirstOrDefault()?.TryGetLocalPath();
+            if (!string.IsNullOrEmpty(path)) _vm.SetSaveFolder(path);
+        });
+        ToolTip.SetTip(choose, "Point CMM at this game's save folder — for games we don't detect, " +
+                               "custom Wine prefixes, or saves on another disk.");
+
+        var auto = MakeButton("Auto-detect", () => _vm.ClearSaveFolderOverride());
+        ToolTip.SetTip(auto, "Forget the folder you chose and detect it again.");
 
         var bar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing     = 4,
-            Margin      = new Thickness(4)
+            Margin      = new Thickness(8, 4)
         };
-        bar.Children.Add(btnRefresh);
-        bar.Children.Add(btnBackup);
+        bar.Children.Add(refresh);
+        bar.Children.Add(choose);
+        bar.Children.Add(auto);
         return bar;
     }
 
     private static Button MakeButton(string label, Action onClick)
     {
-        var btn = new Button { Content = label, Padding = new Thickness(6, 2) };
+        var btn = new Button { Content = label, Padding = new Thickness(6, 2), FontSize = 11 };
         btn.Click += (_, _) => onClick();
         return btn;
     }
 
     private static Button MakeButton(string label, Func<Task> onClick)
     {
-        var btn = new Button { Content = label, Padding = new Thickness(6, 2) };
+        var btn = new Button { Content = label, Padding = new Thickness(6, 2), FontSize = 11 };
         btn.Click += async (_, _) => await onClick();
         return btn;
     }
@@ -140,9 +321,8 @@ public class SaveManagerTabControl : UserControl
     private static string FormatSize(long bytes) =>
         bytes switch
         {
-            < 1_024           => $"{bytes} B",
-            < 1_024 * 1_024   => $"{bytes / 1_024} KB",
-            _                 => $"{bytes / (1_024 * 1_024)} MB"
+            < 1_024         => $"{bytes} B",
+            < 1_024 * 1_024 => $"{bytes / 1_024} KB",
+            _               => $"{bytes / (1_024 * 1_024)} MB"
         };
 }
-

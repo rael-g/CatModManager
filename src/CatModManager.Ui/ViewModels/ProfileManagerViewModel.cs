@@ -1,6 +1,5 @@
 using System;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,34 +7,33 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
-using CatModManager.PluginSdk;
 
 namespace CatModManager.Ui.ViewModels;
 
 /// <summary>
-/// Owns all profile list / CRUD state and commands.
+/// Owns all profile list / CRUD state and commands, for one game at a time.
+///
 /// Communicates with MainWindowViewModel via events and callbacks:
 ///   - ProfileLoaded  → raised when a profile is loaded; caller applies the data.
 ///   - BuildSaveData  → callback that returns the current Profile to persist.
 ///   - IsVfsMounted   → callback used by DeleteProfile to guard against deletion while mounted.
 ///   - ConfirmDelete  → async callback set by the View to show a confirmation dialog.
+///   - CurrentGameId  → which game new profiles belong to, and which ones the list shows.
 /// </summary>
 public partial class ProfileManagerViewModel : ViewModelBase
 {
     private readonly IProfileService  _profileService;
-    private readonly ICatPathService  _pathService;
-    private readonly IFileService     _fileService;
     private readonly IConfigService   _configService;
     private readonly ILogService      _logService;
 
     private readonly SemaphoreSlim _lock = new(1, 1);
     private int _suppressionCount;
-    private string? _previousProfileName;
+    private ProfileSummary? _previousProfile;
     private bool _confirming;
 
     // ── Events & callbacks ────────────────────────────────────────────────────
 
-    /// <summary>Raised after a profile file is loaded. Subscriber applies paths / mods.</summary>
+    /// <summary>Raised after a profile is loaded. Subscriber applies mods / tools / mount points.</summary>
     public event Action<Profile>? ProfileLoaded;
 
     /// <summary>Called when saving — returns the Profile snapshot to persist.</summary>
@@ -44,8 +42,21 @@ public partial class ProfileManagerViewModel : ViewModelBase
     /// <summary>Returns whether the VFS is currently mounted (guard for delete).</summary>
     public Func<bool>?           IsVfsMounted;
 
+    /// <summary>
+    /// The game whose profiles are listed, and that a new profile joins. Null means the parked
+    /// ones — profiles with no game at all.
+    /// </summary>
+    public Func<long?>?          CurrentGameId;
+
     /// <summary>Set by the View to show a confirmation dialog before deleting a profile.</summary>
     public Func<string, Task<bool>>? ConfirmDelete;
+
+    /// <summary>
+    /// Set by the View: asks for the new name, given the current one, and returns null if the user
+    /// backed out. Renaming used to read a text box in the sidebar; that box is gone, and a menu
+    /// entry has nowhere to type.
+    /// </summary>
+    public Func<string, Task<string?>>? RequestRename;
 
     /// <summary>
     /// Set by the View to confirm a profile switch. Receives the new profile name.
@@ -56,13 +67,19 @@ public partial class ProfileManagerViewModel : ViewModelBase
     // ── Observable state ──────────────────────────────────────────────────────
 
     [ObservableProperty]
-    private string? _currentProfileName;
+    private ProfileSummary? _currentProfile;
 
     [ObservableProperty]
     private string? _profileDisplayName;
 
     [ObservableProperty]
-    private ObservableCollection<string> _availableProfiles = new();
+    private ObservableCollection<ProfileSummary> _availableProfiles = new();
+
+    /// <summary>
+    /// What the rest of the application still asks for. Plugins and the session state care about the
+    /// name on screen, not which row it came from.
+    /// </summary>
+    public string? CurrentProfileName => CurrentProfile?.Name;
 
     // ── Suppression helpers (used by MainWindowViewModel too) ─────────────────
 
@@ -81,46 +98,44 @@ public partial class ProfileManagerViewModel : ViewModelBase
 
     public ProfileManagerViewModel(
         IProfileService profileService,
-        ICatPathService pathService,
-        IFileService    fileService,
         IConfigService  configService,
         ILogService     logService)
     {
         _profileService = profileService;
-        _pathService    = pathService;
-        _fileService    = fileService;
         _configService  = configService;
         _logService     = logService;
     }
 
     // ── Property changed handlers ─────────────────────────────────────────────
 
-    partial void OnCurrentProfileNameChanged(string? value)
+    partial void OnCurrentProfileChanged(ProfileSummary? value)
     {
+        OnPropertyChanged(nameof(CurrentProfileName));
+
         if (IsAutoSaveSuppressed || _confirming) return;
-        if (!string.IsNullOrEmpty(value) && AvailableProfiles.Contains(value))
+        if (value != null && AvailableProfiles.Contains(value))
         {
-            ProfileDisplayName = value;
+            ProfileDisplayName = value.Name;
             _ = ConfirmAndLoadAsync(value);
         }
     }
 
-    private async Task ConfirmAndLoadAsync(string name)
+    private async Task ConfirmAndLoadAsync(ProfileSummary profile)
     {
         if (ConfirmProfileChange != null)
         {
-            bool ok = await ConfirmProfileChange(name);
+            bool ok = await ConfirmProfileChange(profile.Name);
             if (!ok)
             {
                 _confirming = true;
-                CurrentProfileName = _previousProfileName;
-                ProfileDisplayName = _previousProfileName;
+                CurrentProfile     = _previousProfile;
+                ProfileDisplayName = _previousProfile?.Name;
                 _confirming = false;
                 return;
             }
         }
-        _previousProfileName = name;
-        await LoadProfileAsync(name);
+        _previousProfile = profile;
+        await LoadProfileAsync(profile.Id);
     }
 
     // ── Commands ──────────────────────────────────────────────────────────────
@@ -128,33 +143,37 @@ public partial class ProfileManagerViewModel : ViewModelBase
     [RelayCommand]
     public async Task NewProfile()
     {
+        long? gameId = CurrentGameId?.Invoke();
         string newName = GetUniqueProfileName("NewProfile");
+        long id;
 
         // Save a blank profile — intentionally NOT using BuildSaveData to avoid
         // copying the current profile's state into the new one.
         await _lock.WaitAsync();
         try
         {
-            var blank = new Profile { Name = newName };
-            await _profileService.SaveProfileAsync(blank, _pathService.GetProfilePath(newName));
+            id = await _profileService.SaveProfileAsync(new Profile { Name = newName, GameId = gameId });
         }
         catch (Exception ex) { _logService.Log($"NEW PROFILE ERROR: {ex.Message}"); return; }
         finally { _lock.Release(); }
 
-        await RefreshListAsync(newName);
-        await LoadProfileAsync(newName);
+        await RefreshListAsync(id);
+        await LoadProfileAsync(id);
+    }
+
+    /// <summary>Picks a profile from the menu. Same thing the selector in the command bar does.</summary>
+    [RelayCommand]
+    public void SelectProfile(ProfileSummary? profile)
+    {
+        if (profile != null) CurrentProfile = profile;
     }
 
     [RelayCommand]
     public async Task DeleteProfile()
     {
-        if (string.IsNullOrEmpty(CurrentProfileName)) return;
+        if (CurrentProfile is not { } profile) return;
 
-        if (ConfirmDelete != null)
-        {
-            bool confirmed = await ConfirmDelete(CurrentProfileName);
-            if (!confirmed) return;
-        }
+        if (ConfirmDelete != null && !await ConfirmDelete(profile.Name)) return;
 
         if (IsVfsMounted?.Invoke() == true)
         {
@@ -162,152 +181,159 @@ public partial class ProfileManagerViewModel : ViewModelBase
             return;
         }
 
-        string profileToDelete = CurrentProfileName;
-        string path = _pathService.GetProfilePath(profileToDelete);
-
         await _lock.WaitAsync();
         try
         {
             using (SuppressAutoSave())
             {
-                CurrentProfileName = null;
+                CurrentProfile     = null;
                 ProfileDisplayName = null;
 
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                    _logService.Log($"Profile '{profileToDelete}' deleted.");
-                }
+                await _profileService.DeleteProfileAsync(profile.Id);
+                _logService.Log($"Profile '{profile.Name}' deleted.");
 
-                AvailableProfiles.Remove(profileToDelete);
-                await RefreshListAsync();
+                AvailableProfiles.Remove(profile);
             }
         }
         catch (Exception ex) { _logService.Log($"DELETE ERROR: {ex.Message}"); return; }
         finally { _lock.Release(); }
 
-        if (AvailableProfiles.Count > 0)
-            await LoadProfileAsync(AvailableProfiles[0]);
-        else
-            await NewProfile();
+        await RefreshListAsync(null);
+        if (AvailableProfiles.Count > 0) await LoadProfileAsync(AvailableProfiles[0].Id);
+        else await NewProfile();
     }
 
     [RelayCommand]
     public async Task RenameProfile()
     {
-        if (string.IsNullOrEmpty(CurrentProfileName) ||
-            string.IsNullOrEmpty(ProfileDisplayName) ||
-            CurrentProfileName == ProfileDisplayName) return;
+        if (CurrentProfile is not { } profile) return;
+
+        string? asked = RequestRename != null
+            ? await RequestRename.Invoke(profile.Name)
+            : ProfileDisplayName;
+        if (string.IsNullOrWhiteSpace(asked) || asked == profile.Name) return;
 
         await _lock.WaitAsync();
         try
         {
-            string oldPath = _pathService.GetProfilePath(CurrentProfileName);
-            if (_fileService.FileExists(oldPath))
-            {
-                await SaveProfileInternalAsync(ProfileDisplayName);
-                File.Delete(oldPath);
-                string newName = ProfileDisplayName;
-                _logService.Log($"Profile renamed: '{CurrentProfileName}' → '{newName}'");
-                _configService.Current.LastProfileName = newName;
-                _configService.Save();
-                await RefreshListAsync(newName);
-            }
+            string newName = asked;
+
+            // One rename, not "save under the new name and delete the old one". That sequence left
+            // two profiles behind whenever the delete failed, and it also copied the *current* UI
+            // state into the new name rather than renaming what was stored.
+            await _profileService.RenameProfileAsync(profile.Id, newName);
+
+            _logService.Log($"Profile renamed: '{profile.Name}' → '{newName}'");
+            await RefreshListAsync(profile.Id);
         }
         catch (Exception ex) { _logService.Log($"RENAME ERROR: {ex.Message}"); }
         finally { _lock.Release(); }
     }
 
     [RelayCommand]
-    public async Task SaveProfile(string? name)
+    public async Task SaveProfile()
     {
         await _lock.WaitAsync();
-        try { await SaveProfileInternalAsync(name); }
+        try { await SaveProfileInternalAsync(); }
         finally { _lock.Release(); }
     }
-
-    [RelayCommand]
-    public async Task LoadProfile(string? name) => await LoadProfileAsync(name);
 
     // ── Public helpers ────────────────────────────────────────────────────────
 
     public void AutoSave()
     {
         if (IsAutoSaveSuppressed) return;
-        if (string.IsNullOrWhiteSpace(CurrentProfileName)) return;
-        _ = SaveProfile(CurrentProfileName);
+        if (CurrentProfile == null) return;
+        _ = SaveProfile();
     }
 
-    public async Task RefreshListAsync(string? selectAfter = null)
+    public async Task RefreshListAsync(long? selectId = null)
     {
-        var profiles = await _profileService.ListProfilesAsync(_pathService.ProfilesPath);
-        var names    = profiles.Select(Path.GetFileNameWithoutExtension).OrderBy(n => n).ToList();
+        var profiles = await _profileService.ListProfilesAsync(CurrentGameId?.Invoke());
 
-        AvailableProfiles.Clear();
-        foreach (var p in names) if (p != null) AvailableProfiles.Add(p);
-
-        if (!string.IsNullOrEmpty(selectAfter) && AvailableProfiles.Contains(selectAfter))
+        using (SuppressAutoSave())
         {
-            using (SuppressAutoSave())
-            {
-                CurrentProfileName = selectAfter;
-                ProfileDisplayName = selectAfter;
-            }
+            var keep = selectId ?? CurrentProfile?.Id;
+
+            AvailableProfiles.Clear();
+            foreach (var p in profiles) AvailableProfiles.Add(p);
+
+            // Re-selected by id: the summaries are fresh records, so the old instance is not in the
+            // list any more and leaving it selected would show a name that no longer exists.
+            CurrentProfile     = AvailableProfiles.FirstOrDefault(p => p.Id == keep);
+            ProfileDisplayName = CurrentProfile?.Name;
+            _previousProfile   = CurrentProfile;
         }
     }
 
-    public async Task LoadInitialProfile(string? lastProfileName)
+    /// <summary>Re-reads the profile that is open, discarding what is in the UI for it.</summary>
+    public Task ReloadCurrentAsync()
+        => CurrentProfile is { } p ? LoadProfileAsync(p.Id) : Task.CompletedTask;
+
+    /// <summary>
+    /// Opens the profiles of a game the user just switched to: the one asked for, else the first,
+    /// and a fresh one when the game has none — a game with no profile at all is not something the
+    /// user can do anything with.
+    ///
+    /// With no game selected, nothing is created. That is a fresh installation, where the answer is
+    /// "add a game", not a profile parked over no folder that the user then has to notice and
+    /// delete.
+    /// </summary>
+    public async Task OpenGameProfilesAsync(long? preferredProfileId)
     {
-        await RefreshListAsync();
-        if (!string.IsNullOrEmpty(lastProfileName))
-            await LoadProfileAsync(lastProfileName);
+        await RefreshListAsync(preferredProfileId);
+
+        if (CurrentProfile is { } profile) await LoadProfileAsync(profile.Id);
+        else if (AvailableProfiles.Count > 0) await LoadProfileAsync(AvailableProfiles[0].Id);
+        else if (CurrentGameId?.Invoke() != null) await NewProfile();
     }
 
     // ── Private ───────────────────────────────────────────────────────────────
 
-    private async Task LoadProfileAsync(string? name)
+    public async Task LoadProfileAsync(long profileId)
     {
-        if (string.IsNullOrEmpty(name)) return;
         await _lock.WaitAsync();
         try
         {
-            string filePath = _pathService.GetProfilePath(name);
-            if (!_fileService.FileExists(filePath))
+            var p = await _profileService.LoadProfileAsync(profileId);
+            if (p == null)
             {
-                _logService.Log($"LOAD ERROR: Profile file not found: {name}");
+                _logService.Log($"LOAD ERROR: Profile not found: {profileId}");
                 return;
             }
-            var p = await _profileService.LoadProfileAsync(filePath);
-            if (p != null)
+
+            using (SuppressAutoSave())
             {
-                using (SuppressAutoSave())
-                {
-                    CurrentProfileName    = name;
-                    ProfileDisplayName    = name;
-                    _previousProfileName  = name;
-                    _configService.Current.LastProfileName = name;
-                    _configService.Save();
-                }
-                ProfileLoaded?.Invoke(p);
-                _logService.Log($"Profile '{name}' loaded.");
+                var summary = AvailableProfiles.FirstOrDefault(s => s.Id == profileId)
+                              ?? new ProfileSummary(profileId, p.Name);
+                CurrentProfile     = summary;
+                ProfileDisplayName = p.Name;
+                _previousProfile   = summary;
+                _configService.Current.LastProfileId = profileId;
+                _configService.Save();
             }
+
+            ProfileLoaded?.Invoke(p);
+            _logService.Log($"Profile '{p.Name}' loaded.");
         }
         catch (Exception ex) { _logService.Log($"LOAD ERROR: {ex.Message}"); }
         finally { _lock.Release(); }
     }
 
-    private async Task SaveProfileInternalAsync(string? name)
+    private async Task SaveProfileInternalAsync()
     {
-        if (string.IsNullOrEmpty(name)) return;
+        if (CurrentProfile is not { } current) return;
         try
         {
-            var profile = BuildSaveData?.Invoke() ?? new Profile { Name = name };
-            profile.Name = name;
-string filePath = _pathService.GetProfilePath(name);
-            await _profileService.SaveProfileAsync(profile, filePath);
+            var profile = BuildSaveData?.Invoke() ?? new Profile { Name = current.Name };
+            profile.Id     = current.Id;
+            profile.Name   = current.Name;
+            profile.GameId = CurrentGameId?.Invoke();
+            await _profileService.SaveProfileAsync(profile);
+
             using (SuppressAutoSave())
             {
-                _configService.Current.LastProfileName = name;
+                _configService.Current.LastProfileId = current.Id;
                 _configService.Save();
             }
         }
@@ -318,7 +344,7 @@ string filePath = _pathService.GetProfilePath(name);
     {
         string name = baseName;
         int counter = 1;
-        while (AvailableProfiles.Contains(name, StringComparer.OrdinalIgnoreCase))
+        while (AvailableProfiles.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
             name = $"{baseName} {counter++}";
         return name;
     }

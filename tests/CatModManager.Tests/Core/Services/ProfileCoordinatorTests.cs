@@ -19,6 +19,7 @@ public class ProfileCoordinatorTests
     private readonly GameConfigViewModel _gameConfig;
     private readonly ModListViewModel _modList;
     private readonly AppSessionState _sessionState;
+    private readonly ExternalToolsViewModel _tools;
     private bool _refreshCalled;
     private bool _syncCalled;
 
@@ -32,6 +33,10 @@ public class ProfileCoordinatorTests
         _gameConfig = new GameConfigViewModel(gameSupportService, gameDiscovery, logService);
         _modList = new ModListViewModel();
         _sessionState = new AppSessionState();
+        _tools = new ExternalToolsViewModel(
+            Substitute.For<IProcessService>(),
+            Substitute.For<IVfsOrchestrationService>(),
+            logService);
 
         _coordinator = new ProfileCoordinator(
             Substitute.For<IProfileService>(),
@@ -40,9 +45,47 @@ public class ProfileCoordinatorTests
             _sessionState,
             () => _gameConfig,
             () => _modList,
+            () => _tools,
             () => _refreshCalled = true,
             () => _syncCalled = true
         );
+    }
+
+    /// <summary>
+    /// Profile.ExternalTools existed and was serialised from the day the Tools tab was written, but
+    /// neither side of this coordinator touched it — so a tool the user added lived in memory only
+    /// and was gone on the next start, with no error anywhere to say why.
+    /// </summary>
+    [Fact]
+    public void ExternalTools_SurviveASaveAndLoadRoundTrip()
+    {
+        _tools.LoadTools(
+        [
+            new ExternalTool
+            {
+                Name = "BodySlide",
+                ExecutablePath = "wine",
+                Arguments = "\"/games/Fallout 4/Data/Tools/BodySlide/BodySlide.exe\"",
+                MountBeforeLaunch = true
+            }
+        ]);
+
+        var saved = _coordinator.BuildCurrentProfile("Fallout");
+
+        var tool = Assert.Single(saved.ExternalTools);
+        Assert.Equal("BodySlide", tool.Name);
+        Assert.Equal("wine", tool.ExecutablePath);
+        Assert.True(tool.MountBeforeLaunch);
+
+        // And it comes back — the arguments especially, since a command like "wine" is useless
+        // without them.
+        _tools.LoadTools([]);
+        _coordinator.ApplyLoadedProfile(saved);
+
+        var restored = Assert.Single(_tools.Tools);
+        Assert.Equal("BodySlide", restored.Name);
+        Assert.Contains("BodySlide.exe", restored.Arguments);
+        Assert.True(restored.MountBeforeLaunch);
     }
 
     [Fact]
@@ -56,8 +99,6 @@ public class ProfileCoordinatorTests
         var profile = _coordinator.BuildCurrentProfile("TestProfile");
 
         Assert.Equal("TestProfile", profile.Name);
-        Assert.Equal("C:\\Mods", profile.ModsFolderPath);
-        Assert.Equal("-test", profile.LaunchArguments);
         Assert.Single(profile.Mods);
         Assert.Equal("Mod1", profile.Mods[0].Name);
     }
@@ -68,7 +109,6 @@ public class ProfileCoordinatorTests
         var profile = new Profile
         {
             Name = "LoadedProfile",
-            ModsFolderPath = "C:\\NewMods",
             Mods = new List<Mod> { new Mod("NewMod", "NewPath", 0) }
         };
 
@@ -77,7 +117,7 @@ public class ProfileCoordinatorTests
 
         _coordinator.ApplyLoadedProfile(profile);
 
-        Assert.Equal("C:\\NewMods", _gameConfig.ModsFolderPath);
+        // The folders are not here any more: they come from the game, through ApplyLoadedGame.
         Assert.Single(_modList.AllMods);
         Assert.Equal("NewMod", _modList.AllMods[0].Name);
         Assert.True(_refreshCalled);

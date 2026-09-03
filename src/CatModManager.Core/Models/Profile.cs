@@ -1,38 +1,53 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.Generic;
 
 namespace CatModManager.Core.Models;
 
-public class ExternalTool
+/// <summary>
+/// An external tool, launched exactly the way the game is: a command plus arguments.
+///
+/// Observable because the Tools tab now edits these in place — without change notification the
+/// list entry keeps showing the old name and path until the profile is reloaded.
+/// </summary>
+public partial class ExternalTool : ObservableObject
 {
-    public string Name            { get; set; } = "";
-    public string ExecutablePath  { get; set; } = "";
-    public string Arguments       { get; set; } = "";
-    public bool   MountBeforeLaunch { get; set; } = false;
+    [ObservableProperty] private string _name = "";
+
+    /// <summary>
+    /// A path to an executable, or a bare command resolved through PATH.
+    ///
+    /// The bare-command form is the point on Linux, where a tool usually has to be started through
+    /// something else: "steam" with "steam://rungameid/..." to reach a non-Steam shortcut's Proton
+    /// prefix, or a wine invocation for anything Steam does not know about. The same trick the
+    /// game's own launch line already relies on.
+    /// </summary>
+    [ObservableProperty] private string _executablePath = "";
+
+    [ObservableProperty] private string _arguments = "";
+    [ObservableProperty] private bool   _mountBeforeLaunch;
 }
 
+/// <summary>
+/// One arrangement of a game's mods: which are on, in what order, and where each is mounted.
+///
+/// The paths that used to live here are on <see cref="Game"/> now. What is left is only what can
+/// differ between two profiles of the same installation.
+/// </summary>
 public class Profile
 {
+    /// <summary>Zero for a profile that has not been saved yet.</summary>
+    public long Id { get; set; }
+
+    /// <summary>
+    /// The game this profile arranges, or null for a profile parked without one. Unique together
+    /// with <see cref="Name"/>, so every game gets to have its own "Default".
+    /// </summary>
+    public long? GameId { get; set; }
+
     public string Name { get; set; } = "Default";
-    public string ModsFolderPath { get; set; } = "";
-    public string BaseDataPath { get; set; } = "";
-    public string GameExecutablePath { get; set; } = "";
-
-    // Identificador da definição de suporte de jogo associada (usado pelo plugin Nexus para NexusDomain)
-    public string GameSupportId { get; set; } = "generic";
-
-    // Argumentos de lançamento específicos deste perfil (ex: -windowed, -no-splash)
-    public string LaunchArguments { get; set; } = "";
-
-    public string DownloadsFolderPath { get; set; } = "";
 
     public List<Mod>          Mods          { get; set; } = new();
     public List<ExternalTool> ExternalTools { get; set; } = new();
-
-    /// <summary>
-    /// User-defined mount points for this profile.
-    /// Combined with game-defined mount points at runtime (game-defined take precedence by Id).
-    /// </summary>
-    public List<MountPointDef> UserMountPoints { get; set; } = new();
 }
 
 

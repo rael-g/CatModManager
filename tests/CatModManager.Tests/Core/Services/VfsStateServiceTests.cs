@@ -81,18 +81,16 @@ public class VfsStateServiceTests : IDisposable
     }
 
     /// <summary>
-    /// The guard that matters: this suite must never reach the developer's own database. If someone
-    /// reintroduces the real CatPathService here, the rows land in a file under the real data
-    /// directory and this fails.
+    /// This class writes its database where it says it does. The suite-wide version of this guard
+    /// lives in <see cref="TestsStayOutOfTheRealDataDirectory"/>; the one that used to be here
+    /// compared against <c>new CatPathService()</c>, which now resolves to the sandbox too and made
+    /// the assertion vacuous.
     /// </summary>
     [Fact]
     public void TheSuiteWritesOnlyInsideItsOwnSandbox()
     {
         NewService().RegisterMount(Path.Combine(_tempDir, "orig"), Path.Combine(_tempDir, "back"));
 
-        var realBase = new CatPathService().BaseDataPath;
-        Assert.False(_paths.BaseDataPath.StartsWith(realBase, StringComparison.Ordinal),
-                     $"Tests are writing into the real data directory ({realBase}).");
         Assert.True(File.Exists(Path.Combine(_paths.BaseDataPath, "cmm.db")),
                     "The sandbox database was not created where it was supposed to be.");
     }

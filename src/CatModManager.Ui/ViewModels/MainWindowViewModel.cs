@@ -36,6 +36,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ModInstallationCoordinator Installer { get; }
 
     // Sub-ViewModels
+    public GameManagerViewModel    GameManager    { get; }
     public ProfileManagerViewModel ProfileManager { get; }
     public GameConfigViewModel      GameConfig     { get; }
     public ModListViewModel         ModList        { get; }
@@ -66,6 +67,7 @@ public partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(
         IModScanner              modScanner,
         IProfileService          profileService,
+        IGameService             gameService,
         IModManagementService    modManagementService,
         IProcessService          processService,
         IVfsOrchestrationService vfsOrchestrator,
@@ -102,7 +104,7 @@ public partial class MainWindowViewModel : ObservableObject
         Tools      = new ExternalToolsViewModel(processService, vfsOrchestrator, logService);
 
         // 2. Initialize Coordinators
-        Profiles  = new ProfileCoordinator(profileService, configService, logService, sessionState, () => GameConfig, () => ModList, RefreshModMountPointDisplayNames, SyncActiveModsToState);
+        Profiles  = new ProfileCoordinator(profileService, configService, logService, sessionState, () => GameConfig, () => ModList, () => Tools, RefreshModMountPointDisplayNames, SyncActiveModsToState);
         Vfs       = new VfsLifecycleCoordinator(vfsOrchestrator, logService, () => GameConfig, () => ModList, SyncActiveModsToState);
         // Finishing an install has to persist, same as any other edit to the list. This callback was
         // empty, so a freshly installed mod lived only in memory: it worked until the app closed and
@@ -119,12 +121,35 @@ public partial class MainWindowViewModel : ObservableObject
         };
         Installer.PropertyChanged += (s, e) => OnPropertyChanged(e.PropertyName);
         
-        ProfileManager = new ProfileManagerViewModel(profileService, pathService, fileService, configService, logService);
+        GameManager = new GameManagerViewModel(gameService, profileService, logService);
+        GameManager.IsVfsMounted = () => Vfs.IsVfsMounted;
+
+        ProfileManager = new ProfileManagerViewModel(profileService, configService, logService);
         ProfileManager.BuildSaveData  = () => Profiles.BuildCurrentProfile(ProfileManager.CurrentProfileName ?? "Untitled");
         ProfileManager.IsVfsMounted   = () => Vfs.IsVfsMounted;
+        ProfileManager.CurrentGameId  = () => GameManager.CurrentGame is { Id: > 0 } g ? g.Id : null;
         ProfileManager.ProfileLoaded += p => Profiles.ApplyLoadedProfile(p);
 
-        GameConfig.AutoSave = () => { SyncActiveModsToState(); ProfileManager.AutoSave(); };
+        // Switching game is: show its configuration, then open its profiles. In that order — the
+        // profile's mod list is read against the game's inventory, and applying it over the previous
+        // game's paths is what used to make the list look empty.
+        GameManager.GameActivated += async game =>
+        {
+            Profiles.ApplyLoadedGame(game);
+            Profiles.SaveLastOpened(game?.Id, null);
+            await ProfileManager.OpenGameProfilesAsync(
+                game?.Id == _configService.Current.LastGameId
+                    ? _configService.Current.LastProfileId : null);
+        };
+
+        GameConfig.SaveGame = () =>
+        {
+            SyncActiveModsToState();
+            if (GameManager.CurrentGame is not { Id: > 0 } game) return;
+            Profiles.ApplyConfigToGame(game);
+            _ = GameManager.SaveCurrentGameAsync();
+        };
+        GameConfig.GameFoldersAdopted = AdoptGameFoldersAsync;
         GameConfig.Initialize();
 
         Inspector.SetStatusMessage = msg => StatusMessage = msg;
@@ -140,6 +165,11 @@ public partial class MainWindowViewModel : ObservableObject
             if (Vfs.IsVfsMounted) return OperationResult.Success();
             return await Vfs.ToggleMountInternal();
         };
+        Tools.RequestUnmount = async () =>
+        {
+            if (!Vfs.IsVfsMounted) return OperationResult.Success();
+            return await Vfs.ToggleMountInternal();
+        };
         Tools.AutoSave = () => ProfileManager.AutoSave();
 
         _sessionState.RequestInstallModAction = (path, _) => 
@@ -148,8 +178,10 @@ public partial class MainWindowViewModel : ObservableObject
         _logService.OnLog += AddLog;
         _vfsOrchestrator.RecoverStaleMounts();
 
+        // The game is what gets loaded now — selecting it is what opens its profiles, through
+        // GameActivated above.
         InitialLoadTask = Task.Run(
-            async () => await ProfileManager.LoadInitialProfile(_configService.Current.LastProfileName));
+            async () => await GameManager.LoadInitialGameAsync(_configService.Current.LastGameId));
     }
 
     /// <summary>
@@ -302,6 +334,35 @@ public partial class MainWindowViewModel : ObservableObject
         return ModFolderReconciler.Reconcile(ModList.AllMods.ToList(), scanned);
     }
 
+    /// <summary>
+    /// Called right after the game folders were filled in for this profile — by picking the
+    /// executable, or by auto-detect. Until now those two paths only wrote the text boxes, so a game
+    /// that already had mods came up with an empty list and looked like the mods had been lost.
+    ///
+    /// Saving the game first is what makes the folders findable at all; reloading the profile then
+    /// brings back everything already installed for that game, and only then is the folder scanned,
+    /// so mods dropped in by hand are picked up as well.
+    ///
+    /// Applied without confirming, unlike choosing the mods folder by hand: nothing is being
+    /// replaced here — the list was empty a moment ago.
+    /// </summary>
+    public async Task AdoptGameFoldersAsync()
+    {
+        if (GameManager.CurrentGame is { Id: > 0 } game)
+        {
+            Profiles.ApplyConfigToGame(game);
+            await GameManager.SaveCurrentGameAsync();
+        }
+
+        if (ProfileManager.CurrentProfile == null) return;
+
+        await ProfileManager.SaveProfile();
+        await ProfileManager.ReloadCurrentAsync();
+
+        if (await ScanModsFolderAsync(GameConfig.ModsFolderPath) is { } result)
+            ApplyModFolderScan(result);
+    }
+
     /// <summary>Commits the outcome of <see cref="ScanModsFolderAsync"/> to the list and the profile.</summary>
     public void ApplyModFolderScan(ModReconcileResult result)
     {
@@ -418,7 +479,7 @@ public partial class MainWindowViewModel : ObservableObject
         Installer.CancelAll();
         await Installer.WaitForTasks();
         await _vfsOrchestrator.ShutdownCleanupAsync();
-        Profiles.SaveLastProfileName(ProfileManager.CurrentProfileName);
+        Profiles.SaveLastOpened(GameManager.CurrentGame?.Id, ProfileManager.CurrentProfile?.Id);
     }
 }
 

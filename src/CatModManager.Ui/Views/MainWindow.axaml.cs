@@ -6,6 +6,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CatModManager.Core.Models;
+using CatModManager.Core.Services;
 using CatModManager.PluginSdk;
 using CatModManager.Ui.Plugins;
 using CatModManager.Ui.Services;
@@ -102,6 +103,33 @@ public partial class MainWindow : Window
             var dialog = new ConfirmDialog(
                 $"Switch to profile \"{newProfileName}\"?",
                 "There are active downloads in progress. Switching profiles will interrupt them.");
+            return await dialog.ShowDialog<bool>(this);
+        };
+
+        vm.ProfileManager.RequestRename = async currentName =>
+            await TextInputDialog.ShowAsync(this, $"Rename profile \"{currentName}\"", currentName);
+
+        // Adding a game is the same auto-detect dialog the Game menu offers, read as an installation
+        // rather than as an edit to the one that is open. When the user backs out of the scan, the
+        // file picker is the fallback — auto-detect finds Steam, GOG and Epic, and a game outside all
+        // three is the ordinary case this application exists for.
+        vm.GameManager.RequestNewGame = async () =>
+        {
+            var detected = await DetectGameAsync(vm);
+            return detected ?? await PickGameExecutableAsync(vm);
+        };
+
+        // Straight into the settings once it is added: the folders were guessed from the executable,
+        // and this is the one moment the user is thinking about that game and can correct them.
+        vm.GameManager.GameAdded = async () => await GameSettingsDialog.ShowAsync(this, vm);
+
+        vm.GameManager.ConfirmDelete = async (game, profileCount) =>
+        {
+            var dialog = new ConfirmDialog(
+                $"Remove \"{game.DisplayName}\" from CatModManager?",
+                $"Its {profileCount} profile(s) and its record of installed mods go with it.\n\n"
+                + "Nothing on disk is deleted — the mods stay in their folder, and adding the game "
+                + "back finds them again.");
             return await dialog.ShowDialog<bool>(this);
         };
 
@@ -310,6 +338,57 @@ public partial class MainWindow : Window
         EndDrag();
     }
 
+    private async void GameSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        if (vm.GameManager.CurrentGame is not { Id: > 0 }) return;
+
+        await GameSettingsDialog.ShowAsync(this, vm);
+    }
+
+    /// <summary>
+    /// Runs the store scan and turns the pick into an unsaved game, or returns null when the user
+    /// closed it without choosing.
+    /// </summary>
+    private async Task<Game?> DetectGameAsync(MainWindowViewModel vm)
+    {
+        var dialogVm = new GameDetectionDialogViewModel(
+            vm.GameConfig.GameDiscoveryService, vm.GameConfig.AvailableGameSupports);
+        await new GameDetectionDialog(dialogVm).ShowDialog(this);
+
+        if (dialogVm.Result is not { } result) return null;
+
+        var game = new Game
+        {
+            DisplayName        = result.DisplayName,
+            GameExecutablePath = result.ExecutablePath,
+            BaseDataPath       = result.GameFolder,
+            GameSupportId      = dialogVm.ResultMode?.GameId ?? "generic",
+        };
+        GameFolderDefaults.Fill(game);
+        return game;
+    }
+
+    /// <summary>
+    /// The fallback for a game no store knows about: pick the executable, and everything else
+    /// follows from it. This is the plain case the application is built around, not a lesser one.
+    /// </summary>
+    private async Task<Game?> PickGameExecutableAsync(MainWindowViewModel vm)
+    {
+        var files = await GetTopLevel(this)!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select the game's executable",
+            AllowMultiple = false,
+            FileTypeFilter = new[] { new FilePickerFileType("Executables") { Patterns = new[] { "*.exe" } } }
+        });
+        if (files.Count < 1) return null;
+
+        var game = new Game { GameExecutablePath = files[0].Path.LocalPath };
+        game.GameSupportId = vm.GameConfig.DetectSupportId(game.GameExecutablePath);
+        GameFolderDefaults.Fill(game);
+        return game;
+    }
+
     private async Task<IStorageFolder?> GetStartFolderAsync(string? preferredPath, string? fallbackPath = null)
     {
         var topLevel = GetTopLevel(this);
@@ -322,92 +401,6 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private async void SelectGame_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm) return;
-        var topLevel = GetTopLevel(this);
-        var startDir = !string.IsNullOrEmpty(vm.GameConfig.GameExecutablePath)
-            ? System.IO.Path.GetDirectoryName(vm.GameConfig.GameExecutablePath) : vm.GameConfig.BaseFolderPath;
-        var files = await topLevel!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Select Game Executable",
-            AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(startDir),
-            FileTypeFilter = new[] { new FilePickerFileType("Executables") { Patterns = new[] { "*.exe" } } }
-        });
-        if (files.Count >= 1)
-            vm.GameConfig.GameExecutablePath = files[0].Path.LocalPath;
-    }
-
-    private async void SelectBaseFolder_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm) return;
-        var topLevel = GetTopLevel(this);
-        var folders = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "Select Base Game Folder",
-            AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.BaseFolderPath)
-        });
-        if (folders.Count >= 1)
-            vm.GameConfig.BaseFolderPath = folders[0].Path.LocalPath;
-    }
-
-    private async void SelectFolder_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm) return;
-        var topLevel = GetTopLevel(this);
-        var folders = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "Select Mods Folder",
-            AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.ModsFolderPath, vm.GameConfig.BaseFolderPath)
-        });
-        if (folders.Count < 1) return;
-
-        string? previous = vm.GameConfig.ModsFolderPath;
-        string chosen = folders[0].Path.LocalPath;
-        if (string.Equals(previous, chosen, StringComparison.Ordinal)) return;
-
-        vm.GameConfig.ModsFolderPath = chosen;
-
-        // Pointing somewhere else invalidates every path in the list at once, so the scan is shown
-        // before it is applied. No file is touched either way — only the list changes.
-        var result = await vm.ScanModsFolderAsync(chosen);
-        if (result is not { } scan) { vm.GameConfig.ModsFolderPath = previous ?? ""; return; }
-
-        if (scan.Added.Count == 0 && scan.Removed.Count == 0)
-        {
-            vm.ApplyModFolderScan(scan);
-            return;
-        }
-
-        bool confirmed = await new ConfirmDialog(
-            "Adopt this mods folder?",
-            $"{scan.Removed.Count} mod(s) will be dropped from the list because they are not in this "
-            + $"folder, and {scan.Added.Count} found there will be added, disabled.\n\n"
-            + "No files are moved or deleted — only the list changes.")
-            .ShowDialog<bool>(this);
-
-        if (confirmed)
-            vm.ApplyModFolderScan(scan);
-        else
-            vm.GameConfig.ModsFolderPath = previous ?? "";   // cancelling leaves nothing changed
-    }
-
-    private async void SelectDownloadsFolder_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm) return;
-        var topLevel = GetTopLevel(this);
-        var folders = await topLevel!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "Select Downloads Folder",
-            AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(vm.GameConfig.DownloadsFolderPath, vm.GameConfig.BaseFolderPath)
-        });
-        if (folders.Count >= 1)
-            vm.GameConfig.DownloadsFolderPath = folders[0].Path.LocalPath;
-    }
 
     /// <summary>
     /// Archive and folder are separate menu entries rather than one picker falling back to the
@@ -449,36 +442,6 @@ public partial class MainWindow : Window
             await vm.AddModCommand.ExecuteAsync(folders[0].Path.LocalPath);
     }
 
-    private async void AddMountPoint_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm) return;
-        var result = await MountPointEditorDialog.ShowAsync(this, "", "", vm.GameConfig.BaseFolderPath);
-        if (result.HasValue)
-            vm.GameConfig.AddUserMountPoint(result.Value.Name, result.Value.Path);
-    }
-
-    private async void EditMountPoint_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm) return;
-        if (sender is not Button btn || btn.Tag is not CatModManager.Core.Models.MountPointDef mp) return;
-
-        var result = await MountPointEditorDialog.ShowAsync(this, mp.Name, mp.Path, vm.GameConfig.BaseFolderPath);
-        if (!result.HasValue) return;
-
-        if (mp.IsGameDefined)
-        {
-            // Game-defined: store path override in UserMountPoints (name stays from TOML).
-            vm.GameConfig.OverrideGameDefinedMountPointPath(mp.Id, mp.Name, result.Value.Path);
-        }
-        else
-        {
-            mp.Name = result.Value.Name;
-            mp.Path = result.Value.Path;
-            vm.GameConfig.NotifyMountPointsChanged();
-            vm.GameConfig.AutoSave?.Invoke();
-        }
-    }
-
     private async void ChangeMountPoint_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel vm) return;
@@ -497,7 +460,7 @@ public partial class MainWindow : Window
         selectedMod.MountPointId = chosen == defaultId ? null : chosen;
         vm.RefreshModMountPointDisplayNames();
         vm.NotifySelectedModMountPointChanged();
-        vm.GameConfig.AutoSave?.Invoke();
+        vm.ProfileManager.AutoSave();
     }
 
     private void OpenMountPointFolder_Click(object sender, RoutedEventArgs e)
@@ -523,11 +486,24 @@ public partial class MainWindow : Window
         vm.RefreshInstalledPlugins();
     }
 
-    private async void AddTool_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Adds an empty tool for the editor to fill in, rather than opening a file dialog.
+    ///
+    /// A tool is not always a file: on Linux one usually has to be started through something else —
+    /// "steam" with a rungameid argument, or a wine invocation. A picker can only name a file, which
+    /// is why arguments and "mount first" used to be reachable only by hand-editing the profile.
+    /// </summary>
+    private void AddTool_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm) vm.Tools.AddBlankTool();
+    }
+
+    /// <summary>Fills the selected tool's command from a file dialog, for the tools that are files.</summary>
+    private async void BrowseTool_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel vm) return;
-        var topLevel = GetTopLevel(this);
-        var files = await topLevel!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+
+        var files = await GetTopLevel(this)!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select Tool Executable",
             AllowMultiple = false,
@@ -538,7 +514,16 @@ public partial class MainWindow : Window
             }
         });
         if (files.Count >= 1)
-            vm.Tools.AddToolFromPath(files[0].Path.LocalPath);
+            vm.Tools.SetExecutable(files[0].Path.LocalPath);
+    }
+
+    /// <summary>
+    /// A field in the tool editor was left, or the checkbox toggled. The bindings already wrote the
+    /// value into the tool — this is what persists it, and clears any stale launch error.
+    /// </summary>
+    private void ToolField_Changed(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm) vm.Tools.NotifyEdited();
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
