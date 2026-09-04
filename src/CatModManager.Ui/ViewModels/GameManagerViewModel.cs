@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,18 @@ using CatModManager.Core.Models;
 using CatModManager.Core.Services;
 
 namespace CatModManager.Ui.ViewModels;
+
+/// <summary>
+/// What the user asked for when removing a game. Three outcomes rather than a bool because
+/// "confirmed" is not one answer here: forgetting the installation and erasing its mods and
+/// downloads are different acts, and only one of them is reversible.
+/// </summary>
+public enum GameDeleteChoice
+{
+    Cancel,
+    RecordOnly,
+    WithFiles
+}
 
 /// <summary>
 /// The list of installations and which one is open.
@@ -53,7 +66,7 @@ public partial class GameManagerViewModel : ViewModelBase
     public Func<Task<Game?>>? RequestNewGame;
 
     /// <summary>Set by the view to confirm deleting a game, given its name and profile count.</summary>
-    public Func<Game, int, Task<bool>>? ConfirmDelete;
+    public Func<Game, int, Task<GameDeleteChoice>>? ConfirmDelete;
 
     /// <summary>
     /// Set by the view: runs after a game has been added and opened. The folders were guessed from
@@ -139,13 +152,74 @@ public partial class GameManagerViewModel : ViewModelBase
         }
 
         var profiles = await _profileService.ListProfilesAsync(game.Id);
-        if (ConfirmDelete != null && !await ConfirmDelete.Invoke(game, profiles.Count)) return;
+
+        var choice = ConfirmDelete == null
+            ? GameDeleteChoice.RecordOnly
+            : await ConfirmDelete.Invoke(game, profiles.Count);
+
+        if (choice == GameDeleteChoice.Cancel) return;
 
         await _gameService.DeleteGameAsync(game.Id);
-        _logService.Log($"Game '{game.DisplayName}' removed, along with {profiles.Count} profile(s). " +
-                        "No files were deleted.");
+
+        if (choice == GameDeleteChoice.WithFiles)
+        {
+            // Deleted even when another game points at the same folders. Sharing them is a thing the
+            // user set up on purpose, so they are the one who knows whether the files are still
+            // wanted — a manager that refuses here is just a manager that cannot finish the job.
+            DeleteFolder(game.ModsFolderPath,      "mods",      game);
+            DeleteFolder(game.DownloadsFolderPath, "downloads", game);
+        }
+
+        _logService.Log($"Game '{game.DisplayName}' removed, along with {profiles.Count} profile(s)." +
+                        (choice == GameDeleteChoice.WithFiles ? "" : " No files were deleted."));
 
         await RefreshListAsync(null);
+    }
+
+    /// <summary>
+    /// Removes one of the game's own folders, refusing anything that would take the installation
+    /// with it.
+    ///
+    /// The guard is not hypothetical: nothing stops the mods folder from being set to the game
+    /// folder itself, and a recursive delete there would erase the game the user was only trying to
+    /// stop managing. Failures are logged rather than thrown — the row is already gone, and a folder
+    /// that would not budge is something to report, not a reason to leave the app in a half state.
+    /// </summary>
+    private void DeleteFolder(string? path, string what, Game game)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)) return;
+
+        string full = Path.GetFullPath(path);
+
+        if (!string.IsNullOrWhiteSpace(game.BaseDataPath) && Contains(full, game.BaseDataPath))
+        {
+            _logService.Log($"Kept the {what} folder '{full}': the game itself lives inside it.");
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(full, recursive: true);
+            _logService.Log($"Deleted the {what} folder '{full}'.");
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"Could not delete the {what} folder '{full}'", ex);
+        }
+    }
+
+    /// <summary>Whether <paramref name="inner"/> is <paramref name="outer"/> or sits under it.</summary>
+    private static bool Contains(string outer, string inner)
+    {
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        string a = Path.TrimEndingDirectorySeparator(Path.GetFullPath(outer));
+        string b = Path.TrimEndingDirectorySeparator(Path.GetFullPath(inner));
+
+        return string.Equals(a, b, comparison)
+            || b.StartsWith(a + Path.DirectorySeparatorChar, comparison);
     }
 
     /// <summary>Renames the open game. The name is a label — nothing is keyed off it.</summary>

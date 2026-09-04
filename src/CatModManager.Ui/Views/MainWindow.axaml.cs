@@ -128,9 +128,15 @@ public partial class MainWindow : Window
             var dialog = new ConfirmDialog(
                 $"Remove \"{game.DisplayName}\" from CatModManager?",
                 $"Its {profileCount} profile(s) and its record of installed mods go with it.\n\n"
-                + "Nothing on disk is deleted — the mods stay in their folder, and adding the game "
-                + "back finds them again.");
-            return await dialog.ShowDialog<bool>(this);
+                + "By default nothing on disk is touched — the mods stay in their folder, and adding "
+                + "the game back finds them again.",
+                optionLabel: "Also delete its mods and downloads folders");
+
+            if (!await dialog.ShowDialog<bool>(this)) return GameDeleteChoice.Cancel;
+
+            return dialog.IsOptionChecked
+                ? GameDeleteChoice.WithFiles
+                : GameDeleteChoice.RecordOnly;
         };
 
         // Build plugin tabs whenever the collection changes or SelectedMod changes
