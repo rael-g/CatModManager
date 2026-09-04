@@ -41,8 +41,12 @@ public class NexusBrowseWindow : Window
     private readonly NexusApiService      _api             = null!;
     private readonly NexusDownloadService? _downloadService;
     private readonly Func<string>?        _getDownloadsFolder;
-    private readonly string               _gameDomain      = null!;
+    /// <summary>Not readonly: picking a game by hand is what replaces a domain CMM could not supply.</summary>
+    private string                        _gameDomain      = null!;
     private int                           _gameId;
+
+    /// <summary>The CMM game the override is remembered against. Null when there is nothing to key it to.</summary>
+    private readonly string?              _cmmGameId;
 
     // ── UI controls ───────────────────────────────────────────────────────────
 
@@ -74,13 +78,15 @@ public class NexusBrowseWindow : Window
         NexusApiService api,
         string gameDomain,
         NexusDownloadService? downloadService = null,
-        Func<string>? getDownloadsFolder = null)
+        Func<string>? getDownloadsFolder = null,
+        string? cmmGameId = null)
     {
         _api                = api;
         _gameDomain         = gameDomain;
         _gameId             = NexusApiService.GetGameId(gameDomain);
         _downloadService    = downloadService;
         _getDownloadsFolder = getDownloadsFolder;
+        _cmmGameId          = cmmGameId;
 
         Title                 = $"Browse Nexus Mods — {gameDomain}";
         Width                 = 880;
@@ -395,9 +401,7 @@ public class NexusBrowseWindow : Window
 
         if (_gameId == 0)
         {
-            SetStatus(_api.HasApiKey
-                ? $"Game '{_gameDomain}' not found on Nexus Mods — browse unavailable."
-                : "No Nexus API key configured — add one in Nexus settings to browse mods.");
+            ShowGamePicker();
             return;
         }
 
@@ -479,6 +483,120 @@ public class NexusBrowseWindow : Window
             ? $"Showing {_offset:N0} of {total:N0} collections"
             : $"{_offset:N0} of {total:N0} collections for '{query}'";
         SetStatus(label);
+    }
+
+    // ── Game picker ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Asks which Nexus game this is, when CMM has no answer of its own.
+    ///
+    /// This used to be a dead end reading "game not found", which was true and useless: a game
+    /// added by pointing at an executable has no game definition, so it has no Nexus domain, and
+    /// nothing in the interface let the user supply one. The answer is remembered against the CMM
+    /// game, so the question is asked once.
+    /// </summary>
+    private void ShowGamePicker()
+    {
+        _resultsPanel.Children.Clear();
+        _loadMoreBtn.IsVisible = false;
+        SetStatus($"CMM does not know which Nexus game '{_gameDomain}' is.");
+
+        _resultsPanel.Children.Add(new TextBlock
+        {
+            Text         = "Which game on Nexus Mods is this?",
+            FontSize     = 14,
+            FontWeight   = FontWeight.Bold,
+            Foreground   = WhiteBrush,
+            Margin       = new Thickness(0, 8, 0, 2),
+        });
+
+        _resultsPanel.Children.Add(new TextBlock
+        {
+            Text         = "Search for it by name and pick it from the list. CMM will remember your "
+                         + "choice for this game.",
+            FontSize     = 11,
+            Foreground   = MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 8),
+        });
+
+        var box = new TextBox
+        {
+            Text            = _gameDomain,
+            Watermark       = "Game name…",
+            FontSize        = 13,
+            Padding         = new Thickness(8, 6),
+            Background      = CmmPalette.Brushes.AppBackground,
+            Foreground      = WhiteBrush,
+            CaretBrush      = WhiteBrush,
+            BorderThickness = new Thickness(0),
+        };
+
+        var hits = new StackPanel { Spacing = 2, Margin = new Thickness(0, 8, 0, 0) };
+        var find = MakeBtn("Find", AccentBrush);
+
+        async Task Search()
+        {
+            hits.Children.Clear();
+            SetStatus("Searching games…");
+
+            var games = await _api.SearchGamesAsync((box.Text ?? "").Trim());
+
+            if (games.Count == 0)
+            {
+                SetStatus("No game on Nexus matched that name.");
+                return;
+            }
+
+            SetStatus($"{games.Count} game(s) found — pick one.");
+
+            foreach (var (id, name, domain) in games)
+            {
+                var hit = new Button
+                {
+                    Content         = new TextBlock
+                    {
+                        Text         = $"{name}   ({domain})",
+                        FontSize      = 12,
+                        Foreground    = WhiteBrush,
+                        TextWrapping  = TextWrapping.Wrap,
+                    },
+                    Padding         = new Thickness(10, 6),
+                    Background      = CardBrush,
+                    BorderThickness = new Thickness(0),
+                    CornerRadius    = new CornerRadius(4),
+                    HorizontalAlignment        = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    Cursor          = new Cursor(StandardCursorType.Hand),
+                };
+
+                hit.Click += async (_, _) =>
+                {
+                    _gameDomain = domain;
+                    _gameId     = id;
+                    _api.SetDomainOverride(_cmmGameId, domain);
+
+                    Title = $"Browse Nexus Mods — {domain}";
+
+                    // The categories come from the game, and until now there was no game to ask.
+                    await LoadCategoriesAsync();
+                    await LoadAsync(reset: true);
+                };
+
+                hits.Children.Add(hit);
+            }
+        }
+
+        find.Click       += async (_, _) => await Search();
+        box.KeyDown      += async (_, e) => { if (e.Key == Key.Return) await Search(); };
+
+        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 0) };
+        DockPanel.SetDock(find, Dock.Right);
+        row.Children.Add(find);
+        row.Children.Add(box);
+
+        _resultsPanel.Children.Add(row);
+        _resultsPanel.Children.Add(hits);
     }
 
     private void SetStatus(string text)

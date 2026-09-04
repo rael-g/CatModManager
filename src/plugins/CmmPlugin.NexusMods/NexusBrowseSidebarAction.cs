@@ -29,11 +29,18 @@ public class NexusBrowseSidebarAction : ISidebarAction
 
     public void Execute()
     {
-        var gameDomain = _state.NexusDomain ?? _state.GameId ?? string.Empty;
+        // The override first: it is the answer the user gave when the game definition had none, and
+        // it has to win over the guess that falls back to the CMM game id.
+        var gameDomain = _api.GetDomainOverride(_state.GameId)
+                      ?? _state.NexusDomain
+                      ?? _state.GameId
+                      ?? string.Empty;
+
         var mainWindow = (Application.Current?.ApplicationLifetime
             as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 
-        var window = new NexusBrowseWindow(_api, gameDomain, _downloadService, _getDownloadsFolder);
+        var window = new NexusBrowseWindow(
+            _api, gameDomain, _downloadService, _getDownloadsFolder, _state.GameId);
         if (mainWindow != null)
             window.Show(mainWindow);
         else

@@ -38,6 +38,23 @@ public class NexusApiService
     /// <summary>Fired with true on a successful authenticated call, false on 401.</summary>
     public event Action<bool>? ApiKeyValidityChanged;
 
+    /// <summary>
+    /// The Nexus domain the user picked by hand for a CMM game, or null if they never had to.
+    ///
+    /// A game definition supplies the domain, but the .toml is optional and a game added by
+    /// pointing at an executable has none — browsing then had nothing to search and simply said
+    /// the game was not found. This is the answer the user gave when asked, kept so they are only
+    /// asked once.
+    /// </summary>
+    public string? GetDomainOverride(string? cmmGameId)
+        => string.IsNullOrWhiteSpace(cmmGameId) ? null : _db.GetSetting("domain:" + cmmGameId);
+
+    public void SetDomainOverride(string? cmmGameId, string domain)
+    {
+        if (string.IsNullOrWhiteSpace(cmmGameId)) return;
+        _db.SetSetting("domain:" + cmmGameId, domain);
+    }
+
     public NexusApiService(NexusDatabase db)
     {
         _db = db;
@@ -486,6 +503,76 @@ public class NexusApiService
     }
 
     private const string GraphQlUrl = "https://api.nexusmods.com/v2/graphql";
+
+    // ── Game lookup (v2 GraphQL) ─────────────────────────────────────────────
+
+    private const string GamesGqlQuery = """
+        query Games($filter: GamesSearchFilter, $count: Int) {
+          games(filter: $filter, count: $count) {
+            nodes { id name domainName }
+          }
+        }
+        """;
+
+    /// <summary>
+    /// Finds Nexus games by name, for when CMM has no domain for the open game and has to ask.
+    ///
+    /// Searched on the server rather than listed and filtered here: there are over five thousand
+    /// games and the endpoint caps a page at eighty, so pulling the catalogue to filter it locally
+    /// would be sixty-odd requests to answer one question.
+    /// </summary>
+    public async Task<List<(int Id, string Name, string Domain)>> SearchGamesAsync(
+        string query, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return new();
+
+        try
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                query     = GamesGqlQuery,
+                variables = new
+                {
+                    filter = new Dictionary<string, object>
+                    {
+                        ["name"] = new[] { new { op = "WILDCARD", value = query } }
+                    },
+                    count = 40
+                }
+            });
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, GraphQlUrl)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+            req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
+
+            var resp = await _http.SendAsync(req, ct);
+            resp.EnsureSuccessStatusCode();
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            if (!doc.RootElement.TryGetProperty("data", out var data)) return new();
+
+            var nodes = data.GetProperty("games").GetProperty("nodes");
+            var games = new List<(int, string, string)>();
+
+            foreach (var n in nodes.EnumerateArray())
+            {
+                var domain = n.GetProperty("domainName").GetString();
+                if (string.IsNullOrEmpty(domain)) continue;
+                games.Add((n.GetProperty("id").GetInt32(),
+                           n.GetProperty("name").GetString() ?? domain,
+                           domain));
+            }
+
+            return games;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.Error.WriteLine($"[NexusApiService] SearchGamesAsync error: {ex.Message}");
+            return new();
+        }
+    }
 
     // ── Collections browse (v2 GraphQL) ──────────────────────────────────────
     // collectionsV2 does not expose a named filter input type, so the filter
