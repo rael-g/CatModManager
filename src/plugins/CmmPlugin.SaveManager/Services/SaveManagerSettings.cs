@@ -13,6 +13,18 @@ public class GameSaveSettings
 
     public int AutoSaveMinutes { get; set; } = DefaultAutoSaveMinutes;
 
+    /// <summary>
+    /// Snapshot the saves right before the game starts.
+    ///
+    /// Its own switch, separate from <see cref="AutoSaveEnabled"/>, because the two answer different
+    /// questions — one is a timer, the other is a safety net around a launch. Until it existed the
+    /// launch hook ran unconditionally, so turning auto-save off still produced slots, which read as
+    /// the switch being broken.
+    ///
+    /// Defaults on: it is the backup that actually saves a playthrough when a new mod corrupts it.
+    /// </summary>
+    public bool BackupBeforeLaunch { get; set; } = true;
+
     public const int DefaultAutoSaveMinutes = 5;
     public const int MinAutoSaveMinutes     = 1;
 }

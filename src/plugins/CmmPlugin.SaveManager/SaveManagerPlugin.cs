@@ -22,7 +22,7 @@ public class SaveManagerPlugin : ICmmPlugin
         var autoSaver     = new AutoSaver(backupService, context.Log);
         var vm            = new SaveManagerTabViewModel(detector, backupService, settings, autoSaver, context.State, context.Log);
         var tab           = new SaveManagerInspectorTab(vm);
-        var hook          = new SaveManagerLaunchHook(detector, backupService, context.State, context.Log);
+        var hook          = new SaveManagerLaunchHook(detector, backupService, settings, context.State, context.Log);
 
         context.Ui.RegisterInspectorTab(tab);
         context.Ui.RegisterGameLaunchHook(hook);

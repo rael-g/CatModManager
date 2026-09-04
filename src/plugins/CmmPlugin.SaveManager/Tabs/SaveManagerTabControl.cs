@@ -211,7 +211,9 @@ public class SaveManagerTabControl : UserControl
             Maximum           = 240,
             Increment         = 1,
             FormatString      = "0",
-            Width             = 90,
+            // Wide enough for three digits *and* the spinner buttons. At 90 the buttons ate the
+            // field, so "240" showed up clipped in the one control whose whole job is a number.
+            Width             = 130,
             FontSize          = 11,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -224,7 +226,16 @@ public class SaveManagerTabControl : UserControl
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        toggle.IsCheckedChanged += (_, _) => _vm.AutoSaveEnabled = toggle.IsChecked == true;
+        var beforeLaunch = new CheckBox
+        {
+            Content           = "Back up before launching",
+            IsChecked         = _vm.BackupBeforeLaunch,
+            FontSize          = 11,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        toggle.IsCheckedChanged       += (_, _) => _vm.AutoSaveEnabled    = toggle.IsChecked == true;
+        beforeLaunch.IsCheckedChanged += (_, _) => _vm.BackupBeforeLaunch = beforeLaunch.IsChecked == true;
         minutes.ValueChanged   += (_, _) =>
         {
             if (minutes.Value is { } v) _vm.AutoSaveMinutes = (int)v;
@@ -247,6 +258,8 @@ public class SaveManagerTabControl : UserControl
                 case nameof(SaveManagerTabViewModel.AutoSaveStatus):  note.Text        = _vm.AutoSaveStatus;  break;
                 case nameof(SaveManagerTabViewModel.AutoSaveEnabled): toggle.IsChecked = _vm.AutoSaveEnabled; break;
                 case nameof(SaveManagerTabViewModel.AutoSaveMinutes): minutes.Value    = _vm.AutoSaveMinutes; break;
+                case nameof(SaveManagerTabViewModel.BackupBeforeLaunch):
+                    beforeLaunch.IsChecked = _vm.BackupBeforeLaunch; break;
             }
         };
 
@@ -255,6 +268,10 @@ public class SaveManagerTabControl : UserControl
             "nothing is written while you are idle or the game is closed. Keeps the last five, " +
             "separately from the saves you make yourself.");
 
+        ToolTip.SetTip(beforeLaunch,
+            "Takes a snapshot right before the game starts, into the same five-slot buffer. " +
+            "Independent of the timer above — this one is the net for a new mod eating a playthrough.");
+
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         row.Children.Add(toggle);
         row.Children.Add(minutes);
@@ -262,6 +279,7 @@ public class SaveManagerTabControl : UserControl
 
         var stack = new StackPanel { Margin = new Thickness(8, 4) };
         stack.Children.Add(row);
+        stack.Children.Add(beforeLaunch);
         stack.Children.Add(note);
         return stack;
     }

@@ -23,6 +23,7 @@ public partial class SaveManagerTabViewModel : ObservableObject
     [ObservableProperty] private string       _newSlotLabel = "";
     [ObservableProperty] private bool         _autoSaveEnabled;
     [ObservableProperty] private int          _autoSaveMinutes = GameSaveSettings.DefaultAutoSaveMinutes;
+    [ObservableProperty] private bool         _backupBeforeLaunch = true;
 
     /// <summary>Whether saving and loading are possible at all — i.e. we know where the saves are.</summary>
     public bool CanUseSlots => SaveFolder != null;
@@ -65,8 +66,9 @@ public partial class SaveManagerTabViewModel : ObservableObject
 
         // Reflect the stored settings without writing them back through the property setters.
         _suppressAutoSavePersist = true;
-        AutoSaveEnabled = configured.AutoSaveEnabled;
-        AutoSaveMinutes = configured.AutoSaveMinutes;
+        AutoSaveEnabled    = configured.AutoSaveEnabled;
+        AutoSaveMinutes    = configured.AutoSaveMinutes;
+        BackupBeforeLaunch = configured.BackupBeforeLaunch;
         _suppressAutoSavePersist = false;
 
         // The user's own choice comes first: they can see the folder we found and know better.
@@ -139,8 +141,9 @@ public partial class SaveManagerTabViewModel : ObservableObject
     /// </summary>
     private bool _suppressAutoSavePersist;
 
-    partial void OnAutoSaveEnabledChanged(bool value) => PersistAutoSaveSettings();
-    partial void OnAutoSaveMinutesChanged(int value)  => PersistAutoSaveSettings();
+    partial void OnAutoSaveEnabledChanged(bool value)    => PersistAutoSaveSettings();
+    partial void OnAutoSaveMinutesChanged(int value)     => PersistAutoSaveSettings();
+    partial void OnBackupBeforeLaunchChanged(bool value) => PersistAutoSaveSettings();
 
     private void PersistAutoSaveSettings()
     {
@@ -150,8 +153,9 @@ public partial class SaveManagerTabViewModel : ObservableObject
 
         _settings.Update(GameId, s =>
         {
-            s.AutoSaveEnabled = AutoSaveEnabled;
-            s.AutoSaveMinutes = minutes;
+            s.AutoSaveEnabled    = AutoSaveEnabled;
+            s.AutoSaveMinutes    = minutes;
+            s.BackupBeforeLaunch = BackupBeforeLaunch;
         });
 
         SyncAutoSaver();
