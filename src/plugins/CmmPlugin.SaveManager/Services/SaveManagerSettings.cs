@@ -21,9 +21,13 @@ public class GameSaveSettings
     /// launch hook ran unconditionally, so turning auto-save off still produced slots, which read as
     /// the switch being broken.
     ///
-    /// Defaults on: it is the backup that actually saves a playthrough when a new mod corrupts it.
+    /// Defaults **off**, and that is not timidity. A snapshot is a copy of the whole save folder,
+    /// and a Skyrim folder in the hundreds of megabytes fills the five-slot buffer with gigabytes
+    /// no one asked for. Most games have their own save system and never need this; it earns its
+    /// keep on the ones that overwrite a single slot in place — Dark Souls and its kin — and there
+    /// the user knows to turn it on.
     /// </summary>
-    public bool BackupBeforeLaunch { get; set; } = true;
+    public bool BackupBeforeLaunch { get; set; }
 
     public const int DefaultAutoSaveMinutes = 5;
     public const int MinAutoSaveMinutes     = 1;

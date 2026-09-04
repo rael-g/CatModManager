@@ -23,7 +23,7 @@ public partial class SaveManagerTabViewModel : ObservableObject
     [ObservableProperty] private string       _newSlotLabel = "";
     [ObservableProperty] private bool         _autoSaveEnabled;
     [ObservableProperty] private int          _autoSaveMinutes = GameSaveSettings.DefaultAutoSaveMinutes;
-    [ObservableProperty] private bool         _backupBeforeLaunch = true;
+    [ObservableProperty] private bool         _backupBeforeLaunch;
 
     /// <summary>Whether saving and loading are possible at all — i.e. we know where the saves are.</summary>
     public bool CanUseSlots => SaveFolder != null;
