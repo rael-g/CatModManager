@@ -28,8 +28,11 @@ public class NexusDownloadService
     private readonly NexusCollectionResolver _resolver;
     private readonly NexusCollectionQueue _collection;
 
-    /// <summary>Limits concurrent HTTP downloads to avoid flooding the Nexus API.</summary>
-    private readonly SemaphoreSlim _concurrentDownloads = new(3, 3);
+    // There used to be a SemaphoreSlim(3) here, "to avoid flooding the Nexus API". Nothing measured
+    // said three, and the cost was concrete: a 4 MB patch sat behind three multi-gigabyte archives
+    // and could not start until one of them finished. Removed until the API says otherwise — the
+    // symptom to watch for is HTTP 429, and the fix then is a limit derived from what Nexus actually
+    // publishes, not another guess.
 
     public ObservableCollection<DownloadEntry> Downloads { get; } = new();
 
@@ -275,7 +278,6 @@ public class NexusDownloadService
     {
         _ = Task.Run(async () =>
         {
-            await _concurrentDownloads.WaitAsync(entry.Cts.Token);
             try
             {
                 var uri = await resolveUri(entry.Cts.Token);
@@ -301,7 +303,6 @@ public class NexusDownloadService
             }
             finally
             {
-                _concurrentDownloads.Release();
                 onFinished?.Invoke();
             }
         });
