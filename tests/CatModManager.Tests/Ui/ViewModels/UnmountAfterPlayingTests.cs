@@ -47,6 +47,7 @@ public class UnmountAfterPlayingTests : IDisposable
             _vfs, _launcher, new StubFiles(), paths, new MockLogService(),
             new StubConfig(), new StubSupports(),
             new GameDiscoveryService(new StubSupports(), Enumerable.Empty<IGameScanner>()),
+            new FakeGlobalToolService(),
             new AppSessionState(), new MockPluginLoader());
     }
 

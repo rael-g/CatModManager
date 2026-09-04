@@ -25,6 +25,15 @@ public partial class ExternalTool : ObservableObject
 
     [ObservableProperty] private string _arguments = "";
     [ObservableProperty] private bool   _mountBeforeLaunch;
+
+    /// <summary>
+    /// Whether this tool belongs to every game rather than to the open one.
+    ///
+    /// It is which table the row is written to, not a column in either: a global tool lives in
+    /// <c>global_tools</c> and a game's tool in <c>game_tools</c>. This is how the single list the
+    /// Tools tab shows remembers where each entry came from and where it has to go back.
+    /// </summary>
+    [ObservableProperty] private bool   _isGlobal;
 }
 
 /// <summary>

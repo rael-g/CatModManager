@@ -8,6 +8,7 @@ using NSubstitute;
 using CatModManager.Core.Models;
 using CatModManager.Core.Services;
 using CatModManager.Core.Services.GameDiscovery;
+using CatModManager.Tests.Support;
 using CatModManager.Ui.Plugins;
 using CatModManager.Ui.ViewModels;
 
@@ -36,7 +37,8 @@ public class ProfileCoordinatorTests
         _tools = new ExternalToolsViewModel(
             Substitute.For<IProcessService>(),
             Substitute.For<IVfsOrchestrationService>(),
-            logService);
+            logService,
+            new FakeGlobalToolService());
 
         _coordinator = new ProfileCoordinator(
             Substitute.For<IProfileService>(),

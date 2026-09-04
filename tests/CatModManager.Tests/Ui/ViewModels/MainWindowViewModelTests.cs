@@ -71,6 +71,7 @@ public class MainWindowViewModelTests : IDisposable
             _mockConfigService,
             _mockGameSupportService,
             new GameDiscoveryService(_mockGameSupportService, Enumerable.Empty<IGameScanner>()),
+            new FakeGlobalToolService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader());
     }

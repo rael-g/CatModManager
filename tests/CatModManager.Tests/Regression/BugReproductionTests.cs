@@ -67,6 +67,7 @@ public class BugReproductionTests : IDisposable
             configService,
             gameSupportService,
             new GameDiscoveryService(gameSupportService, Enumerable.Empty<IGameScanner>()),
+            new FakeGlobalToolService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader());
 
@@ -193,6 +194,7 @@ public class BugReproductionTests : IDisposable
             configService,
             gameSupportService,
             new GameDiscoveryService(gameSupportService, Enumerable.Empty<IGameScanner>()),
+            new FakeGlobalToolService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader());
 

@@ -73,6 +73,7 @@ public class ProfileRegressionTests : IDisposable
             _configService,
             _gameSupportService,
             new GameDiscoveryService(_gameSupportService, Enumerable.Empty<IGameScanner>()),
+            new FakeGlobalToolService(),
             new CatModManager.Ui.Plugins.AppSessionState(),
             new MockPluginLoader()
         );

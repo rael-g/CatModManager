@@ -78,6 +78,7 @@ public partial class MainWindowViewModel : ObservableObject
         IConfigService           configService,
         IGameSupportService      gameSupportService,
         IGameDiscoveryService    gameDiscoveryService,
+        IGlobalToolService       globalToolService,
         AppSessionState          sessionState,
         PluginLoader             pluginLoader,
         UiExtensionHost?         uiExtensionHost = null,
@@ -101,7 +102,7 @@ public partial class MainWindowViewModel : ObservableObject
         GameConfig = new GameConfigViewModel(gameSupportService, gameDiscoveryService, logService);
         ModList    = new ModListViewModel();
         Inspector  = new ModInspectorViewModel(logService);
-        Tools      = new ExternalToolsViewModel(processService, vfsOrchestrator, logService);
+        Tools      = new ExternalToolsViewModel(processService, vfsOrchestrator, logService, globalToolService);
 
         // 2. Initialize Coordinators
         Profiles  = new ProfileCoordinator(profileService, configService, logService, sessionState, () => GameConfig, () => ModList, () => Tools, RefreshModMountPointDisplayNames, SyncActiveModsToState);
@@ -182,8 +183,14 @@ public partial class MainWindowViewModel : ObservableObject
 
         // The game is what gets loaded now — selecting it is what opens its profiles, through
         // GameActivated above.
-        InitialLoadTask = Task.Run(
-            async () => await GameManager.LoadInitialGameAsync(_configService.Current.LastGameId));
+        InitialLoadTask = Task.Run(async () =>
+        {
+            // Before the game, because loading one rebuilds the tools list and the global half has
+            // to already be in hand — otherwise the first game opened shows no global tools until
+            // something else causes a switch.
+            await Tools.InitializeAsync();
+            await GameManager.LoadInitialGameAsync(_configService.Current.LastGameId);
+        });
     }
 
     /// <summary>

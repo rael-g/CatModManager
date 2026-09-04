@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,6 +15,10 @@ public partial class ExternalToolsViewModel : ViewModelBase
     private readonly IProcessService          _processService;
     private readonly IVfsOrchestrationService _vfsOrchestrator;
     private readonly ILogService              _logService;
+    private readonly IGlobalToolService       _globalToolService;
+
+    /// <summary>The global half, kept aside so a game switch can rebuild the list without a query.</summary>
+    private readonly System.Collections.Generic.List<ExternalTool> _globalTools = new();
 
     // Callbacks wired by MainWindowViewModel
     public Func<bool>?                  IsVfsMounted     { get; set; }
@@ -30,21 +35,65 @@ public partial class ExternalToolsViewModel : ViewModelBase
     public ExternalToolsViewModel(
         IProcessService          processService,
         IVfsOrchestrationService vfsOrchestrator,
-        ILogService              logService)
+        ILogService              logService,
+        IGlobalToolService       globalToolService)
     {
-        _processService  = processService;
-        _vfsOrchestrator = vfsOrchestrator;
-        _logService      = logService;
+        _processService    = processService;
+        _vfsOrchestrator   = vfsOrchestrator;
+        _logService        = logService;
+        _globalToolService = globalToolService;
     }
 
-    public void LoadTools(System.Collections.Generic.IEnumerable<ExternalTool> tools)
+    /// <summary>
+    /// Shows the open game's tools, with the global ones after them.
+    ///
+    /// One list rather than two panes: from where the user stands a tool is a tool, and the only
+    /// thing that differs is whether it survives switching game — which the checkbox in the editor
+    /// says, in the place where it can be changed.
+    /// </summary>
+    public void LoadTools(System.Collections.Generic.IEnumerable<ExternalTool> gameTools)
     {
         Tools.Clear();
-        foreach (var t in tools) Tools.Add(t);
+        foreach (var t in gameTools) { t.IsGlobal = false; Tools.Add(t); }
+        foreach (var t in _globalTools) Tools.Add(t);
     }
 
+    /// <summary>The open game's half of the list. The global ones are written by this view model itself.</summary>
     public System.Collections.Generic.List<ExternalTool> GetTools()
-        => new(Tools);
+        => Tools.Where(t => !t.IsGlobal).ToList();
+
+    /// <summary>
+    /// Reads the global tools once, at startup, so that every later game switch is a list rebuild
+    /// rather than another query.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        _globalTools.Clear();
+        _globalTools.AddRange(await _globalToolService.ListToolsAsync());
+        foreach (var t in _globalTools) Tools.Add(t);
+    }
+
+    /// <summary>
+    /// Persists both halves: the game's through <see cref="AutoSave"/>, the global ones directly.
+    ///
+    /// Both every time, because the editor's Global checkbox moves a tool from one to the other and
+    /// there is no cheap way to know which direction it went — writing only the side that "changed"
+    /// is how a tool ends up in both tables at once, or in neither.
+    /// </summary>
+    private void Save()
+    {
+        _globalTools.Clear();
+        _globalTools.AddRange(Tools.Where(t => t.IsGlobal));
+
+        AutoSave?.Invoke();
+        _ = SaveGlobalsAsync();
+    }
+
+    private async Task SaveGlobalsAsync()
+    {
+        try { await _globalToolService.SaveToolsAsync(_globalTools.ToList()); }
+        catch (Exception ex) { _logService.LogError("[Tools] Could not save the global tools", ex); }
+    }
 
     [RelayCommand]
     private async Task LaunchTool(ExternalTool? tool)
@@ -152,7 +201,7 @@ public partial class ExternalToolsViewModel : ViewModelBase
         };
         Tools.Add(tool);
         SelectedTool = tool;
-        AutoSave?.Invoke();
+        Save();
     }
 
     /// <summary>A new, empty entry for the editor to fill in — the path to a file is only one of the ways a tool is named.</summary>
@@ -161,7 +210,7 @@ public partial class ExternalToolsViewModel : ViewModelBase
         var tool = new ExternalTool { Name = "New tool" };
         Tools.Add(tool);
         SelectedTool = tool;
-        AutoSave?.Invoke();
+        Save();
     }
 
     /// <summary>Fills the command of the selected tool from the file dialog, naming it if it has no name yet.</summary>
@@ -174,14 +223,14 @@ public partial class ExternalToolsViewModel : ViewModelBase
             SelectedTool.Name = Path.GetFileNameWithoutExtension(exePath);
 
         StatusMessage = "";
-        AutoSave?.Invoke();
+        Save();
     }
 
     /// <summary>The editor changed something. Clears any stale launch error along with saving.</summary>
     public void NotifyEdited()
     {
         StatusMessage = "";
-        AutoSave?.Invoke();
+        Save();
     }
 
     [RelayCommand]
@@ -190,7 +239,7 @@ public partial class ExternalToolsViewModel : ViewModelBase
         if (tool == null) return;
         Tools.Remove(tool);
         if (SelectedTool == tool) SelectedTool = null;
-        AutoSave?.Invoke();
+        Save();
     }
 
     [RelayCommand]

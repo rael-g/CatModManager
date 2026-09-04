@@ -80,12 +80,12 @@ public class AppDatabaseMigrationTests : IDisposable
 
         // profile_mods is deliberately absent: 003 replaced it with profile_entries, which points at
         // the shared inventory instead of carrying a private copy of it.
-        Assert.Equal(6, Scalar(
+        Assert.Equal(7, Scalar(
             """
             SELECT COUNT(*) FROM sqlite_master
             WHERE type = 'table' AND name IN
                 ('profiles', 'profile_entries',
-                 'games', 'game_mods', 'game_mount_points', 'game_tools');
+                 'games', 'game_mods', 'game_mount_points', 'game_tools', 'global_tools');
             """));
 
         // Both went to the game, in 005 and 006. A mount point is a folder of the installation and
@@ -100,11 +100,12 @@ public class AppDatabaseMigrationTests : IDisposable
         Assert.Equal(0, Scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'profile_mods';"));
 
-        Assert.Equal(5, Scalar(
+        Assert.Equal(6, Scalar(
             """
             SELECT COUNT(*) FROM Migrations WHERE Id IN
                 ('002_profiles.sql', '003_games.sql', '004_named_games_and_profile_ids.sql',
-                 '005_game_owns_its_settings.sql', '006_game_owns_its_tools.sql');
+                 '005_game_owns_its_settings.sql', '006_game_owns_its_tools.sql',
+                 '007_global_tools.sql');
             """));
 
         // 004's two halves: the game has a name, and the profile has an id its children point at.

@@ -107,6 +107,7 @@ public partial class App : Application
         services.AddSingleton<IModScanner, LocalModScanner>();
         services.AddSingleton<IProfileService, SqliteProfileService>();
         services.AddSingleton<IGameService, SqliteGameService>();
+        services.AddSingleton<IGlobalToolService, SqliteGlobalToolService>();
         services.AddSingleton<TomlProfileService>();
         services.AddSingleton<ProfileImporter>();
         services.AddSingleton<IModManagementService, ModManagementService>();

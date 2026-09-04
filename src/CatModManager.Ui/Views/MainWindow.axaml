@@ -717,6 +717,11 @@
                                                  FontFamily="Consolas" FontSize="11"
                                                  Watermark="steam://rungameid/…   to reach a non-Steam shortcut's Proton prefix"/>
 
+                                        <CheckBox IsChecked="{Binding Tools.SelectedTool.IsGlobal, Mode=TwoWay}"
+                                                  Click="ToolField_Changed"
+                                                  Content="Available in every game" FontSize="11"
+                                                  ToolTip.Tip="Keeps this tool in the list whichever game is open. Use a game's own tool when it needs an argument that differs per game."/>
+
                                         <Grid ColumnDefinitions="*, Auto">
                                             <CheckBox Grid.Column="0"
                                                       IsChecked="{Binding Tools.SelectedTool.MountBeforeLaunch, Mode=TwoWay}"
