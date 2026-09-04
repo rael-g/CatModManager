@@ -24,6 +24,19 @@ public enum GameDeleteChoice
 }
 
 /// <summary>
+/// How the user chose to point at the game they are adding.
+///
+/// <see cref="Folder"/> is not a lesser <see cref="Executable"/>: for an emulated game there is no
+/// executable to pick, because the emulator is not the game — the ROM folder is.
+/// </summary>
+public enum GameAddMethod
+{
+    Detect,
+    Executable,
+    Folder
+}
+
+/// <summary>
 /// The list of installations and which one is open.
 ///
 /// CMM used to be profile-first: you made a profile and told it which game it was for. Every other
@@ -60,10 +73,14 @@ public partial class GameManagerViewModel : ViewModelBase
     public event Func<Game?, Task>? GameActivated;
 
     /// <summary>
-    /// Set by the view: runs whatever dialog collects a new game — auto-detect or a file picker —
-    /// and returns it unsaved, or null if the user backed out.
+    /// Set by the view: runs the dialog for the requested way of adding a game and returns it
+    /// unsaved, or null if the user backed out.
+    ///
+    /// Which dialog is the caller's choice now. It used to be a chain — scan the stores, and if the
+    /// user closed that, fall back to the file picker — so backing out of the scan silently became
+    /// a request to pick an executable, and there was no way to ask for the picker directly.
     /// </summary>
-    public Func<Task<Game?>>? RequestNewGame;
+    public Func<GameAddMethod, Task<Game?>>? RequestNewGame;
 
     /// <summary>Set by the view to confirm deleting a game, given its name and profile count.</summary>
     public Func<Game, int, Task<GameDeleteChoice>>? ConfirmDelete;
@@ -104,12 +121,15 @@ public partial class GameManagerViewModel : ViewModelBase
     /// same installation again, and two games over one folder would mean two inventories over one
     /// mods folder.
     /// </summary>
-    [RelayCommand]
-    public async Task AddGame()
+    [RelayCommand] public Task AddDetectedGame()      => AddGame(GameAddMethod.Detect);
+    [RelayCommand] public Task AddGameFromExecutable() => AddGame(GameAddMethod.Executable);
+    [RelayCommand] public Task AddGameFromFolder()     => AddGame(GameAddMethod.Folder);
+
+    public async Task AddGame(GameAddMethod method)
     {
         if (RequestNewGame == null) return;
 
-        var proposed = await RequestNewGame.Invoke();
+        var proposed = await RequestNewGame.Invoke(method);
         if (proposed == null) return;
 
         var existing = await _gameService.FindByBasePathAsync(proposed.BaseDataPath);
@@ -130,7 +150,11 @@ public partial class GameManagerViewModel : ViewModelBase
         _logService.Log($"Game '{proposed.DisplayName}' added.");
         await RefreshListAsync(proposed.Id);
 
-        if (GameAdded != null) await GameAdded.Invoke();
+        // Detection already knows the executable, the folder and usually the game mode, so opening
+        // the settings dialog on top of it would be asking the user to confirm what they just
+        // picked. The other two routes guessed everything from one path, and that guess is exactly
+        // what deserves a look before it is used.
+        if (method != GameAddMethod.Detect && GameAdded != null) await GameAdded.Invoke();
     }
 
     /// <summary>Picks a game from the menu. Same thing the selector in the command bar does.</summary>

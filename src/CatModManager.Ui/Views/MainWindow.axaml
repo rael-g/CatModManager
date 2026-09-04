@@ -64,7 +64,11 @@
                     </MenuItem>
 
                     <MenuItem Header="_Game">
-                        <MenuItem Header="_Add Game…"      Command="{Binding GameManager.AddGameCommand}"/>
+                        <MenuItem Header="_Add Game">
+                            <MenuItem Header="_Auto Detect…"       Command="{Binding GameManager.AddDetectedGameCommand}"/>
+                            <MenuItem Header="Select _Executable…" Command="{Binding GameManager.AddGameFromExecutableCommand}"/>
+                            <MenuItem Header="Select _Folder…"     Command="{Binding GameManager.AddGameFromFolderCommand}"/>
+                        </MenuItem>
                         <MenuItem Header="_Edit Game…"     Click="GameSettings_Click"/>
                         <MenuItem Header="Re_move Game"    Command="{Binding GameManager.DeleteGameCommand}"/>
                         <Separator/>
@@ -78,9 +82,6 @@
                                 </ControlTheme>
                             </MenuItem.ItemContainerTheme>
                         </MenuItem>
-                        <Separator/>
-                        <MenuItem Header="_Auto Detect Game…"      Command="{Binding GameConfig.AutoDetectGameCommand}"/>
-                        <MenuItem Header="Detect Game _Mode"       Command="{Binding GameConfig.DetectGameSupportCommand}"/>
                         <Separator/>
                         <MenuItem Header="{Binding Vfs.MountButtonText}" Command="{Binding Vfs.ToggleMountCommand}"/>
                         <MenuItem Header="_Launch Game"            Command="{Binding LaunchGameCommand}"/>

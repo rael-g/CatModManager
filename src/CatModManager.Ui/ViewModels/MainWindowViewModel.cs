@@ -149,7 +149,6 @@ public partial class MainWindowViewModel : ObservableObject
             Profiles.ApplyConfigToGame(game);
             _ = GameManager.SaveCurrentGameAsync();
         };
-        GameConfig.GameFoldersAdopted = AdoptGameFoldersAsync;
         GameConfig.Initialize();
 
         Inspector.SetStatusMessage = msg => StatusMessage = msg;

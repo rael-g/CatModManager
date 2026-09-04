@@ -25,13 +25,6 @@ public partial class GameConfigViewModel : ViewModelBase
     /// </summary>
     public Action? SaveGame { get; set; }
 
-    /// <summary>
-    /// Wired by MainWindowViewModel. Called once the folders have just been filled in, so that the
-    /// mods already installed for the game show up instead of an empty list. Saving is not enough
-    /// on its own — the inventory belongs to the game, and has to be read back.
-    /// </summary>
-    public Func<Task>? GameFoldersAdopted { get; set; }
-
     [ObservableProperty] private string? _modsFolderPath;
     [ObservableProperty] private string? _baseFolderPath;
     [ObservableProperty] private string? _gameExecutablePath;
@@ -176,43 +169,11 @@ public partial class GameConfigViewModel : ViewModelBase
     [RelayCommand]
     private void DetectGameSupport() => DetectSupport(GameExecutablePath);
 
-    [RelayCommand]
-    private async Task AutoDetectGame()
-    {
-        var dialogVm = new GameDetectionDialogViewModel(_gameDiscoveryService, AvailableGameSupports);
-        var dialog   = new CatModManager.Ui.Views.GameDetectionDialog(dialogVm);
-
-        var owner = Avalonia.Application.Current?.ApplicationLifetime
-                        is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime dt
-                    ? dt.MainWindow : null;
-
-        await dialog.ShowDialog(owner!);
-
-        var result = dialogVm.Result;
-        if (result == null) return;
-
-        var resultMode = dialogVm.ResultMode ?? _gameSupportService.Default;
-        var mode = AvailableGameSupports.Contains(resultMode)
-            ? resultMode
-            : AvailableGameSupports.FirstOrDefault(s => s.GameId == resultMode.GameId) ?? resultMode;
-
-        // Temporarily disable saving during batch updates to avoid redundant IO.
-        var savedSaveGame = SaveGame;
-        SaveGame = null;
-        GameExecutablePath  = result.ExecutablePath;
-        BaseFolderPath      = result.GameFolder;
-        ModsFolderPath      = Path.Combine(result.GameFolder, "cmm", "mods");
-        DownloadsFolderPath = Path.Combine(result.GameFolder, "cmm", "downloads");
-        ActiveGameSupport   = mode;
-        SaveGame = savedSaveGame;
-
-        _logService.Log($"Game auto-detected: {result.DisplayName} [{result.StoreName}]");
-
-        // Adoption saves as its first step, so no SaveGame call here — two saves in a row would race
-        // over the same row.
-        if (GameFoldersAdopted != null) await GameFoldersAdopted.Invoke();
-        else SaveGame?.Invoke();
-    }
+    // AutoDetectGame lived here and is gone. It ran the store scan and then overwrote the *open*
+    // game's executable, folders and mode in place — a leftover from when a profile was the thing
+    // being configured. Detection now produces a new installation, through Game ▸ Add Game ▸ Auto
+    // Detect, which is the only reading of "detect a game" that does not quietly repoint one the
+    // user already set up.
 
     public void DetectSupport(string? value)
     {

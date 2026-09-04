@@ -109,14 +109,12 @@ public partial class MainWindow : Window
         vm.ProfileManager.RequestRename = async currentName =>
             await TextInputDialog.ShowAsync(this, $"Rename profile \"{currentName}\"", currentName);
 
-        // Adding a game is the same auto-detect dialog the Game menu offers, read as an installation
-        // rather than as an edit to the one that is open. When the user backs out of the scan, the
-        // file picker is the fallback — auto-detect finds Steam, GOG and Epic, and a game outside all
-        // three is the ordinary case this application exists for.
-        vm.GameManager.RequestNewGame = async () =>
+        vm.GameManager.RequestNewGame = method => method switch
         {
-            var detected = await DetectGameAsync(vm);
-            return detected ?? await PickGameExecutableAsync(vm);
+            GameAddMethod.Detect     => DetectGameAsync(vm),
+            GameAddMethod.Executable => PickGameExecutableAsync(vm),
+            GameAddMethod.Folder     => PickGameFolderAsync(),
+            _                        => Task.FromResult<Game?>(null)
         };
 
         // Straight into the settings once it is added: the folders were guessed from the executable,
@@ -391,6 +389,26 @@ public partial class MainWindow : Window
 
         var game = new Game { GameExecutablePath = files[0].Path.LocalPath };
         game.GameSupportId = vm.GameConfig.DetectSupportId(game.GameExecutablePath);
+        GameFolderDefaults.Fill(game);
+        return game;
+    }
+
+    /// <summary>
+    /// The route for a game that has no executable of its own to pick — an emulated one, where what
+    /// the user manages is the folder the game's files live in and the emulator is somewhere else
+    /// entirely. The launch line stays empty, which is honest: CMM cannot start this one, and the
+    /// user launches it from their frontend.
+    /// </summary>
+    private async Task<Game?> PickGameFolderAsync()
+    {
+        var folders = await GetTopLevel(this)!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select the folder holding the game's files",
+            AllowMultiple = false
+        });
+        if (folders.Count < 1) return null;
+
+        var game = new Game { BaseDataPath = folders[0].Path.LocalPath };
         GameFolderDefaults.Fill(game);
         return game;
     }
