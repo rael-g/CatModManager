@@ -343,17 +343,22 @@ public class NexusApiService
         """;
 
     /// <summary>
-    /// Full-text mod search via v2 GraphQL. Uses <c>name: MATCHES</c> for direct word matching
-    /// across mod names. No API key required.
+    /// Full-text mod search via v2 GraphQL. No API key required.
+    ///
+    /// The op is <c>WILDCARD</c> because the schema accepts only EQUALS, NOT_EQUALS and WILDCARD
+    /// for <c>name</c> — <c>MATCHES</c> used to be sent here and the server rejected the whole
+    /// query, so every search came back empty with the reason visible only on stderr. WILDCARD
+    /// already matches on parts of words and on each word separately, so "unofficial patch" finds
+    /// "Unofficial Skyrim Special Edition Patch"; no surrounding asterisks are needed.
     /// </summary>
-    public Task<(List<NexusBrowseMod> Mods, int Total)> SearchModsAsync(
+    public Task<(List<NexusBrowseMod> Mods, int Total, string? Error)> SearchModsAsync(
         string gameDomain, int gameId, string query, string? categoryName = null,
         bool includeAdult = false, int count = 20, int offset = 0, CancellationToken ct = default)
     {
         var filter = new Dictionary<string, object>
         {
             ["gameId"] = new[] { new { op = "EQUALS", value = gameId.ToString() } },
-            ["name"]   = new[] { new { op = "MATCHES", value = query } },
+            ["name"]   = new[] { new { op = "WILDCARD", value = query } },
             ["op"]     = "AND"
         };
         if (!includeAdult)
@@ -370,7 +375,7 @@ public class NexusApiService
     /// Returns trending / latest-added / latest-updated mods for a game via v2 GraphQL.
     /// No API key required.
     /// </summary>
-    public Task<(List<NexusBrowseMod> Mods, int Total)> GetBrowseModsAsync(
+    public Task<(List<NexusBrowseMod> Mods, int Total, string? Error)> GetBrowseModsAsync(
         string gameDomain, int gameId, BrowseSort sort = BrowseSort.Trending,
         string? categoryName = null, bool includeAdult = false,
         int count = 20, int offset = 0, CancellationToken ct = default)
@@ -408,7 +413,14 @@ public class NexusApiService
         return map.Values.OrderBy(v => v).Distinct().ToList();
     }
 
-    private async Task<(List<NexusBrowseMod> Mods, int Total)> QueryModsAsync(
+    /// <summary>
+    /// Runs a mods query and reports why it came back empty when it did.
+    ///
+    /// The third field exists because a query the server rejects and a search that genuinely
+    /// matched nothing both arrive here as zero nodes. That ambiguity hid a malformed filter for
+    /// as long as it took someone to notice the browser never found anything.
+    /// </summary>
+    private async Task<(List<NexusBrowseMod> Mods, int Total, string? Error)> QueryModsAsync(
         string gameDomain, object filter, object sort, int count, int offset, CancellationToken ct)
     {
         try
@@ -436,6 +448,17 @@ public class NexusApiService
             {
                 foreach (var err in errors)
                     Console.Error.WriteLine($"[NexusApiService] GraphQL error: {err}");
+
+                // Just the message: the rest of a GraphQL error is the offending payload echoed
+                // back, which belongs on stderr and not in a status bar.
+                var first = errors[0];
+                var message = first.ValueKind == JsonValueKind.Object
+                           && first.TryGetProperty("message", out var m)
+                    ? m.GetString()
+                    : first.ToString();
+
+                return (new List<NexusBrowseMod>(), 0,
+                    string.IsNullOrWhiteSpace(message) ? "the Nexus API rejected the query" : message);
             }
 
             var nodes = result?.Data?.Mods?.Nodes ?? new List<NexusGraphQlMod>();
@@ -453,12 +476,12 @@ public class NexusApiService
                 Version          = m.Version,
                 GameDomain       = gameDomain,
                 TotalCount       = total
-            }).ToList(), total);
+            }).ToList(), total, null);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Console.Error.WriteLine($"[NexusApiService] QueryModsAsync error: {ex.Message}");
-            return (new List<NexusBrowseMod>(), 0);
+            return (new List<NexusBrowseMod>(), 0, ex.Message);
         }
     }
 

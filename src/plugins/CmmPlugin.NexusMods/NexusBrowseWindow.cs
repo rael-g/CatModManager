@@ -403,15 +403,24 @@ public class NexusBrowseWindow : Window
 
         List<NexusBrowseMod> mods;
         int total;
+        string? error;
 
         if (string.IsNullOrEmpty(query))
-            (mods, total) = await _api.GetBrowseModsAsync(
+            (mods, total, error) = await _api.GetBrowseModsAsync(
                 _gameDomain, _gameId, _sort, categoryName: category, includeAdult: _includeAdult, offset: _offset, ct: ct);
         else
-            (mods, total) = await _api.SearchModsAsync(
+            (mods, total, error) = await _api.SearchModsAsync(
                 _gameDomain, _gameId, query, categoryName: category, includeAdult: _includeAdult, offset: _offset, ct: ct);
 
         if (ct.IsCancellationRequested) return;
+
+        // Before the empty-result message, because "no results" is a wrong thing to tell someone
+        // whose query never reached the server.
+        if (error != null)
+        {
+            SetStatus($"Nexus could not answer that: {error}");
+            return;
+        }
 
         _total   = total;
         _offset += mods.Count;
