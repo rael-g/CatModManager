@@ -72,6 +72,44 @@ public class NexusDownloadRepository
         return loaded;
     }
 
+    /// <summary>
+    /// Writes back a single entry of a profile that is not the open one.
+    ///
+    /// <see cref="Save"/> cannot do this job: it deletes the profile's rows and reinserts what it
+    /// was handed, so calling it with the one carried-over entry would erase everything else that
+    /// profile had. This matches on mod and file id, which is the only identity that survives the
+    /// delete-and-reinsert cycle the rows go through.
+    /// </summary>
+    public void UpdateEntry(string profileName, DownloadEntry entry)
+    {
+        try
+        {
+            using var conn = _db.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE downloads
+                   SET local_path = @localPath, file_name = @fileName,
+                       mod_name = @modName, version = @version,
+                       category = @category, has_failed = @hasFailed
+                 WHERE profile_name = @profile AND mod_id = @modId AND file_id = @fileId
+                """;
+            cmd.Parameters.AddWithValue("@profile",   profileName);
+            cmd.Parameters.AddWithValue("@modId",     entry.ModId);
+            cmd.Parameters.AddWithValue("@fileId",    entry.FileId);
+            cmd.Parameters.AddWithValue("@localPath", entry.LocalPath ?? string.Empty);
+            cmd.Parameters.AddWithValue("@fileName",  entry.FileName);
+            cmd.Parameters.AddWithValue("@modName",   entry.ModName);
+            cmd.Parameters.AddWithValue("@version",   entry.Version);
+            cmd.Parameters.AddWithValue("@category",  entry.Category);
+            cmd.Parameters.AddWithValue("@hasFailed", entry.HasFailed ? 1 : 0);
+            cmd.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            _log.Log($"[NexusMods] Failed to update download '{entry.ModName}': {ex.Message}");
+        }
+    }
+
     /// <summary>Replaces the profile's stored rows with the given entries, in order.</summary>
     public void Save(string profileName, IEnumerable<DownloadEntry> entries)
     {

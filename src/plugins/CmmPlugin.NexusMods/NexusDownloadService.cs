@@ -36,6 +36,22 @@ public class NexusDownloadService
 
     public ObservableCollection<DownloadEntry> Downloads { get; } = new();
 
+    /// <summary>The profile currently shown, and the one new entries are stamped with.</summary>
+    private string? _currentProfile;
+
+    /// <summary>
+    /// Adds an entry to the visible list, on the UI thread, stamped with the profile it belongs to.
+    ///
+    /// The stamp has to happen here rather than at save time: a download queued and then left
+    /// running while the user switches profile would otherwise be saved against whichever profile
+    /// was open when it finished.
+    /// </summary>
+    private void AddEntry(DownloadEntry entry)
+    {
+        entry.OwnerProfile ??= _currentProfile;
+        Dispatcher.UIThread.Post(() => Downloads.Add(entry));
+    }
+
     public NexusDownloadService(NexusApiService api, IPluginLogger log, NexusModTrackingService tracking, NexusDatabase db)
     {
         _api = api;
@@ -59,14 +75,52 @@ public class NexusDownloadService
 
     // ── Persistence ───────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Swaps the visible list to another profile's, keeping transfers that are still running.
+    ///
+    /// Switching profile never actually stopped a download — the transfer runs on its own task and
+    /// holds the entry directly — but the row used to vanish from the list the moment the profile
+    /// changed, so a file that was still being written appeared to have been dropped, and its
+    /// completion was written to the wrong profile's list or to none at all. The entries now ride
+    /// along until they settle, and each one is saved against the profile it was started under.
+    /// </summary>
     public void LoadDownloads(string profileName)
     {
-        var loaded = _repository.Load(profileName);
+        var carried = Downloads.Where(d => d.IsInFlight).ToList();
+        var loaded  = _repository.Load(profileName);
+
         Downloads.Clear();
-        foreach (var entry in loaded) Downloads.Add(entry);
+        foreach (var entry in loaded)
+        {
+            entry.OwnerProfile = profileName;
+            Downloads.Add(entry);
+        }
+
+        // After the loaded ones: they belong to another profile and are only passing through.
+        foreach (var entry in carried) Downloads.Add(entry);
+
+        _currentProfile = profileName;
     }
 
-    public void SaveDownloads(string profileName) => _repository.Save(profileName, Downloads);
+    /// <summary>
+    /// Persists the list. Entries belonging to the profile being saved are written as a set; any
+    /// carried over from another profile are written back one at a time, to that profile.
+    /// </summary>
+    public void SaveDownloads(string profileName)
+    {
+        var mine = new List<DownloadEntry>();
+
+        foreach (var entry in Downloads.ToList())
+        {
+            // An entry queued before any load has no owner yet — it belongs to whoever is open.
+            entry.OwnerProfile ??= profileName;
+
+            if (entry.OwnerProfile == profileName) mine.Add(entry);
+            else if (!entry.IsInFlight)            _repository.UpdateEntry(entry.OwnerProfile, entry);
+        }
+
+        _repository.Save(profileName, mine);
+    }
 
     // ── Queueing ──────────────────────────────────────────────────────────────
 
@@ -119,7 +173,7 @@ public class NexusDownloadService
                 FileId     = link.FileId,
                 GameDomain = link.GameDomain
             };
-            Dispatcher.UIThread.Post(() => Downloads.Add(entry));
+            AddEntry(entry);
         }
 
         entry.NxmKey     = link.Key;
@@ -150,7 +204,7 @@ public class NexusDownloadService
         };
 
         // Always marshal to UI thread — this method may be called from background threads.
-        Dispatcher.UIThread.Post(() => Downloads.Add(entry));
+        AddEntry(entry);
 
         StartModDownload(entry, downloadsFolder, adoptApiModName: false);
     }
@@ -189,7 +243,7 @@ public class NexusDownloadService
             Category   = "Collection",
         };
 
-        Dispatcher.UIThread.Post(() => Downloads.Add(entry));
+        AddEntry(entry);
 
         RunAsync(entry, async _ =>
         {
@@ -410,8 +464,7 @@ public class NexusDownloadService
             GameDomain = link.GameDomain
         };
 
-        // Called from UI thread via NXM handler — safe to Add directly.
-        Downloads.Add(collectionEntry);
+        AddEntry(collectionEntry);
 
         _ = Task.Run(async () =>
         {
@@ -457,10 +510,7 @@ public class NexusDownloadService
                     pending.Add(new PendingCollectionMod(mod.ModId, mod.FileId, mod.Domain, entry));
                 }
 
-                Dispatcher.UIThread.Post(() =>
-                {
-                    foreach (var e in entries) Downloads.Add(e);
-                });
+                foreach (var e in entries) AddEntry(e);
 
                 _collection.Enqueue(pending);
             }

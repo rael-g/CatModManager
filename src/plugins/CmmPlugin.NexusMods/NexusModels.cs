@@ -228,6 +228,15 @@ public partial class DownloadEntry : ObservableObject
     /// <summary>Expiry timestamp paired with <see cref="NxmKey"/>.</summary>
     public string? NxmExpires { get; set; }
 
+    /// <summary>
+    /// The profile whose download list owns this entry.
+    ///
+    /// Needed because a transfer outlives a profile switch: the task holding this entry keeps
+    /// writing to disk, and when it finishes it has to update the row of the profile it was
+    /// started under, not whichever profile happens to be open by then.
+    /// </summary>
+    public string? OwnerProfile { get; set; }
+
     public CancellationTokenSource Cts { get; } = new();
 
     /// <summary>When non-null, the FOMOD installer will auto-apply these choices without showing the wizard.</summary>

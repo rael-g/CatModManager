@@ -57,13 +57,27 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel vm)
             {
                 e.Cancel = true;
+
+                // Asked here, and not when switching profile, because this is the case where the
+                // warning is true: shutdown cancels every transfer in flight and there is no
+                // resume, so whatever was partly downloaded has to start over.
+                if (vm.HasActiveDownloads)
+                {
+                    var confirm = new ConfirmDialog(
+                        "Quit CatModManager?",
+                        "Downloads are still in progress. Quitting cancels them, and they will "
+                      + "have to start over from the beginning next time.");
+
+                    if (!await confirm.ShowDialog<bool>(this)) return;
+                }
+
                 _isShuttingDown = true;
-                
+
                 // Show a status message if possible or just log
                 vm.StatusMessage = "Shutting down safely...";
-                
+
                 await vm.Shutdown();
-                
+
                 // Now close for real
                 Close();
             }
@@ -97,14 +111,10 @@ public partial class MainWindow : Window
             return await dialog.ShowDialog<bool>(this);
         };
 
-        vm.ProfileManager.ConfirmProfileChange = async newProfileName =>
-        {
-            if (!vm.HasActiveDownloads) return true;
-            var dialog = new ConfirmDialog(
-                $"Switch to profile \"{newProfileName}\"?",
-                "There are active downloads in progress. Switching profiles will interrupt them.");
-            return await dialog.ShowDialog<bool>(this);
-        };
+        // ConfirmProfileChange is deliberately left unset. It used to warn that switching profile
+        // would interrupt downloads in progress, which was never true: a transfer runs on its own
+        // task holding its entry, and carries on regardless. The entries now stay visible until
+        // they finish, so there is nothing to warn about and nothing to decide.
 
         vm.ProfileManager.RequestRename = async currentName =>
             await TextInputDialog.ShowAsync(this, $"Rename profile \"{currentName}\"", currentName);
