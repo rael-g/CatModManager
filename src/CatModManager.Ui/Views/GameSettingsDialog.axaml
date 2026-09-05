@@ -151,10 +151,15 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- No Cancel: every field here saves as it is edited, the same way the sidebar panel did.
-             Offering a Cancel that cannot undo anything would be a lie. -->
+        <!-- Nothing here is written until Save. The fields used to persist as they were typed, which
+             cost a Cancel that could not undo anything — and, twice, real data: a launch line
+             overwritten while the panel filled itself in, and a game list reshuffled per keystroke
+             of a rename. Both had to be worked around field by field. One commit point replaces
+             all of it. -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button Name="CloseBtn" Content="Done" Padding="16,7" FontWeight="SemiBold"
+            <Button Name="CancelBtn" Content="Cancel" Padding="16,7" Margin="0,0,8,0"
+                    Background="Transparent"/>
+            <Button Name="SaveBtn" Content="Save" Padding="16,7" FontWeight="SemiBold"
                     BorderThickness="0" Background="{DynamicResource AccentColor}"/>
         </StackPanel>
     </Grid>

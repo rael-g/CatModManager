@@ -156,6 +156,50 @@ public partial class GameConfigViewModel : ViewModelBase
         SaveGame?.Invoke();
     }
 
+    // ── Editing sessions ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Everything the settings dialog can change, as it stood when the dialog opened.
+    ///
+    /// The mount points are copied rather than referenced: the dialog edits a MountPointDef in
+    /// place, so a list of the same instances would restore the edited objects to themselves.
+    /// </summary>
+    public sealed record Snapshot(
+        string? ModsFolderPath,
+        string? BaseFolderPath,
+        string? GameExecutablePath,
+        string? LaunchArguments,
+        string? DownloadsFolderPath,
+        IGameSupport ActiveGameSupport,
+        IReadOnlyList<MountPointDef> UserMountPoints);
+
+    /// <summary>Records the current values so an abandoned edit can be undone.</summary>
+    public Snapshot TakeSnapshot() => new(
+        ModsFolderPath, BaseFolderPath, GameExecutablePath, LaunchArguments, DownloadsFolderPath,
+        ActiveGameSupport,
+        UserMountPoints.Select(mp => new MountPointDef
+        {
+            Id = mp.Id, Name = mp.Name, Path = mp.Path, IsGameDefined = mp.IsGameDefined
+        }).ToList());
+
+    /// <summary>
+    /// Puts back what <see cref="TakeSnapshot"/> recorded. Caller keeps saving suppressed across
+    /// both, so nothing that happened in between — nor this restore — ever reaches the database.
+    /// </summary>
+    public void Restore(Snapshot snapshot)
+    {
+        ModsFolderPath      = snapshot.ModsFolderPath;
+        BaseFolderPath      = snapshot.BaseFolderPath;
+        GameExecutablePath  = snapshot.GameExecutablePath;
+        LaunchArguments     = snapshot.LaunchArguments;
+        DownloadsFolderPath = snapshot.DownloadsFolderPath;
+        ActiveGameSupport   = snapshot.ActiveGameSupport;
+
+        UserMountPoints.Clear();
+        foreach (var mp in snapshot.UserMountPoints) UserMountPoints.Add(mp);
+        NotifyMountPointsChanged();
+    }
+
     private void EndSuppress()     => _detectionSuppressCount = Math.Max(0, _detectionSuppressCount - 1);
     private void EndSaveSuppress() => _savingSuppressCount    = Math.Max(0, _savingSuppressCount - 1);
 
