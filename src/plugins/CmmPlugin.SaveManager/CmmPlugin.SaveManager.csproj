@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\CatModManager.PluginSdk\CatModManager.PluginSdk.csproj" />
+    <ProjectReference Include="..\..\CatModManager.Theme\CatModManager.Theme.csproj" />
   </ItemGroup>
 
   <!-- Copy plugin DLL next to the Ui output so PluginLoader can find it at runtime -->

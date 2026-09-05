@@ -53,7 +53,7 @@ public class NexusDownloadsTabControl : UserControl
     private static readonly IBrush MutedBrush      = CmmPalette.Brushes.TextSubtle;
     private static readonly IBrush GreenBrush      = CmmPalette.Brushes.StatusActive;
     private static readonly IBrush RedBrush        = CmmPalette.Brushes.StatusDanger;
-    private static readonly IBrush WhiteBrush      = Brushes.White;
+    private static readonly IBrush WhiteBrush      = CmmPalette.Brushes.TextOnAccent;
 
     public NexusDownloadsTabControl(
         NexusDownloadService downloadService,
@@ -484,7 +484,7 @@ public class NexusDownloadsTabControl : UserControl
             Content         = "Yes, register",
             Padding         = new Thickness(16, 6),
             Background      = CmmPalette.Brushes.StatusActive,
-            Foreground      = Brushes.White,
+            Foreground      = CmmPalette.Brushes.TextOnAccent,
             BorderThickness = new Thickness(0),
             CornerRadius    = new CornerRadius(3),
             FontSize        = 11
@@ -495,7 +495,7 @@ public class NexusDownloadsTabControl : UserControl
             Content         = "Not now",
             Padding         = new Thickness(16, 6),
             Background      = CmmPalette.Brushes.SurfaceSelected,
-            Foreground      = Brushes.White,
+            Foreground      = CmmPalette.Brushes.TextOnAccent,
             BorderThickness = new Thickness(0),
             CornerRadius    = new CornerRadius(3),
             FontSize        = 11

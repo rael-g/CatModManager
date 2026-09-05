@@ -5,6 +5,7 @@ using Avalonia.Data;
 using Avalonia.Layout;
 using System.Linq;
 using Avalonia.Media;
+using CatModManager.Theme;
 using CmmPlugin.BethesdaTools.Models;
 
 namespace CmmPlugin.BethesdaTools.Tabs;
@@ -25,7 +26,7 @@ public class PluginsTabControl : UserControl
         _statusText = new TextBlock
         {
             Margin = new Thickness(8, 4),
-            Foreground = Brushes.Gray,
+            Foreground = CmmPalette.Brushes.TextSubtle,
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap
         };
@@ -73,7 +74,7 @@ public class PluginsTabControl : UserControl
                 var order = new TextBlock
                 {
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = Brushes.Gray,
+                    Foreground = CmmPalette.Brushes.TextSubtle,
                     FontSize = 11,
                     Margin = new Thickness(2, 0)
                 };
@@ -86,7 +87,7 @@ public class PluginsTabControl : UserControl
                 var type = new TextBlock
                 {
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = Brushes.Gray,
+                    Foreground = CmmPalette.Brushes.TextSubtle,
                     FontSize = 11,
                     HorizontalAlignment = HorizontalAlignment.Right
                 };

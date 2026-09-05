@@ -61,6 +61,16 @@ public static class CmmPalette
     /// <summary>An inactive nav item, dimmer than subtle text but still legible.</summary>
     public static readonly Color TextInactive = Color.Parse("#96989D");
 
+    /// <summary>
+    /// Text and icons sitting on a filled accent or danger surface, where the surface — not the
+    /// theme — decides the contrast.
+    ///
+    /// Pure white on purpose, but named rather than written as <c>Brushes.White</c>: a bare white
+    /// says nothing about why it is white, and a lighter theme would need this to become near-black
+    /// while every other white in the UI stayed put.
+    /// </summary>
+    public static readonly Color TextOnAccent = Color.Parse("#FFFFFF");
+
     // ── Accent ────────────────────────────────────────────────────────────────
 
     public static readonly Color Accent = Color.Parse("#4E7FD5");
@@ -121,6 +131,7 @@ public static class CmmPalette
         public static readonly IBrush TextMuted = New(CmmPalette.TextMuted);
         public static readonly IBrush TextSubtle = New(CmmPalette.TextSubtle);
         public static readonly IBrush TextInactive = New(CmmPalette.TextInactive);
+        public static readonly IBrush TextOnAccent = New(CmmPalette.TextOnAccent);
 
         public static readonly IBrush Accent = New(CmmPalette.Accent);
         public static readonly IBrush AccentHover = New(CmmPalette.AccentHover);

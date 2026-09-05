@@ -27,6 +27,17 @@ public class PaletteConsistencyTests
 
     private static string PaletteFile => Path.Combine(ProjectRoot(), "src/CatModManager.Theme/CmmPalette.cs");
 
+    /// <summary>
+    /// Strips comments before matching.
+    ///
+    /// Without this the rule reads its own documentation as a violation: the palette and the control
+    /// kit both name the brush they exist to replace, and the guard flagged both. Exempting those
+    /// files one by one would have hidden real offenders in them — a rule about what the code does
+    /// should not be looking at prose in the first place.
+    /// </summary>
+    private static string WithoutComments(string source) =>
+        Regex.Replace(source, @"/\*.*?\*/|//[^\n]*", "", RegexOptions.Singleline);
+
     [Fact]
     public void NoSourceFileDefinesItsOwnColorLiteral()
     {
@@ -70,6 +81,57 @@ public class PaletteConsistencyTests
         {
             Assert.StartsWith("{x:Static theme:CmmPalette.", brush.Groups[1].Value);
         }
+    }
+
+    /// <summary>
+    /// The blind spot the hex-literal rules had.
+    ///
+    /// Every check above looks for <c>#RRGGBB</c>, so Avalonia's named brushes walked straight past
+    /// them: the plugins were colouring text with <c>Brushes.Gray</c> and a destructive button with
+    /// <c>Brushes.OrangeRed</c> — twenty-odd sites the suite reported as clean. Worse than no guard,
+    /// because green tests said the single-palette rule was being kept.
+    ///
+    /// <c>Transparent</c> is allowed: it is the absence of a colour, and no palette entry could
+    /// replace it.
+    /// </summary>
+    [Fact]
+    public void NoSourceFileUsesAnAvaloniaNamedBrush()
+    {
+        // Not preceded by "CmmPalette." — the palette exposes its own Brushes class by the same name.
+        var named = new Regex(@"(?<!CmmPalette\.)\bBrushes\.(?!Transparent\b)([A-Z]\w+)", RegexOptions.Compiled);
+
+        var offenders = Directory
+            .EnumerateFiles(Path.Combine(ProjectRoot(), "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .Select(f => (File: f, Hits: named.Matches(WithoutComments(File.ReadAllText(f)))))
+            .Where(x => x.Hits.Count > 0)
+            .Select(x => $"{Path.GetRelativePath(ProjectRoot(), x.File)}: "
+                       + string.Join(", ", x.Hits.Select(m => m.Value).Distinct()))
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "Colours must come from CmmPalette.Brushes, not Avalonia's named brushes. Offenders:\n  " +
+            string.Join("\n  ", offenders));
+    }
+
+    /// <summary>
+    /// A plugin that cannot reach the palette has no way to match the host theme, and reaches for
+    /// <c>Brushes.Gray</c> instead — which is exactly how the drift above happened. Four of the five
+    /// plugins were in that position.
+    /// </summary>
+    [Fact]
+    public void EveryPluginCanReachThePalette()
+    {
+        var pluginDir = Path.Combine(ProjectRoot(), "src/plugins");
+
+        var offenders = Directory
+            .EnumerateFiles(pluginDir, "*.csproj", SearchOption.AllDirectories)
+            .Where(f => !File.ReadAllText(f).Contains("CatModManager.Theme.csproj"))
+            .Select(f => Path.GetRelativePath(ProjectRoot(), f))
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "These plugins cannot reference CmmPalette:\n  " + string.Join("\n  ", offenders));
     }
 
     [Fact]

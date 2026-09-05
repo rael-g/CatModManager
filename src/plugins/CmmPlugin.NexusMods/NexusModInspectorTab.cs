@@ -50,21 +50,21 @@ public class NexusModInspectorTab : IInspectorTab
         {
             Text = entry != null ? $"Mod ID: {entry.ModId}" : "Mod ID: —",
             FontSize = 12,
-            Foreground = Brushes.White
+            Foreground = CmmPalette.Brushes.TextOnAccent
         };
 
         var gameText = new TextBlock
         {
             Text = entry != null ? $"Game: {entry.GameDomain}" : "Game: —",
             FontSize = 12,
-            Foreground = Brushes.White
+            Foreground = CmmPalette.Brushes.TextOnAccent
         };
 
         var versionText = new TextBlock
         {
             Text = entry != null ? $"Tracked Version: {entry.Version}" : "Tracked Version: —",
             FontSize = 12,
-            Foreground = Brushes.White
+            Foreground = CmmPalette.Brushes.TextOnAccent
         };
 
         var openBtn = new Button
@@ -72,7 +72,7 @@ public class NexusModInspectorTab : IInspectorTab
             Content = "Open on Nexus",
             Padding = new Thickness(12, 6),
             Background = CmmPalette.Brushes.Accent,
-            Foreground = Brushes.White,
+            Foreground = CmmPalette.Brushes.TextOnAccent,
             BorderThickness = new Thickness(0)
         };
 
@@ -102,7 +102,7 @@ public class NexusModInspectorTab : IInspectorTab
             Content = "Check for Updates",
             Padding = new Thickness(12, 6),
             Background = CmmPalette.Brushes.SurfaceSelected,
-            Foreground = Brushes.White,
+            Foreground = CmmPalette.Brushes.TextOnAccent,
             BorderThickness = new Thickness(0)
         };
 

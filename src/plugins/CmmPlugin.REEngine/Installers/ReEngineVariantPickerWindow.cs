@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using CatModManager.Theme;
 
 namespace CmmPlugin.REEngine.Installers;
 
@@ -65,7 +66,7 @@ public class ReEngineVariantPickerWindow : Window
         var footerBorder = new Border
         {
             BorderThickness = new Thickness(0, 1, 0, 0),
-            BorderBrush     = Brushes.Gray,
+            BorderBrush     = CmmPalette.Brushes.TextSubtle,
             Child           = footer
         };
 

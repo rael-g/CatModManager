@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using CatModManager.Theme;
 using Avalonia.Media.Imaging;
 using CatModManager.PluginSdk;
 using CmmPlugin.FomodInstaller.Models;
@@ -76,7 +77,7 @@ public class FomodWizardWindow : Window
 
         _stepIndicator = new TextBlock
         {
-            Foreground = Brushes.Gray,
+            Foreground = CmmPalette.Brushes.TextSubtle,
             FontSize = 11,
             Margin = new Thickness(16, 0, 16, 8)
         };
@@ -84,7 +85,7 @@ public class FomodWizardWindow : Window
         var separator = new Border
         {
             Height = 1,
-            Background = Brushes.Gray,
+            Background = CmmPalette.Brushes.TextSubtle,
             Opacity = 0.3,
             Margin = new Thickness(0, 0, 0, 8)
         };
@@ -121,7 +122,7 @@ public class FomodWizardWindow : Window
         var footerBorder = new Border
         {
             BorderThickness = new Thickness(0, 1, 0, 0),
-            BorderBrush = Brushes.Gray,
+            BorderBrush = CmmPalette.Brushes.TextSubtle,
             Child = footer
         };
 
@@ -222,7 +223,7 @@ public class FomodWizardWindow : Window
                 GroupType.SelectAtMostOne  => "Select at most one:",
                 _                          => "Select any:"
             };
-            panel.Children.Add(new TextBlock { Text = hint, FontSize = 11, Foreground = Brushes.Gray });
+            panel.Children.Add(new TextBlock { Text = hint, FontSize = 11, Foreground = CmmPalette.Brushes.TextSubtle });
 
             bool isSingle = group.Type is GroupType.SelectExactlyOne or GroupType.SelectAtMostOne;
             var selected = _vm.GetSelection(step, group);
@@ -233,7 +234,7 @@ public class FomodWizardWindow : Window
                 panel.Children.Add(row);
             }
 
-            panel.Children.Add(new Border { Height = 1, Background = Brushes.Gray, Opacity = 0.2 });
+            panel.Children.Add(new Border { Height = 1, Background = CmmPalette.Brushes.TextSubtle, Opacity = 0.2 });
         }
 
         return panel;
@@ -285,7 +286,7 @@ public class FomodWizardWindow : Window
             {
                 Text = plugin.Description,
                 FontSize = 11,
-                Foreground = Brushes.Gray,
+                Foreground = CmmPalette.Brushes.TextSubtle,
                 Margin = new Thickness(20, 0, 0, 0),
                 TextWrapping = TextWrapping.Wrap
             });

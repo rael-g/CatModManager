@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
+using CatModManager.Theme;
 using Avalonia.Threading;
 
 namespace CmmPlugin.REEngine.Tabs;
@@ -47,7 +48,7 @@ public class ReEngineTabControl : UserControl
         var lbl = new TextBlock
         {
             Text              = label,
-            Foreground        = Brushes.Gray,
+            Foreground        = CmmPalette.Brushes.TextSubtle,
             VerticalAlignment = VerticalAlignment.Center
         };
         var val = new TextBlock

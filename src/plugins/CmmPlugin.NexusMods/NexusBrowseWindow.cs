@@ -30,7 +30,7 @@ public class NexusBrowseWindow : Window
     private static readonly IBrush AccentBrush   = CmmPalette.Brushes.Accent;
     private static readonly IBrush GreenBrush    = CmmPalette.Brushes.StatusActive;
     private static readonly IBrush MutedBrush    = CmmPalette.Brushes.TextSubtle;
-    private static readonly IBrush WhiteBrush    = Brushes.White;
+    private static readonly IBrush WhiteBrush    = CmmPalette.Brushes.TextOnAccent;
     private static readonly IBrush GoldBrush     = CmmPalette.Brushes.StatusWarning;
     private static readonly IBrush DimBrush      = CmmPalette.Brushes.TextPrimary;
 
