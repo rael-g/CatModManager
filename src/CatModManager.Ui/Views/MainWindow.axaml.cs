@@ -488,13 +488,7 @@ public partial class MainWindow : Window
         string? chosen = await MountPointPickerDialog.ShowAsync(this, mountPoints, selectedMod.MountPointId);
         if (chosen == null) return;   // dismissed
 
-        // The first entry is the default; null MountPointId means "use default".
-        var defaultId = vm.GameConfig.EffectiveMountPoints.Count > 0
-            ? vm.GameConfig.EffectiveMountPoints[0].Id : null;
-        selectedMod.MountPointId = chosen == defaultId ? null : chosen;
-        vm.RefreshModMountPointDisplayNames();
-        vm.NotifySelectedModMountPointChanged();
-        vm.ProfileManager.AutoSave();
+        vm.AssignMountPointToSelectedMod(chosen);
     }
 
     private void OpenMountPointFolder_Click(object sender, RoutedEventArgs e)

@@ -454,6 +454,32 @@ public partial class MainWindowViewModel : ObservableObject
 
     public string SelectedModMountPointName => ModList.SelectedMod?.MountPointId ?? "Default";
 
+    /// <summary>
+    /// Assigns the mount point the user picked to the selected mod, and persists it.
+    ///
+    /// The translation of "the first mount point" into a stored <c>null</c> belongs here, not in the
+    /// click handler that opened the picker. <c>VfsOrchestrationService.MountPointMatches</c> treats
+    /// only <c>null</c> as "use the default", so an id that resolves to nothing matches no mount
+    /// point at all — which is exactly how a mod once saved with the literal id "Default" was
+    /// installed, listed as enabled, and silently never deployed. A rule with that failure mode
+    /// should not live in a view, where no test reaches it.
+    /// </summary>
+    public void AssignMountPointToSelectedMod(string chosenId)
+    {
+        if (ModList.SelectedMod is not { } mod) return;
+
+        var points    = GameConfig.EffectiveMountPoints;
+        var defaultId = points.Count > 0 ? points[0].Id : null;
+
+        mod.MountPointId = string.Equals(chosenId, defaultId, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : chosenId;
+
+        RefreshModMountPointDisplayNames();
+        NotifySelectedModMountPointChanged();
+        ProfileManager.AutoSave();
+    }
+
     public void RefreshModMountPointDisplayNames()
     {
         var points = GameConfig.EffectiveMountPoints;
