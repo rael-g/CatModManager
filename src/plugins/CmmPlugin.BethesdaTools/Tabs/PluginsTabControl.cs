@@ -55,6 +55,11 @@ public class PluginsTabControl : UserControl
             ItemsSource = _vm.Entries,
             ItemTemplate = new FuncDataTemplate<EspEntry>((entry, _) =>
             {
+                // Same guard as the save list: a container being recycled is cleared first, which
+                // runs the template with no item. Refreshing the load order clears this collection,
+                // so the crash was one list rebuild away from happening here too.
+                if (entry is null) return new Panel();
+
                 var grid = new Grid { Margin = new Thickness(2) };
                 grid.ColumnDefinitions.Add(new ColumnDefinition(28, GridUnitType.Pixel));
                 grid.ColumnDefinitions.Add(new ColumnDefinition(38, GridUnitType.Pixel));

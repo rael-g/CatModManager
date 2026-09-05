@@ -232,18 +232,37 @@ public partial class SaveManagerTabViewModel : ObservableObject
         ReloadSlots();
     }
 
+    /// <summary>
+    /// Deletes the slot's file, then drops its row.
+    ///
+    /// Two try blocks rather than one, because they can fail for unrelated reasons and only the
+    /// first is about the save. Wrapped together, a failure while the list updated was reported as
+    /// "Could not delete" for a file that was already gone — which is how a crash in the list
+    /// template came to look like deleting a save had failed.
+    /// </summary>
     public void Delete(SaveSlot slot)
     {
         try
         {
             _backupService.Delete(slot);
-            Slots.Remove(slot);
-            Status = $"Deleted: {slot.Label}";
         }
         catch (Exception ex)
         {
             _log.LogError($"[SaveManager] Could not delete '{slot.Label}'", ex);
             Status = $"Could not delete: {ex.Message}";
+            return;
+        }
+
+        Status = $"Deleted: {slot.Label}";
+
+        try
+        {
+            Slots.Remove(slot);
+        }
+        catch (Exception ex)
+        {
+            // The save is gone either way; say so, and let a reload put the list right.
+            _log.LogError($"[SaveManager] Deleted '{slot.Label}', but the list did not update", ex);
         }
     }
 }

@@ -89,11 +89,24 @@ public class SaveManagerTabControl : UserControl
         return grid;
     }
 
+    /// <summary>
+    /// Wraps a row builder in the one rule the list has to obey: no item, no row.
+    ///
+    /// Removing a slot makes the virtualizing panel recycle its container, and clearing a container
+    /// runs the template once more with nothing in it. Deleting a save built a row for that null,
+    /// dereferenced it, and took the app down — after the file had already been deleted, so it
+    /// looked like deleting a save was what crashed.
+    ///
+    /// Separate from the builder so the rule can be tested without standing up the whole tab.
+    /// </summary>
+    public static FuncDataTemplate<SaveSlot> RowTemplate(Func<SaveSlot, Control> buildRow) =>
+        new((slot, _) => slot is null ? new Panel() : buildRow(slot));
+
     private ListBox BuildListBox() =>
         new()
         {
             ItemsSource  = _vm.Slots,
-            ItemTemplate = new FuncDataTemplate<SaveSlot>((slot, _) =>
+            ItemTemplate = RowTemplate(slot =>
             {
                 var grid = new Grid { Margin = new Thickness(2) };
                 grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
