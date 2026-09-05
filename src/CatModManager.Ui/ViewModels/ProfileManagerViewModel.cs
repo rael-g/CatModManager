@@ -161,6 +161,45 @@ public partial class ProfileManagerViewModel : ViewModelBase
         await LoadProfileAsync(id);
     }
 
+    /// <summary>
+    /// Creates a profile holding what is on screen right now — the same mods, ticked the same way,
+    /// in the same order.
+    ///
+    /// New Profile deliberately starts blank, and a mod installed since then reaches every profile
+    /// of the game unticked, because enabling one behind the user's back changes how their game
+    /// runs. Both are right, and both leave the same gap: trying a variation of a working setup
+    /// meant re-ticking the list by hand, which for a few hundred mods is not something anyone
+    /// does twice.
+    ///
+    /// Built from <see cref="BuildSaveData"/> rather than reread from the database, so unticking
+    /// something and duplicating immediately copies what the user is looking at instead of the
+    /// last state that happened to be written.
+    /// </summary>
+    [RelayCommand]
+    public async Task DuplicateProfile()
+    {
+        if (CurrentProfile is not { } source) return;
+        if (BuildSaveData?.Invoke() is not { } copy) return;
+
+        // Id zero is what makes this an insert instead of an overwrite of the profile it came from.
+        copy.Id     = 0;
+        copy.Name   = GetUniqueProfileName($"{source.Name} copy");
+        copy.GameId = CurrentGameId?.Invoke();
+
+        long id;
+        await _lock.WaitAsync();
+        try
+        {
+            id = await _profileService.SaveProfileAsync(copy);
+            _logService.Log($"Profile '{source.Name}' duplicated as '{copy.Name}'.");
+        }
+        catch (Exception ex) { _logService.Log($"DUPLICATE PROFILE ERROR: {ex.Message}"); return; }
+        finally { _lock.Release(); }
+
+        await RefreshListAsync(id);
+        await LoadProfileAsync(id);
+    }
+
     /// <summary>Picks a profile from the menu. Same thing the selector in the command bar does.</summary>
     [RelayCommand]
     public void SelectProfile(ProfileSummary? profile)

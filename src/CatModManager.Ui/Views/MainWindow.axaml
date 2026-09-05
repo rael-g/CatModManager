@@ -89,6 +89,9 @@
 
                     <MenuItem Header="_Profile">
                         <MenuItem Header="_New Profile"    Command="{Binding ProfileManager.NewProfileCommand}"/>
+                        <MenuItem Header="D_uplicate Profile"
+                                  Command="{Binding ProfileManager.DuplicateProfileCommand}"
+                                  ToolTip.Tip="A new profile with this one's mods, already enabled and in the same order."/>
                         <MenuItem Header="_Rename Profile" Command="{Binding ProfileManager.RenameProfileCommand}"/>
                         <Separator/>
                         <MenuItem Header="_Delete Profile" Command="{Binding ProfileManager.DeleteProfileCommand}"/>
