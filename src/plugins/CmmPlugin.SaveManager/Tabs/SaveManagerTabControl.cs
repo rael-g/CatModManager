@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using CatModManager.Theme;
 using Avalonia.Platform.Storage;
 using CmmPlugin.SaveManager.Services;
 
@@ -21,7 +22,7 @@ public class SaveManagerTabControl : UserControl
         _statusText = new TextBlock
         {
             Margin       = new Thickness(8, 6),
-            Foreground   = Brushes.Gray,
+            Foreground   = CmmPalette.Brushes.TextSubtle,
             FontSize     = 11,
             TextWrapping = TextWrapping.Wrap
         };
@@ -119,7 +120,7 @@ public class SaveManagerTabControl : UserControl
                     Text              = slot.Display,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming      = TextTrimming.CharacterEllipsis,
-                    Foreground        = slot.Kind == SaveSlotKind.Manual ? Brushes.White : Brushes.Gray
+                    Foreground        = slot.Kind == SaveSlotKind.Manual ? CmmPalette.Brushes.TextOnAccent : CmmPalette.Brushes.TextSubtle
                 };
                 ToolTip.SetTip(name, $"{slot.CreatedAt:g}\n{slot.FilePath}");
 
@@ -127,7 +128,7 @@ public class SaveManagerTabControl : UserControl
                 {
                     Text              = slot.CreatedAt.ToString("MMM d, HH:mm"),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground        = Brushes.Gray,
+                    Foreground        = CmmPalette.Brushes.TextSubtle,
                     FontSize          = 11,
                     Margin            = new Thickness(8, 0)
                 };
@@ -136,7 +137,7 @@ public class SaveManagerTabControl : UserControl
                 {
                     Text              = FormatSize(slot.SizeBytes),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground        = Brushes.Gray,
+                    Foreground        = CmmPalette.Brushes.TextSubtle,
                     FontSize          = 11,
                     Margin            = new Thickness(0, 0, 8, 0)
                 };
@@ -163,12 +164,16 @@ public class SaveManagerTabControl : UserControl
     /// Both overwrite or destroy saves, and they live in a scrolling list where a misplaced click is
     /// easy. Rather than a modal — which a plugin control has no window to parent — the button
     /// changes to "Sure?" and only acts on the second click, reverting if the user moves away.
+    ///
+    /// The mechanism now comes from <see cref="CmmControls.ConfirmButton"/>. The copy that used to
+    /// live here could be defeated by a double click: the second click of the gesture answered the
+    /// question the first one had just posed, before it was on screen to read.
     /// </summary>
     private Panel BuildSlotActions(SaveSlot slot)
     {
-        var load   = MakeConfirmingButton("Load", "Load — sure?",   async () => await _vm.Load(slot));
-        var delete = MakeConfirmingButton("✕",    "Delete — sure?", () => _vm.Delete(slot));
-        delete.Foreground = Brushes.OrangeRed;
+        var load   = CmmControls.ConfirmButton("Load", "Load — sure?",   async () => await _vm.Load(slot));
+        var delete = CmmControls.ConfirmButton("✕",    "Delete — sure?", () => _vm.Delete(slot));
+        delete.Foreground = CmmPalette.Brushes.StatusDanger;
 
         var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         stack.Children.Add(load);
@@ -176,35 +181,6 @@ public class SaveManagerTabControl : UserControl
         return stack;
     }
 
-    private static Button MakeConfirmingButton(string label, string confirmLabel, Func<Task> action)
-    {
-        var button = new Button { Content = label, Padding = new Thickness(6, 2) };
-        bool armed = false;
-
-        void Disarm()
-        {
-            armed = false;
-            button.Content = label;
-        }
-
-        button.Click += async (_, _) =>
-        {
-            if (!armed)
-            {
-                armed = true;
-                button.Content = confirmLabel;
-                return;
-            }
-            Disarm();
-            await action();
-        };
-
-        button.PointerExited += (_, _) => { if (armed) Disarm(); };
-        return button;
-    }
-
-    private static Button MakeConfirmingButton(string label, string confirmLabel, Action action) =>
-        MakeConfirmingButton(label, confirmLabel, () => { action(); return Task.CompletedTask; });
 
     /// <summary>The auto-save switch and its interval, plus a line saying what it is doing.</summary>
     private Panel BuildAutoSaveBar()
@@ -235,7 +211,7 @@ public class SaveManagerTabControl : UserControl
         {
             Text              = "min",
             FontSize          = 11,
-            Foreground        = Brushes.Gray,
+            Foreground        = CmmPalette.Brushes.TextSubtle,
             VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -258,7 +234,7 @@ public class SaveManagerTabControl : UserControl
         {
             Text         = _vm.AutoSaveStatus,
             FontSize     = 10,
-            Foreground   = Brushes.Gray,
+            Foreground   = CmmPalette.Brushes.TextSubtle,
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 2, 0, 0)
         };
@@ -299,9 +275,9 @@ public class SaveManagerTabControl : UserControl
 
     private Panel BuildFooter()
     {
-        var refresh = MakeButton("↺ Refresh", () => _vm.Refresh());
+        var refresh = CmmControls.Button("↺ Refresh", () => _vm.Refresh());
 
-        var choose = MakeButton("📁 Save folder…", async () =>
+        var choose = CmmControls.Button("📁 Save folder…", async () =>
         {
             var top = TopLevel.GetTopLevel(this);
             if (top == null) return;
@@ -326,7 +302,7 @@ public class SaveManagerTabControl : UserControl
         // folder hunted down inside a Wine prefix is not something to lose to one stray click. And
         // disabled unless there is a choice to discard, so it is never a button that looks armed and
         // does nothing.
-        var auto = MakeConfirmingButton("Forget my folder", "Forget it — sure?",
+        var auto = CmmControls.ConfirmButton("Forget my folder", "Forget it — sure?",
                                         () => _vm.ClearSaveFolderOverride());
         auto.IsEnabled = _vm.HasSaveFolderOverride;
         ToolTip.SetTip(auto, "Discard the save folder you chose by hand and go back to the detected one.");
@@ -347,20 +323,6 @@ public class SaveManagerTabControl : UserControl
         bar.Children.Add(choose);
         bar.Children.Add(auto);
         return bar;
-    }
-
-    private static Button MakeButton(string label, Action onClick)
-    {
-        var btn = new Button { Content = label, Padding = new Thickness(6, 2), FontSize = 11 };
-        btn.Click += (_, _) => onClick();
-        return btn;
-    }
-
-    private static Button MakeButton(string label, Func<Task> onClick)
-    {
-        var btn = new Button { Content = label, Padding = new Thickness(6, 2), FontSize = 11 };
-        btn.Click += async (_, _) => await onClick();
-        return btn;
     }
 
     private void SyncStatus() => _statusText.Text = _vm.Status;
