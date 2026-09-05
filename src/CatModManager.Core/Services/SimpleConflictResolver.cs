@@ -84,10 +84,102 @@ public class SimpleConflictResolver : IConflictResolver
         return finalMap;
     }
 
+    /// <summary>
+    /// Which mods overwrite which, file by file.
+    ///
+    /// Deliberately mod-versus-mod only: a mod covering a base game file is the entire point of a
+    /// mod, not a conflict worth reporting, so the base folder is never scanned here. Files are
+    /// keyed exactly as <see cref="ResolveConflicts"/> keys them, because a report that disagreed
+    /// with the mount about what counts as the same file would be worse than no report.
+    /// </summary>
     public IReadOnlyList<ConflictReport> GetConflictReport(IEnumerable<Mod> activeMods)
     {
-        // Conceptual implementation — usually shows UI which mod wins for each file.
-        return Array.Empty<ConflictReport>();
+        // Ascending priority, matching ResolveConflicts: later wins.
+        var mods = activeMods.Where(m => m.IsEnabled && !m.IsBroken)
+                             .OrderBy(m => m.Priority)
+                             .ToList();
+
+        // Key -> the mods claiming it, already in ascending priority so the last one is the winner.
+        var claims = new Dictionary<string, List<Mod>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var mod in mods)
+            foreach (var key in EnumerateKeys(mod))
+            {
+                if (!claims.TryGetValue(key, out var list))
+                    claims[key] = list = new List<Mod>();
+                list.Add(mod);
+            }
+
+        var reports = mods.ToDictionary(m => m, _ => new List<ModConflictInfo>());
+
+        foreach (var (key, claimants) in claims)
+        {
+            if (claimants.Count < 2) continue;
+
+            var winner = claimants[^1];
+            for (int i = 0; i < claimants.Count - 1; i++)
+            {
+                var loser = claimants[i];
+                reports[loser].Add(new ModConflictInfo(key, winner.Name, ConflictType.Loses));
+                reports[winner].Add(new ModConflictInfo(key, loser.Name, ConflictType.Wins));
+            }
+        }
+
+        return mods.Select(m => new ConflictReport
+        {
+            ModName   = m.Name,
+            Conflicts = reports[m].OrderBy(c => c.FilePath, StringComparer.OrdinalIgnoreCase).ToList()
+        }).ToList();
+    }
+
+    /// <summary>
+    /// The file keys a mod contributes, without opening a single file.
+    ///
+    /// Who overwrites whom is decided by paths and priority alone, so this reads directory entries
+    /// and archive tables of contents and nothing else — the panel must stay cheap enough to run on
+    /// every reorder.
+    /// </summary>
+    private IEnumerable<string> EnumerateKeys(Mod mod)
+    {
+        if (mod.IsArchive)
+        {
+            List<string> entries;
+            try { entries = _extractor.GetFileList(mod.ModRootPath).ToList(); }
+            catch (Exception ex)
+            {
+                _logService.LogError($"ConflictResolver: Failed to read archive mod {mod.Name}", ex);
+                yield break;
+            }
+
+            foreach (var file in entries)
+            {
+                string key = file.Trim('\\');
+                if (!string.IsNullOrEmpty(key)) yield return key;
+            }
+            yield break;
+        }
+
+        if (!Directory.Exists(mod.ModRootPath)) yield break;
+
+        IEnumerable<string> files;
+        try
+        {
+            files = Directory.EnumerateFiles(mod.ModRootPath, "*", SearchOption.AllDirectories);
+        }
+        catch (Exception ex)
+        {
+            _logService.LogError($"ConflictResolver: cannot list mod '{mod.Name}'", ex);
+            yield break;
+        }
+
+        // Not ScanRecursive: that builds a PhysicalFileSource per entry, and the constructor stats
+        // the file for size and mtime. None of that decides an override, and paying for it on every
+        // reorder would make the panel cost what the mount costs.
+        foreach (var file in files)
+        {
+            string key = Path.GetRelativePath(mod.ModRootPath, file).Replace('/', '\\').Trim('\\');
+            if (!string.IsNullOrEmpty(key)) yield return key;
+        }
     }
 
     /// <summary>

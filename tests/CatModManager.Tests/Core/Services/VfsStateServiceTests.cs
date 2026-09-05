@@ -81,6 +81,53 @@ public class VfsStateServiceTests : IDisposable
     }
 
     /// <summary>
+    /// The third case, which used to have no branch at all: no backup left to restore from. Nothing
+    /// ran, the entry never reached the recovered list, and it stayed in the database forever — this
+    /// is how a hundred dead rows piled up in a real user's database.
+    /// </summary>
+    [Fact]
+    public void AnEntryWithNothingLeftToRestoreIsDropped()
+    {
+        string original = Path.Combine(_tempDir, "Data");
+        string backup   = Path.Combine(_tempDir, ".Data.bak");
+
+        // Neither exists: the game was uninstalled while the swap was still on the books.
+        NewService().RegisterMount(original, backup);
+        NewService().RecoverStaleMounts();
+
+        // If the row had survived, this recovery would find the backup and move it into place.
+        Directory.CreateDirectory(backup);
+        NewService().RecoverStaleMounts();
+
+        Assert.True(Directory.Exists(backup), "The dead entry survived and was acted on later.");
+        Assert.False(Directory.Exists(original));
+    }
+
+    /// <summary>
+    /// The guard on that new branch. An unmounted drive or a Flatpak that did not start makes valid
+    /// paths vanish, and the entry is the only record that the swap still has to be undone — so a
+    /// missing path is not on its own proof that the entry is garbage.
+    /// </summary>
+    [Fact]
+    public void AnEntryOnAVolumeThatIsNotThereIsKept()
+    {
+        // Nothing along this path exists, the way an external drive looks while unplugged.
+        string offline  = Path.Combine(_tempDir, "unplugged-drive", "Game");
+        string original = Path.Combine(offline, "Data");
+        string backup   = Path.Combine(offline, ".Data.bak");
+
+        NewService().RegisterMount(original, backup);
+        NewService().RecoverStaleMounts();
+
+        // The drive comes back, and with it the backup that recovery has to put in place.
+        Directory.CreateDirectory(backup);
+        NewService().RecoverStaleMounts();
+
+        Assert.True(Directory.Exists(original), "The entry was dropped while the volume was offline.");
+        Assert.False(Directory.Exists(backup));
+    }
+
+    /// <summary>
     /// This class writes its database where it says it does. The suite-wide version of this guard
     /// lives in <see cref="TestsStayOutOfTheRealDataDirectory"/>; the one that used to be here
     /// compared against <c>new CatPathService()</c>, which now resolves to the sandbox too and made

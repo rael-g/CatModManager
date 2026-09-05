@@ -92,10 +92,33 @@ public class VfsStateService : IVfsStateService
                 }
                 catch { }
             }
+            else if (!Directory.Exists(backup) && IsVolumePresent(original))
+            {
+                // Sem backup não há o que restaurar, e a linha continuaria aqui para sempre — foi
+                // assim que 102 linhas mortas se acumularam no banco de um usuário.
+                //
+                // O `IsVolumePresent` é o que separa "a pasta sumiu" de "o disco não está montado".
+                // Uma linha de active_mounts é estado de execução e pode ser apagada, mas apagá-la
+                // com o volume offline joga fora a única anotação de que aquela troca precisa ser
+                // desfeita quando o disco voltar. Na dúvida a linha fica: ela é inerte.
+                _logService.Log($"Dropping stale mount record, nothing to restore: {original}");
+                recovered.Add(original);
+            }
         }
 
         foreach (var r in recovered)
             UnregisterMount(r);
+    }
+
+    /// <summary>
+    /// Se a pasta-mãe do alvo existe, o sistema de arquivos está lá e a ausência do alvo é real.
+    /// Se nem ela existe, pode ser um HD externo desmontado ou um Flatpak que não subiu — casos em
+    /// que caminhos válidos somem temporariamente e apagar seria perder a informação.
+    /// </summary>
+    private static bool IsVolumePresent(string path)
+    {
+        var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(path));
+        return !string.IsNullOrEmpty(parent) && Directory.Exists(parent);
     }
 
     private void LoadState()
