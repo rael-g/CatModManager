@@ -318,8 +318,12 @@ public class SaveManagerTabControl : UserControl
         ToolTip.SetTip(choose, "Point CMM at this game's save folder — for games we don't detect, " +
                                "custom Wine prefixes, or saves on another disk.");
 
-        var auto = MakeButton("Auto-detect", () => _vm.ClearSaveFolderOverride());
-        ToolTip.SetTip(auto, "Forget the folder you chose and detect it again.");
+        // Named after what it does to your settings, not after the detection that follows. It was
+        // "Auto-detect", which reads like a search — something you click to gain information, at no
+        // cost — when it is the only button here that throws a setting away.
+        var auto = MakeButton("Forget my folder", () => _vm.ClearSaveFolderOverride());
+        ToolTip.SetTip(auto, "Discard the save folder you chose by hand and go back to the "
+                           + "detected one. Does nothing if you never chose one.");
 
         var bar = new StackPanel
         {
