@@ -38,4 +38,17 @@ public interface IProfileService
 
     /// <summary>Renames in place, leaving the id — and so every child row — alone.</summary>
     Task RenameProfileAsync(long profileId, string newName);
+
+    /// <summary>
+    /// Drops a mod from the game's inventory, and so from every profile of that game.
+    ///
+    /// Saving a profile cannot express this. That path prunes only what no other profile still
+    /// refers to — correct for a mod the open profile merely stopped listing, and wrong for one the
+    /// user uninstalled, because uninstalling deletes the folder from disk. The row used to survive
+    /// on another profile's reference, pointing at nothing, and the next load handed it back to the
+    /// profile it had just been deleted from.
+    ///
+    /// Removing the inventory row is enough: profile_entries cascades from it.
+    /// </summary>
+    Task UninstallModAsync(long gameId, string modRootPath);
 }

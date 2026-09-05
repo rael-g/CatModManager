@@ -59,6 +59,26 @@ public class SqliteProfileService : IProfileService
                    ("@n", newName), ("@p", profileId));
     });
 
+    /// <inheritdoc/>
+    public Task UninstallModAsync(long gameId, string modRootPath) => Task.Run(() =>
+    {
+        using var conn = _db.Open();
+        using var tx   = conn.BeginTransaction();
+
+        // The entries by hand rather than through the declared cascade, for the reason
+        // DeleteProfileAsync gives: foreign keys are off in SQLite and enabled per connection.
+        Db.Execute(conn, tx, """
+            DELETE FROM profile_entries
+             WHERE game_mod_id IN (SELECT id FROM game_mods
+                                    WHERE game_id = @g AND mod_root_path = @path)
+            """, ("@g", gameId), ("@path", modRootPath));
+
+        Db.Execute(conn, tx, "DELETE FROM game_mods WHERE game_id = @g AND mod_root_path = @path",
+                   ("@g", gameId), ("@path", modRootPath));
+
+        tx.Commit();
+    });
+
     // ── Save ──────────────────────────────────────────────────────────────────
 
     private long Save(Profile profile)

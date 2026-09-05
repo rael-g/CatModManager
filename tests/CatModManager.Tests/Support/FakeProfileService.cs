@@ -64,6 +64,14 @@ public sealed class FakeProfileService : IProfileService
         return Task.CompletedTask;
     }
 
+    /// <summary>Mirrors the real one: the mod leaves every profile of the game, not just one.</summary>
+    public Task UninstallModAsync(long gameId, string modRootPath)
+    {
+        foreach (var profile in _profiles.Values.Where(p => p.GameId == gameId))
+            profile.Mods.RemoveAll(m => m.ModRootPath == modRootPath);
+        return Task.CompletedTask;
+    }
+
     private static IReadOnlyList<ProfileSummary> Summaries(IEnumerable<Profile> profiles)
         => profiles.OrderBy(p => p.Name, StringComparer.Ordinal)
                    .Select(p => new ProfileSummary(p.Id, p.Name))

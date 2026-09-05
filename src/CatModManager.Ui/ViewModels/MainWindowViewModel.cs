@@ -26,6 +26,9 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly ICatPathService          _pathService;
     private readonly ILogService              _logService;
     private readonly IConfigService           _configService;
+
+    /// <summary>Held for uninstall, which is a change to the game's inventory and not to a profile.</summary>
+    private readonly IProfileService          _profileService;
     private readonly AppSessionState          _sessionState;
     private readonly PluginLoader             _pluginLoader;
     private readonly UiExtensionHost?         _uiExtensionHost;
@@ -93,6 +96,7 @@ public partial class MainWindowViewModel : ObservableObject
         _pathService          = pathService;
         _logService           = logService;
         _configService        = configService;
+        _profileService       = profileService;
         _sessionState         = sessionState;
         _pluginLoader         = pluginLoader;
         _uiExtensionHost      = uiExtensionHost;
@@ -296,6 +300,14 @@ public partial class MainWindowViewModel : ObservableObject
 
                     if (_fileService.DirectoryExists(mod.ModRootPath)) await Task.Run(() => _fileService.DeleteDirectory(mod.ModRootPath, true));
                     else if (_fileService.FileExists(mod.ModRootPath)) await Task.Run(() => _fileService.DeleteFile(mod.ModRootPath));
+
+                    // Dropping it from this list is not enough. The files are gone for every profile
+                    // of the game, so the inventory row has to go too — left behind, it survived on
+                    // another profile's reference and the next start handed it straight back to the
+                    // profile it had just been deleted from, pointing at a folder that no longer
+                    // exists.
+                    if (GameManager.CurrentGame is { Id: > 0 } game && !string.IsNullOrEmpty(mod.ModRootPath))
+                        await _profileService.UninstallModAsync(game.Id, mod.ModRootPath);
                 }
                 ModList.UpdatePriorities();
             }
