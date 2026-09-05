@@ -215,25 +215,6 @@ public class BugReproductionTests : IDisposable
         public string GetProfilePath(string name) => Path.Combine(ProfilesPath, name + ".toml");
     }
 
-    private class MockModScanner : IModScanner {
-        public Mod? NextResult { get; set; }
-        public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) {
-            if (NextResult != null) {
-                return Task.FromResult(new List<Mod> { NextResult }.AsEnumerable());
-            }
-            return Task.FromResult(Enumerable.Empty<Mod>());
-        }
-    }
-    private class MockProcessService : IProcessService {
-        public Task<ProcessRunResult> StartProcessAsync(string f, string a, bool admin = false, bool waitForChildren = true, string? watch = null) => Task.FromResult(new ProcessRunResult(true, false));
-        public Task OpenFolderAsync(string p) => Task.CompletedTask;
-    }
-    private class MockModManagementService : IModManagementService {
-        public string ResultPath { get; set; } = "";
-        public Task<string> InstallModAsync(string s, string t, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(ResultPath);
-        public Task<string> InstallModFromMappingAsync(string a, string n, string t, Dictionary<string, string> m, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(ResultPath);
-        public Task<string> InstallModToRootAsync(string a, string n, string t, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(ResultPath);
-    }
     private class MockFileService : StubFileService {
         private readonly HashSet<string> _paths = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _fileContents = new(StringComparer.OrdinalIgnoreCase);

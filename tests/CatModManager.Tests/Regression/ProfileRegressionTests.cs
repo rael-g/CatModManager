@@ -219,26 +219,14 @@ public class ProfileRegressionTests : IDisposable
         public string GetProfilePath(string n) => Path.Combine(ProfilesPath, n + ".toml");
     }
 
-    private class MockModScanner : IModScanner {
-        public Task<IEnumerable<Mod>> ScanDirectoryAsync(string p) => Task.FromResult(Enumerable.Empty<Mod>());
-    }
 
 
-    private class MockModManagementService : IModManagementService {
-        public Task<string> InstallModAsync(string s, string d, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult("");
-        public Task<string> InstallModFromMappingAsync(string a, string n, string t, Dictionary<string, string> m, string? o = null, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(t);
-        public Task<string> InstallModToRootAsync(string a, string n, string t, IProgress<double>? p = null, System.Threading.CancellationToken ct = default) => Task.FromResult(t);
-    }
 
     private class MockFileService : StubFileService {
         public override bool FileExists(string p) => true;
         public override bool DirectoryExists(string p) => true;
     }
 
-    private class MockProcessService : IProcessService {
-        public Task<ProcessRunResult> StartProcessAsync(string p, string a, bool admin = false, bool waitForChildren = true, string? watch = null) => Task.FromResult(new ProcessRunResult(true, false));
-        public Task OpenFolderAsync(string p) => Task.CompletedTask;
-    }
 
     private class MockLogService : ILogService {
         public event Action<string>? OnLog;
