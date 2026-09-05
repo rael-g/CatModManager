@@ -101,7 +101,7 @@ public class HardlinkDriver : IFileSystemDriver
     /// nested under an earlier one is cleared first.
     /// </summary>
     /// <returns>The entries that could not be fully undone, so the caller can record them.</returns>
-    private static List<HardlinkStateEntry> Rollback(List<HardlinkStateEntry> entries)
+    private List<HardlinkStateEntry> Rollback(List<HardlinkStateEntry> entries)
     {
         var stranded = new List<HardlinkStateEntry>();
 
@@ -110,7 +110,7 @@ public class HardlinkDriver : IFileSystemDriver
             var e = entries[i];
             try
             {
-                if (File.Exists(e.DestPath)) File.Delete(e.DestPath);
+                RemoveDeployed(e.DestPath);
                 if (e.BackupPath != null && File.Exists(e.BackupPath))
                 {
                     File.Move(e.BackupPath, e.DestPath, overwrite: true);
@@ -254,7 +254,7 @@ public class HardlinkDriver : IFileSystemDriver
                 // would file a mod file away as if it were the player's original — and the next
                 // unmount would then "restore" it over the real game file. Adopt it instead: record
                 // it so unmount removes it, and leave the link exactly where it is.
-                if (IsSameFile(destPath, physPath))
+                if (driver.IsSameFile(destPath, physPath))
                 {
                     entries.Add(new HardlinkStateEntry(rel, destPath, null));
                     continue;
@@ -321,6 +321,16 @@ public class HardlinkDriver : IFileSystemDriver
     /// Tries a hard link first; falls back to File.Copy when source and destination
     /// are on different volumes (Win32 error 17 — ERROR_NOT_SAME_DEVICE).
     /// </summary>
+    /// <summary>
+    /// Removes a file this driver deployed. Virtual because a file the OS refuses to release is the
+    /// case rollback exists for, and reproducing it with real permissions works on one platform and
+    /// not the other.
+    /// </summary>
+    internal virtual void RemoveDeployed(string path)
+    {
+        if (File.Exists(path)) File.Delete(path);
+    }
+
     internal virtual void DeployFile(string sourcePath, string destPath, string relPath)
     {
         if (OperatingSystem.IsWindows())
@@ -377,11 +387,14 @@ public class HardlinkDriver : IFileSystemDriver
     /// Whether the two paths name one and the same file on disk — that is, whether one is already
     /// a hard link to the other.
     ///
-    /// Windows compares the volume serial and the file index, which is what NTFS actually
-    /// identifies a file by. Elsewhere this returns false, and the caller falls back to treating
-    /// the destination as an unrelated file: slower and noisier, never wrong.
+    /// Windows compares the volume serial and the file index. Elsewhere this returns false and the
+    /// caller falls back to treating the destination as an unrelated file: slower and noisier,
+    /// never wrong. Answering it on Linux needs st_ino/st_dev, which .NET does not expose.
+    ///
+    /// Virtual so that the adoption rule built on top of it can be tested without a filesystem that
+    /// can answer the question — the rule is the same everywhere, only the answer is platform work.
     /// </summary>
-    internal static bool IsSameFile(string a, string b)
+    internal virtual bool IsSameFile(string a, string b)
     {
         if (!OperatingSystem.IsWindows()) return false;
 

@@ -4,6 +4,7 @@ using CatModManager.PluginSdk;
 using CmmPlugin.BethesdaTools.Models;
 using CmmPlugin.BethesdaTools.Services;
 using NSubstitute;
+using CatModManager.Tests.Support;
 using Xunit;
 
 namespace CatModManager.Tests.Plugins.BethesdaTools;
@@ -84,11 +85,9 @@ public class DetectionWithoutAGameExecutableTests
     /// The prefix search walks up to "steamapps" to find compatdata. Anchored on a bare command
     /// there is nothing to walk, so it gave up before probing a single prefix.
     /// </summary>
-    [Fact]
+    [UnixFact("Windows uses shell folders, so there is no prefix walk")]
     public void ThePrefixSearchAnchorsOnTheInstallFolderNotTheLaunchCommand()
     {
-        if (OperatingSystem.IsWindows()) return;   // shell folders are used there, no prefix walk
-
         const string steamApps = "/mnt/games/SteamLibraryGreen/steamapps";
         const string prefix    = steamApps + "/compatdata/1716740/pfx";
 

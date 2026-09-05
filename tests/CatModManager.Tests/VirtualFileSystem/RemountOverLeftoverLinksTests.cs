@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CatModManager.VirtualFileSystem;
+using CatModManager.Tests.Support;
 using Xunit;
 
 namespace CatModManager.Tests.VirtualFileSystem;
@@ -25,6 +26,7 @@ public class RemountOverLeftoverLinksTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "CMM_Leftover_" + Guid.NewGuid().ToString("N"));
     private readonly string _gameDir;
     private readonly string _modDir;
+    private readonly LinkLedger _links = new();
 
     public RemountOverLeftoverLinksTests()
     {
@@ -44,10 +46,10 @@ public class RemountOverLeftoverLinksTests : IDisposable
 
         // First mount deploys the link; then the process "dies" without unmounting and without the
         // state store ever learning about it.
-        new LinkingDriver(new MemoryStore()).Mount(_gameDir, fs);
+        new LinkingDriver(new MemoryStore(), _links).Mount(_gameDir, fs);
         Assert.True(File.Exists(Path.Combine(_gameDir, "meshes.nif")));
 
-        new LinkingDriver(store).Mount(_gameDir, fs);
+        new LinkingDriver(store, _links).Mount(_gameDir, fs);
 
         var strays = Directory.GetFiles(_gameDir).Select(Path.GetFileName).Where(f => f!.StartsWith('.')).ToArray();
         Assert.True(strays.Length == 0, "A mod file was filed away as if it were the player's: " + string.Join(", ", strays));
@@ -66,9 +68,9 @@ public class RemountOverLeftoverLinksTests : IDisposable
         var fs = ModAdding("meshes.nif");
         var store = new MemoryStore();
 
-        new LinkingDriver(new MemoryStore()).Mount(_gameDir, fs);
+        new LinkingDriver(new MemoryStore(), _links).Mount(_gameDir, fs);
 
-        var driver = new LinkingDriver(store);
+        var driver = new LinkingDriver(store, _links);
         driver.Mount(_gameDir, fs);
         driver.Unmount();
 
@@ -87,7 +89,7 @@ public class RemountOverLeftoverLinksTests : IDisposable
         var fs = ModAdding("meshes.nif");
         var store = new MemoryStore();
 
-        var driver = new LinkingDriver(store);
+        var driver = new LinkingDriver(store, _links);
         driver.Mount(_gameDir, fs);
 
         var entry = Assert.Single(store.Load(_gameDir));
@@ -128,12 +130,42 @@ public class RemountOverLeftoverLinksTests : IDisposable
     }
 
     /// <summary>
-    /// Deploys with a real hard link on Windows and a copy elsewhere. Copies have no shared
-    /// identity, so on Linux these tests exercise the fallback path rather than the fix.
+    /// Answers the identity question from what the test deployed, instead of asking the filesystem.
+    ///
+    /// Only the answer is platform work — <see cref="HardlinkDriver.IsSameFile"/> needs
+    /// GetFileInformationByHandle on Windows and st_ino/st_dev elsewhere. The rule built on the
+    /// answer is the same everywhere, and it is the rule these tests are about, so they run
+    /// everywhere. The real implementation is covered by the integration tests next door.
     /// </summary>
     private class LinkingDriver : HardlinkDriver
     {
-        public LinkingDriver(IHardlinkStateStore store) : base(store) { }
+        private readonly LinkLedger _links;
+
+        public LinkingDriver(IHardlinkStateStore store, LinkLedger links) : base(store) => _links = links;
+
+        internal override void DeployFile(string sourcePath, string destPath, string relPath)
+        {
+            File.Copy(sourcePath, destPath, overwrite: true);
+            _links.Record(destPath, sourcePath);
+        }
+
+        internal override bool IsSameFile(string a, string b) => _links.SameFile(a, b);
+    }
+
+    /// <summary>
+    /// Which paths ended up being the same file. Outlives the driver that made them, because the
+    /// disk does: the whole point is a second driver meeting links a dead one left behind.
+    /// </summary>
+    private class LinkLedger
+    {
+        private readonly HashSet<string> _pairs = new(StringComparer.Ordinal);
+
+        public void Record(string dest, string source) => _pairs.Add(Key(dest, source));
+
+        public bool SameFile(string a, string b) =>
+            File.Exists(a) && File.Exists(b) && _pairs.Contains(Key(a, b));
+
+        private static string Key(string a, string b) => a + "\0" + b;
     }
 
     /// <summary>Deploys for real until the chosen call, then throws — and blocks the cleanup of
@@ -147,13 +179,21 @@ public class RemountOverLeftoverLinksTests : IDisposable
         public UndeletableDeployDriver(IHardlinkStateStore store, int failOnCall, Exception failure) : base(store)
             => (_failOnCall, _failure) = (failOnCall, failure);
 
+        private readonly HashSet<string> _stuck = new(StringComparer.Ordinal);
+
         internal override void DeployFile(string sourcePath, string destPath, string relPath)
         {
             if (++_calls == _failOnCall) throw _failure;
 
-            // A read-only file cannot be deleted, which is what rollback tries to do next.
             File.Copy(sourcePath, destPath, overwrite: true);
-            File.SetAttributes(destPath, FileAttributes.ReadOnly);
+            _stuck.Add(destPath);
+        }
+
+        /// <summary>The file the OS will not let go of, which is what rollback tries next.</summary>
+        internal override void RemoveDeployed(string path)
+        {
+            if (_stuck.Contains(path)) throw new IOException("errno 16 (EBUSY)");
+            base.RemoveDeployed(path);
         }
     }
 

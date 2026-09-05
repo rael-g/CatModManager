@@ -6,6 +6,7 @@ using CatModManager.Core.Services;
 using CatModManager.Core.Vfs;
 using CatModManager.PluginSdk;
 using CatModManager.VirtualFileSystem;
+using CatModManager.Tests.Support;
 using Xunit;
 
 namespace CatModManager.Tests.VirtualFileSystem;
@@ -35,11 +36,9 @@ public class LeftoverLinksEndToEndTests : IDisposable
 
     public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
 
-    [Fact]
+    [WindowsFact("the leftover link is planted with CreateHardLinkW")]
     public void AMountFollowedByAnUnmountRemovesLinksLeftBehindByAnEarlierSession()
     {
-        if (!OperatingSystem.IsWindows()) return;   // hard links via CreateHardLinkW
-
         var modFile = Path.Combine(_modDir, "SFSE", "Plugins", "sf360.dll");
         File.WriteAllText(modFile, "mod payload");
         File.WriteAllText(Path.Combine(_dataDir, "Starfield.esm"), "REAL GAME");
@@ -68,11 +67,9 @@ public class LeftoverLinksEndToEndTests : IDisposable
     /// The failure the user saw first: with the leftover in place, the mount itself throws
     /// "Could not set aside the existing file", because the resolver is holding the very file open.
     /// </summary>
-    [Fact]
+    [WindowsFact("the leftover link is planted with CreateHardLinkW")]
     public void MountingOverALeftoverDoesNotFail()
     {
-        if (!OperatingSystem.IsWindows()) return;
-
         var modFile = Path.Combine(_modDir, "SFSE", "Plugins", "sf360.dll");
         File.WriteAllText(modFile, "mod payload");
 

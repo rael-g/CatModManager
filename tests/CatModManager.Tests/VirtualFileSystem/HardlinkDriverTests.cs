@@ -2,21 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using CatModManager.Tests.Support;
 using Xunit;
-using CatModManager.VirtualFileSystem;
 using CatModManager.VirtualFileSystem;
 using CatModManager.Core.Services;
 
 namespace CatModManager.Tests.VirtualFileSystem;
-
-/// <summary>
-/// These used to be Windows-only, because the driver hard-linked through CreateHardLinkW. It now
-/// uses link(2) on Linux as well — which is what makes modding an NTFS game library possible
-/// there — so the suite runs on both and this attribute is a plain Fact.
-/// </summary>
-public sealed class WindowsFactAttribute : FactAttribute
-{
-}
 
 public class HardlinkDriverTests : IDisposable
 {
@@ -46,7 +37,7 @@ public class HardlinkDriverTests : IDisposable
 
     // ── tests ─────────────────────────────────────────────────────────────────
 
-    [WindowsFact]
+    [Fact]
     public void Mount_CreatesHardLink_InGameDir()
     {
         var sourceFile = Path.Combine(_modDir, "pak.pak");
@@ -69,7 +60,7 @@ public class HardlinkDriverTests : IDisposable
         driver.Unmount();
     }
 
-    [WindowsFact]
+    [Fact]
     public void Mount_BacksUpExistingFile_WithDotPrefix()
     {
         var gameFile = Path.Combine(_gameDir, "pak.pak");
@@ -89,7 +80,7 @@ public class HardlinkDriverTests : IDisposable
         driver.Unmount();
     }
 
-    [WindowsFact]
+    [Fact]
     public void Unmount_RemovesLink_AndRestoresBackup()
     {
         var gameFile   = Path.Combine(_gameDir, "pak.pak");
@@ -110,7 +101,7 @@ public class HardlinkDriverTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_gameDir, ".cmm_hl.json")));
     }
 
-    [WindowsFact]
+    [Fact]
     public void Unmount_WithoutPriorMount_IsNoop()
     {
         var driver = NewDriver();
@@ -118,7 +109,7 @@ public class HardlinkDriverTests : IDisposable
         Assert.False(driver.IsMounted);
     }
 
-    [WindowsFact]
+    [Fact]
     public void Mount_IsIdempotent_WhenAlreadyMounted()
     {
         var sourceFile = Path.Combine(_modDir, "pak.pak");
@@ -136,7 +127,7 @@ public class HardlinkDriverTests : IDisposable
         driver.Unmount();
     }
 
-    [WindowsFact]
+    [Fact]
     public void CrashRecovery_NewInstance_CleansUpStaleLinks()
     {
         var gameFile   = Path.Combine(_gameDir, "pak.pak");
@@ -164,7 +155,7 @@ public class HardlinkDriverTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_gameDir, ".pak.pak")));
     }
 
-    [WindowsFact]
+    [Fact]
     public void Mount_SubDirectory_CreatesLinkInSubDir()
     {
         Directory.CreateDirectory(Path.Combine(_modDir, "Data"));
@@ -182,7 +173,7 @@ public class HardlinkDriverTests : IDisposable
         Assert.False(File.Exists(destFile));
     }
 
-    [WindowsFact]
+    [Fact]
     public void Mount_CrossVolumeFallback_CopiesFileWhenHardLinkFails()
     {
         // Simulate a cross-volume scenario by using a driver subclass that always
@@ -201,7 +192,7 @@ public class HardlinkDriverTests : IDisposable
         Assert.False(File.Exists(destFile), "Copied file should be removed on unmount");
     }
 
-    [WindowsFact]
+    [Fact]
     public void Mount_CrossVolumeFallback_RestoresBackupOnUnmount()
     {
         var gameFile = Path.Combine(_gameDir, "pak.pak");
@@ -224,12 +215,9 @@ public class HardlinkDriverTests : IDisposable
     /// to CMM was deleted — an orphan hard link nothing would ever clean up. This is how a dozen of
     /// them ended up in a real Fallout 4 install.
     /// </summary>
-    [WindowsFact]
+    [UnixFact("read-only directory permissions do not stop a delete on Windows")]
     public void Unmount_WhenAFileCannotBeReverted_Throws_AndKeepsItInState()
     {
-        // Not applicable on Windows: read-only directory permissions do not stop a delete there.
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
-
         var subDir = Path.Combine(_gameDir, "locked");
         Directory.CreateDirectory(subDir);
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using CatModManager.Tests.Support;
 using Xunit;
 using NSubstitute;
 using CatModManager.Core.Services;
@@ -52,12 +53,11 @@ public class PlatformScannerTests
         Assert.Equal(123u, results[0].AppId);
     }
 
-    [Fact]
+    [UnixFact("looks for the Steam root in the known Linux locations")]
     public void SteamScanner_ScansLinuxSteamRoots_WithoutRegistry()
     {
         // Regression: Scan() used to bail out with an empty list on any non-Windows OS, so Linux
         // users never got auto-detection even though .acf parsing is entirely platform-agnostic.
-        if (OperatingSystem.IsWindows()) return;
 
         var fileService = Substitute.For<IFileService>();
         var registry = Substitute.For<IRegistryService>();
@@ -89,11 +89,10 @@ public class PlatformScannerTests
         Assert.Equal(P(root, "steamapps", "common", "Starfield"), results[0].InstallDir);
     }
 
-    [Fact]
+    [WindowsFact("GOG Galaxy records installs in the Windows registry")]
     public void GogScanner_Detects_Games_From_Registry()
     {
         // GOG discovery reads the Windows registry; GOG Galaxy has no Linux client.
-        if (!OperatingSystem.IsWindows()) return;
 
         var fileService = Substitute.For<IFileService>();
         var registry = Substitute.For<IRegistryService>();
