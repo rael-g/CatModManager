@@ -56,6 +56,9 @@ public class NexusBrowseWindow : Window
     private readonly StackPanel  _sortButtons        = null!;
     private readonly ComboBox    _categoryCombo      = null!;
     private readonly Button      _loadMoreBtn        = null!;
+
+    /// <summary>Shows the game being browsed, and reopens the picker. Always present, not only when lost.</summary>
+    private readonly Button      _gameBtn            = null!;
     private readonly StackPanel  _modeButtons        = null!;
     private readonly Border      _collectionsNotice  = null!;
 
@@ -131,10 +134,33 @@ public class NexusBrowseWindow : Window
         {
             Orientation = Orientation.Horizontal,
             Spacing     = 0,
-            Margin      = new Thickness(10, 4, 10, 0),
         };
         AddModeButton("Mods",        collections: false);
         AddModeButton("Collections", collections: true);
+
+        // Which game is being browsed, and the way back to that choice.
+        //
+        // The picker used to appear only when CMM had no domain at all, so the first pick was final:
+        // a misclick left the browser permanently pointed at the wrong game, with no way to say so.
+        // The answer to "which game is this" is a guess the user makes from a list of names, and a
+        // guess has to be revisable.
+        _gameBtn = new Button
+        {
+            Padding         = new Thickness(8, 3),
+            FontSize        = 11,
+            Background      = Brushes.Transparent,
+            Foreground      = MutedBrush,
+            BorderThickness = new Thickness(0),
+            Cursor          = new Cursor(StandardCursorType.Hand),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _gameBtn.Click += (_, _) => ShowGamePicker(unknown: false);
+        ToolTip.SetTip(_gameBtn, "Browsing this Nexus game. Click to pick a different one.");
+
+        var modeRow = new DockPanel { Margin = new Thickness(10, 4, 10, 0) };
+        DockPanel.SetDock(_gameBtn, Dock.Right);
+        modeRow.Children.Add(_gameBtn);
+        modeRow.Children.Add(_modeButtons);
 
         // ── Collections premium notice ────────────────────────────────────────
 
@@ -200,7 +226,7 @@ public class NexusBrowseWindow : Window
 
         var topPanel = new StackPanel { Background = HeaderBrush };
         topPanel.Children.Add(searchRow);
-        topPanel.Children.Add(_modeButtons);
+        topPanel.Children.Add(modeRow);
         topPanel.Children.Add(_collectionsNotice);
         topPanel.Children.Add(filterRow);
 
@@ -254,6 +280,8 @@ public class NexusBrowseWindow : Window
         root.Children.Add(_statusText);
         root.Children.Add(scroll);
         Content = root;
+
+        RefreshGameButton();
 
         Opened += async (_, _) =>
         {
@@ -495,15 +523,22 @@ public class NexusBrowseWindow : Window
     /// nothing in the interface let the user supply one. The answer is remembered against the CMM
     /// game, so the question is asked once.
     /// </summary>
-    private void ShowGamePicker()
+    /// <param name="unknown">
+    /// True when CMM had no domain and the browser cannot go on without an answer; false when the
+    /// user opened this to correct or change a choice they already made. The difference is only
+    /// wording and whether there is a way back — the picking itself is the same.
+    /// </param>
+    private void ShowGamePicker(bool unknown = true)
     {
         _resultsPanel.Children.Clear();
         _loadMoreBtn.IsVisible = false;
-        SetStatus($"CMM does not know which Nexus game '{_gameDomain}' is.");
+        SetStatus(unknown
+            ? $"CMM does not know which Nexus game '{_gameDomain}' is."
+            : $"Browsing '{_gameDomain}'. Pick another game, or go back.");
 
         _resultsPanel.Children.Add(new TextBlock
         {
-            Text         = "Which game on Nexus Mods is this?",
+            Text         = unknown ? "Which game on Nexus Mods is this?" : "Browse a different game",
             FontSize     = 14,
             FontWeight   = FontWeight.Bold,
             Foreground   = WhiteBrush,
@@ -512,8 +547,11 @@ public class NexusBrowseWindow : Window
 
         _resultsPanel.Children.Add(new TextBlock
         {
-            Text         = "Search for it by name and pick it from the list. CMM will remember your "
-                         + "choice for this game.",
+            // Only promises to remember when there is a CMM game to remember it against.
+            Text         = _cmmGameId is null
+                ? "Search for it by name and pick it from the list. This lasts until you close the browser."
+                : "Search for it by name and pick it from the list. CMM will remember your choice for "
+                + "this game, and you can change it again from the button at the top.",
             FontSize     = 11,
             Foreground   = MutedBrush,
             TextWrapping = TextWrapping.Wrap,
@@ -577,6 +615,7 @@ public class NexusBrowseWindow : Window
                     _api.SetDomainOverride(_cmmGameId, domain);
 
                     Title = $"Browse Nexus Mods — {domain}";
+                    RefreshGameButton();
 
                     // The categories come from the game, and until now there was no game to ask.
                     await LoadCategoriesAsync();
@@ -597,7 +636,21 @@ public class NexusBrowseWindow : Window
 
         _resultsPanel.Children.Add(row);
         _resultsPanel.Children.Add(hits);
+
+        // Opening the picker is not choosing anything. With a game already set there has to be a way
+        // out that changes nothing — otherwise looking is as committing as picking.
+        if (!unknown)
+        {
+            var back = MakeBtn($"Keep browsing {_gameDomain}", CardBrush);
+            back.HorizontalAlignment = HorizontalAlignment.Left;
+            back.Margin              = new Thickness(0, 12, 0, 0);
+            back.Click += async (_, _) => await LoadAsync(reset: true);
+            _resultsPanel.Children.Add(back);
+        }
     }
+
+    /// <summary>Keeps the header in step with the game actually being browsed.</summary>
+    private void RefreshGameButton() => _gameBtn.Content = $"Game: {_gameDomain}  ▾";
 
     private void SetStatus(string text)
     {
