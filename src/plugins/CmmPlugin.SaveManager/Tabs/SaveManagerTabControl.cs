@@ -321,9 +321,21 @@ public class SaveManagerTabControl : UserControl
         // Named after what it does to your settings, not after the detection that follows. It was
         // "Auto-detect", which reads like a search — something you click to gain information, at no
         // cost — when it is the only button here that throws a setting away.
-        var auto = MakeButton("Forget my folder", () => _vm.ClearSaveFolderOverride());
-        ToolTip.SetTip(auto, "Discard the save folder you chose by hand and go back to the "
-                           + "detected one. Does nothing if you never chose one.");
+        //
+        // Behind the same click-to-confirm as Load and Delete, because it belongs to that group: a
+        // folder hunted down inside a Wine prefix is not something to lose to one stray click. And
+        // disabled unless there is a choice to discard, so it is never a button that looks armed and
+        // does nothing.
+        var auto = MakeConfirmingButton("Forget my folder", "Forget it — sure?",
+                                        () => _vm.ClearSaveFolderOverride());
+        auto.IsEnabled = _vm.HasSaveFolderOverride;
+        ToolTip.SetTip(auto, "Discard the save folder you chose by hand and go back to the detected one.");
+
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SaveManagerTabViewModel.HasSaveFolderOverride))
+                auto.IsEnabled = _vm.HasSaveFolderOverride;
+        };
 
         var bar = new StackPanel
         {

@@ -28,6 +28,15 @@ public partial class SaveManagerTabViewModel : ObservableObject
     /// <summary>Whether saving and loading are possible at all — i.e. we know where the saves are.</summary>
     public bool CanUseSlots => SaveFolder != null;
 
+    /// <summary>
+    /// Whether a folder chosen by hand is what we are using.
+    ///
+    /// It is what "Forget my folder" acts on, and the only state in which that button does anything
+    /// — without it the button is inert half the time and destructive the other half, with nothing
+    /// on screen saying which.
+    /// </summary>
+    [ObservableProperty] private bool _hasSaveFolderOverride;
+
     public ObservableCollection<SaveSlot> Slots { get; } = [];
 
     public SaveManagerTabViewModel(
@@ -74,6 +83,10 @@ public partial class SaveManagerTabViewModel : ObservableObject
         // The user's own choice comes first: they can see the folder we found and know better.
         string? folder = configured.SaveFolder;
         bool    manual = folder != null;
+
+        // Set before the early return below: a chosen folder that has since disappeared is still a
+        // choice on record, and forgetting it is exactly what that situation calls for.
+        HasSaveFolderOverride = manual;
 
         if (folder != null && !Directory.Exists(folder))
         {
